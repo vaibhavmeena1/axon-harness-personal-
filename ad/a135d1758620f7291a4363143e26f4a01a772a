@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "ada135d1758620f7291a4363143e26f4a01a772a",
+  "prompts": {
+    "bf02556c3563009a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ab10f2b8-623a-4fd6-bbd6-491c4fa984c1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "mayankmahavar1mg <mayank.mahavar@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 31,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
