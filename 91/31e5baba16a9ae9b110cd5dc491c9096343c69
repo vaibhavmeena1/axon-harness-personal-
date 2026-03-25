@@ -1,0 +1,23 @@
+playbooks/templates/nginx/ppmc-api.1mg.com
+  ea2dfb87c6303303 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "9131e5baba16a9ae9b110cd5dc491c9096343c69",
+  "prompts": {
+    "ea2dfb87c6303303": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "368628",
+        "model": "AUTO"
+      },
+      "human_author": "nandhini r <nandhini.r@1mg.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 5,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
