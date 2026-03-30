@@ -1,0 +1,23 @@
+playbooks/templates/nginx/catalyst.1mg.com
+  67583494a418d5ad 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "77b0c853f4592ed3e3509320eac5c42946f3b5b1",
+  "prompts": {
+    "67583494a418d5ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "31c7051b-ef3b-47ca-9c35-9e5804d3837c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "mayankmahavar1mg <mayank.mahavar@1mg.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
