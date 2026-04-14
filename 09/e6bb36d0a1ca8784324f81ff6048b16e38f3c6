@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "09e6bb36d0a1ca8784324f81ff6048b16e38f3c6",
+  "prompts": {
+    "f9dc4eaddf0abcbf": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "407201",
+        "model": "AUTO"
+      },
+      "human_author": "ramit-1mg",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    }
+  }
+}
