@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  99d1600376ecaa0c 9873,9876-9885,9887-9889,9892-9893,9895-9897,9899-9901
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "01f5987b43b4bc3ecc98f6cedc5677f3c59f1988",
+  "prompts": {
+    "99d1600376ecaa0c": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "410690",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Arun Parihar <arun.parihar@1mg.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 0,
+      "accepted_lines": 22,
+      "overriden_lines": 5
+    }
+  }
+}
