@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "3b40debff76c206cdd3735f76f218ed74ae71f39",
+  "prompts": {
+    "b59b6138054af587": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "369855",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "nachikethshastry <nachiketh.shastry@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 30,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

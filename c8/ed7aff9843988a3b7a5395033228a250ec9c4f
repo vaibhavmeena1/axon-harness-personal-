@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  92bb68f24c53a35f 8395,8397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "c8ed7aff9843988a3b7a5395033228a250ec9c4f",
+  "prompts": {
+    "92bb68f24c53a35f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efe94c0c-9a9d-4f93-b488-85a328e595ef",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "mayankmahavar1mg <mayank.mahavar@1mg.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
