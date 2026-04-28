@@ -1,0 +1,23 @@
+playbooks/templates/nginx/api.1mg.com
+  e1bd0b23c9d80978 508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "cef39a7789a1959cd69040196e310beebc472b74",
+  "prompts": {
+    "e1bd0b23c9d80978": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "402827",
+        "model": "OPENROUTER_GPT_5_POINT_3_CODEX"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

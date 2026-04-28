@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "ba13f5a7e9091bca25e17a4d3ae2d4b9ddda378a",
+  "prompts": {
+    "9c062e24d6f63b32": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "401027",
+        "model": "AUTO"
+      },
+      "human_author": "Anmol Chaudhary <anmol.chaudhary@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

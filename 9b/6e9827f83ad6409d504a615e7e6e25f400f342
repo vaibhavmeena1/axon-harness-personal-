@@ -1,0 +1,52 @@
+playbooks/templates/deployment-template.j2
+  89b23a165ada5cbb 211,218,246-247,249,282-284
+  fde86bbc671fe9dd 212-217,219-222,245,248,250-281
+group_vars/services_k8s
+  89b23a165ada5cbb 2819,2821-2822
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "9b6e9827f83ad6409d504a615e7e6e25f400f342",
+  "prompts": {
+    "89b23a165ada5cbb": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "399204",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Anand Raj <anand.raj@1mg.com>",
+      "messages": [],
+      "total_additions": 137,
+      "total_deletions": 4,
+      "accepted_lines": 12,
+      "overriden_lines": 4
+    },
+    "ac500e29f71f7f02": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "399224",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Anand Raj <anand.raj@1mg.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 120,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "fde86bbc671fe9dd": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "399229",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Anand Raj <anand.raj@1mg.com>",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 9,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    }
+  }
+}
