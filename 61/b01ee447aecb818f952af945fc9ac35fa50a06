@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  4ca922341dea2fba 8277-8289,8789-8801
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "61b01ee447aecb818f952af945fc9ac35fa50a06",
+  "prompts": {
+    "4ca922341dea2fba": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "417856",
+        "model": "AUTO"
+      },
+      "human_author": "Sachin Kumar Sharma <sachin.sharma@1mg.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 12,
+      "accepted_lines": 26,
+      "overriden_lines": 0
+    }
+  }
+}
