@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "8d9d5235984761e6c48040621557e5118e8c81a9",
+  "prompts": {
+    "9cee8af70ff033b2": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "399147",
+        "model": "AUTO"
+      },
+      "human_author": "Ritik Bansal",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 1
+    }
+  }
+}
