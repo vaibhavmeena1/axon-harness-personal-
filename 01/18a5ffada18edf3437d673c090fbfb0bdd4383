@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_c7ff2436ecafc8::t_61b5469e15c6af 6421,6424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.6",
+  "base_commit_sha": "0118a5ffada18edf3437d673c090fbfb0bdd4383",
+  "prompts": {},
+  "sessions": {
+    "s_c7ff2436ecafc8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "423262",
+        "model": "AUTO"
+      },
+      "human_author": "Shubham <shubham.kumar3@1mg.com>"
+    }
+  }
+}
