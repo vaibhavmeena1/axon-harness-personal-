@@ -1,0 +1,14 @@
+playbooks/templates/nginx/api.1mg.com
+  h_cbc19accedcd8a 509
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c59762fe81a815071bf0e6eccba3e732869d2bf3",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
