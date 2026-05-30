@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  s_2a2c39f16ee186::t_ec5a6ce90fe058 328,331
+  s_2a2c39f16ee186::t_da985623dbc618 460,463
+  s_2a2c39f16ee186::t_cc97a29ad708c1 3201-3202,3204-3205
+  ai_agent 8430,8433
+  s_2a2c39f16ee186::t_709badee8ad784 501,504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2861116f1063de2b14ada3f33e159107963e8240",
+  "prompts": {},
+  "sessions": {
+    "s_2a2c39f16ee186": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3921bb3-50e0-4d07-90d8-5e4eb5284ef8",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}
