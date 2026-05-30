@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  6b2aa1aacf2ea197 4338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "dfd88f4604750ea34129ce1ba9e4bed71663e581",
+  "prompts": {
+    "6b2aa1aacf2ea197": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9567870-1c94-4c7d-8280-127804d2c6be",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Prem Makwana",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

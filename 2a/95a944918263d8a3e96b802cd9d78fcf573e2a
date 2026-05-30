@@ -1,0 +1,14 @@
+infra/service_queues.yml
+  h_cbc19accedcd8a 615-620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2a95a944918263d8a3e96b802cd9d78fcf573e2a",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
