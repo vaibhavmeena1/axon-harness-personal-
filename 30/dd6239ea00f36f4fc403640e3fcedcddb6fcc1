@@ -1,0 +1,24 @@
+playbooks/templates/nginx/1mg.com
+  s_0689194058ff9b::t_6682eab74a38e4 37
+  s_0689194058ff9b::t_6a21ec0f447893 38
+  s_0689194058ff9b::t_1ebb827c403a5c 39-40
+  s_0689194058ff9b::t_5e158b7e6bdc9a 152
+  s_0689194058ff9b::t_ab2776b59350ac 151
+  s_0689194058ff9b::t_86dfe4f6f4075b 2786-2787,2790,2792,2795,2803-2805
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "30dd6239ea00f36f4fc403640e3fcedcddb6fcc1",
+  "prompts": {},
+  "sessions": {
+    "s_0689194058ff9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "77560256-9cf9-426f-976d-90e1938b7242",
+        "model": "composer-2.5"
+      },
+      "human_author": "anuj-kaushik-1mg <anuj.kaushik@1mg.com>"
+    }
+  }
+}
