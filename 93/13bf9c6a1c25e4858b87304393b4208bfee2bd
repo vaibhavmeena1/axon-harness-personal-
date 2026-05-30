@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_80b70e0686c4f1::t_4eca8b1e84f33d 6622-6623
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9313bf9c6a1c25e4858b87304393b4208bfee2bd",
+  "prompts": {},
+  "sessions": {
+    "s_80b70e0686c4f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b561bc77-56d4-42a8-ba90-f2af32409e25",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Anubhav Verma <anubhav.verma@1mg.com>"
+    }
+  }
+}
