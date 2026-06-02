@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3dc675c6bb236471f50625b3ed768d97e276aa72",
+  "prompts": {},
+  "humans": {
+    "h_2c49bb4607552e": {
+      "author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}
