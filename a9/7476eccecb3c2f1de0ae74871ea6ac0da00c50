@@ -1,0 +1,16 @@
+group_vars/services_k8s
+  h_ee3b45bc181958 3323-3333
+group_vars/services_stag_k8s
+  h_ee3b45bc181958 3304-3306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a97476eccecb3c2f1de0ae74871ea6ac0da00c50",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}

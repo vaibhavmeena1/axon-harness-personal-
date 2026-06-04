@@ -1,0 +1,23 @@
+playbooks/templates/nginx/1mg.com
+  05625817b092409b 2563-2597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "403c3ae3f8df9303dfe7273ff7121f4e44c92655",
+  "prompts": {
+    "05625817b092409b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "434631",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vishal Polley <vishal.polley@1mg.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 0,
+      "accepted_lines": 35,
+      "overriden_lines": 1
+    }
+  }
+}
