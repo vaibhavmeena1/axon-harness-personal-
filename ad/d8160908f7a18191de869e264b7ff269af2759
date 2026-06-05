@@ -1,0 +1,25 @@
+group_vars/services_k8s
+  2542840980cfa07b 88-119,158-159,161-189
+group_vars/services_stag_k8s
+  2542840980cfa07b 2405-2406,2408-2424,2426-2427,2429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "add8160908f7a18191de869e264b7ff269af2759",
+  "prompts": {
+    "2542840980cfa07b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "435378",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "manthanv <manthan.vijayvergiya@1mg.com>",
+      "messages": [],
+      "total_additions": 93,
+      "total_deletions": 0,
+      "accepted_lines": 85,
+      "overriden_lines": 4
+    }
+  }
+}
