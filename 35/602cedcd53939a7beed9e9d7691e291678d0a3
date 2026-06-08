@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_dcb45f134666ea 8303-8315
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "35602cedcd53939a7beed9e9d7691e291678d0a3",
+  "prompts": {},
+  "humans": {
+    "h_dcb45f134666ea": {
+      "author": "geekayush1mg <ayush.srivastava@1mg.com>"
+    }
+  }
+}
