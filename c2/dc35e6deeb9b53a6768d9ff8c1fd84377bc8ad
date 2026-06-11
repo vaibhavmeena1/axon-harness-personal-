@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "c2dc35e6deeb9b53a6768d9ff8c1fd84377bc8ad",
+  "prompts": {
+    "e46a72a51bdfde0d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "433846",
+        "model": "AUTO"
+      },
+      "human_author": "Divyank <divyank.gupta@1mg.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 6,
+      "accepted_lines": 2,
+      "overriden_lines": 1
+    }
+  }
+}
