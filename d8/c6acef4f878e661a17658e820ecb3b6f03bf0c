@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  9b5ba5638fda3969 1241,1244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "d8c6acef4f878e661a17658e820ecb3b6f03bf0c",
+  "prompts": {
+    "9b5ba5638fda3969": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad774ca8-3bf5-4367-92c2-a6ca0a39f0fe",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Prem Makwana",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 6,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

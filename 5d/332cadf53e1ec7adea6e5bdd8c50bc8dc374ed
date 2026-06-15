@@ -1,0 +1,14 @@
+infra/service_queues.yml
+  h_421a8c645471f6 424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "5d332cadf53e1ec7adea6e5bdd8c50bc8dc374ed",
+  "prompts": {},
+  "humans": {
+    "h_421a8c645471f6": {
+      "author": "Prashant Mishra <prashantmishra@L9KXW927K6local-713.local>"
+    }
+  }
+}

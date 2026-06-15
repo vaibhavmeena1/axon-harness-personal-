@@ -1,0 +1,23 @@
+playbooks/templates/nginx/lequembi.1mg.com
+  s_1f97bb9308d024::t_60141e8ea292ac 1-14
+group_vars/services_stag_k8s
+  s_1f97bb9308d024::t_6c70fe1e265594 8775-8776
+infra/service_route.yml
+  s_1f97bb9308d024::t_af00d58e25fce4 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "213674a6eca4a6778d6c5138eaddb84b07e387b9",
+  "prompts": {},
+  "sessions": {
+    "s_1f97bb9308d024": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "437768",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

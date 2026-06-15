@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  59e8968221c977df 9036-9083
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.3",
+  "base_commit_sha": "3e55ca7322504673deece3d352677d7fe91f44df",
+  "prompts": {
+    "59e8968221c977df": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "51056d6a-da69-48c3-ae9f-fb85f672b423",
+        "model": "claude-4.5-sonnet-thinking"
+      },
+      "human_author": "Chirag Verma <chirag.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 49,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}

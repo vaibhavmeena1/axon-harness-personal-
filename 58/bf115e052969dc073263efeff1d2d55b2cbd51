@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "58bf115e052969dc073263efeff1d2d55b2cbd51",
+  "prompts": {},
+  "humans": {
+    "h_31fe3251801d18": {
+      "author": "Shubham Singh <shubham.singh@1mg.com>"
+    }
+  }
+}

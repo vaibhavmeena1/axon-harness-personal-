@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.37",
+  "base_commit_sha": "880dec07d19d4c2c77c72fca4b1106a42e8bc1dc",
+  "prompts": {
+    "7d784bb4412cb81b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "368741",
+        "model": "AUTO"
+      },
+      "human_author": "nandhini r <nandhini.r@1mg.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 9,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
