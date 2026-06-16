@@ -1,0 +1,34 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "2633fa1478710d6c67a1f2eaada73db75436b776",
+  "prompts": {
+    "99d1600376ecaa0c": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "410690",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Arun Parihar <arun.parihar@1mg.com>",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 0,
+      "accepted_lines": 22,
+      "overriden_lines": 5
+    },
+    "9c062e24d6f63b32": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "401027",
+        "model": "AUTO"
+      },
+      "human_author": "Anmol Chaudhary <anmol.chaudhary@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

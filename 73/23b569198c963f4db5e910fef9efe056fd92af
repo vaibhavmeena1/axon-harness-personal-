@@ -1,0 +1,26 @@
+group_vars/services_k8s
+  s_2a2c39f16ee186::t_e1b0f2097bb6b7 377-378,380-381
+  s_2a2c39f16ee186::t_1c3cec2fdf5004 500-501,503
+  s_2a2c39f16ee186::t_6c710ed0e7f8f2 542,544
+  s_2a2c39f16ee186::t_355ddcf98cc489 327-328,330-331
+  s_2a2c39f16ee186::t_a67223d57adf93 3205
+  s_2a2c39f16ee186::t_91cbb591bbca1b 459-460
+  s_2a2c39f16ee186::t_3e5dda9c25f7b1 419
+  s_2a2c39f16ee186::t_64b2692cf8d31d 2787,2790
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7323b569198c963f4db5e910fef9efe056fd92af",
+  "prompts": {},
+  "sessions": {
+    "s_2a2c39f16ee186": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3921bb3-50e0-4d07-90d8-5e4eb5284ef8",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}

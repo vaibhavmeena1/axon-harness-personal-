@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_2ddda67a0ede39 8150,8152-8154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d5ab0883cd2ea9829b00c950533ea6f4eeead412",
+  "prompts": {},
+  "humans": {
+    "h_2ddda67a0ede39": {
+      "author": "rajan1mg <rajan.agarwal1@1mg.com>"
+    }
+  }
+}
