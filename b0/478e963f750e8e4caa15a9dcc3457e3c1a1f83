@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  0325ed97e465d7e4 8198,8204,8243,8249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "b0478e963f750e8e4caa15a9dcc3457e3c1a1f83",
+  "prompts": {
+    "0325ed97e465d7e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35514077-9404-453f-9cf8-f518b86224fe",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Apoorva Ranjan",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

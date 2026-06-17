@@ -1,0 +1,9 @@
+group_vars/services_k8s
+  h_2c49bb4607552e 5331,5985
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "06baa5a24b9d6d2dcc0b0b651d817cd07509c840",
+  "prompts": {}
+}
