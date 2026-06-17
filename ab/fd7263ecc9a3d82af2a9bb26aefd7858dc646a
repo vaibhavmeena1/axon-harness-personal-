@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  0637010ec85d647c 6982,6986,6988,6992
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "abfd7263ecc9a3d82af2a9bb26aefd7858dc646a",
+  "prompts": {
+    "0637010ec85d647c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b68071a-0cc7-4661-a138-7346ddcbb256",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Apoorva Ranjan",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
