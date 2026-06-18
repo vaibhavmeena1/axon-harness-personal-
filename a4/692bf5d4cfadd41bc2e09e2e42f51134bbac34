@@ -1,0 +1,24 @@
+group_vars/services_stag_k8s
+  575b0a16ae4aab0d 3032,3034-3036,3045-3048
+infra/service_queues.yml
+  h_cbc19accedcd8a 625-627
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a4692bf5d4cfadd41bc2e09e2e42f51134bbac34",
+  "prompts": {
+    "575b0a16ae4aab0d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "443682",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
