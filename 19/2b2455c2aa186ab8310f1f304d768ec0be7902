@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_6b7f14efa8677c::t_1244dd5621dc5b 3424,3426,3428
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "192b2455c2aa186ab8310f1f304d768ec0be7902",
+  "prompts": {},
+  "sessions": {
+    "s_6b7f14efa8677c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84957b64-8764-450c-8548-4c790adfac6f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}

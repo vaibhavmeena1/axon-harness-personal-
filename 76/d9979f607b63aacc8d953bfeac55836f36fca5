@@ -1,0 +1,23 @@
+playbooks/templates/nginx/api.1mg.com
+  213acad890e35044 550,556
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "76d9979f607b63aacc8d953bfeac55836f36fca5",
+  "prompts": {
+    "213acad890e35044": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "443872",
+        "model": "AUTO"
+      },
+      "human_author": "Kanishk Chauhan <kanishk.chauhan@1mg.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 1,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
