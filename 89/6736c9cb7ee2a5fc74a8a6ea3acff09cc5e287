@@ -1,0 +1,28 @@
+playbooks-devtron/templates/devtron-ingress-template.j2
+  s_e2e0f850aabbe9::t_a642b7efa565fe 36-44,52
+playbooks-devtron/templates/ingress-template-devtron-migration.j2
+  s_e2e0f850aabbe9::t_219409e6b5a31d 40-48,56
+playbooks/templates/ingress-template.j2
+  s_e2e0f850aabbe9::t_ee556c6e306069 39-47,55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "896736c9cb7ee2a5fc74a8a6ea3acff09cc5e287",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_e2e0f850aabbe9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe5253fb-a787-42eb-88a2-96c18ba9aa60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}
