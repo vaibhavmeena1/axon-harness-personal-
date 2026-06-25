@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_d4aabe89a46048::t_9fe770e3901050 4851-4852
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "083d41bd255459c57a7abf6780894cb339277e66",
+  "prompts": {},
+  "sessions": {
+    "s_d4aabe89a46048": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90b05967-3dab-4182-be85-a3ac0a336ae9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}
