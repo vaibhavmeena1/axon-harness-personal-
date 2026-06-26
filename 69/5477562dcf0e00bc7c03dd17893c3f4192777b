@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  3d2abbeb0bf7f76a 6521-6557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "695477562dcf0e00bc7c03dd17893c3f4192777b",
+  "prompts": {
+    "3d2abbeb0bf7f76a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a17d7978-92c3-44f2-99f3-6e42e395c458",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal",
+      "messages": [],
+      "total_additions": 42,
+      "total_deletions": 5,
+      "accepted_lines": 37,
+      "overriden_lines": 0
+    }
+  }
+}

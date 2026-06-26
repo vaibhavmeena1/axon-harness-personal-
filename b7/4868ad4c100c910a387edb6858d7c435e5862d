@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "b74868ad4c100c910a387edb6858d7c435e5862d",
+  "prompts": {
+    "1e4a89c694975604": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "378864",
+        "model": "AUTO"
+      },
+      "human_author": "Sachin Kumar Sharma <sachin.sharma@1mg.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 0,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}

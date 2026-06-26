@@ -1,0 +1,14 @@
+playbooks/templates/nginx/1mg.com
+  h_dfddb6bc9d199c 1781,3329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "15c17bb59a6fdbd62d99d05f7e0f005fe8cb486f",
+  "prompts": {},
+  "humans": {
+    "h_dfddb6bc9d199c": {
+      "author": "asthadhakar <astha.dhakar@1mg.com>"
+    }
+  }
+}
