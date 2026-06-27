@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_232a05c311cce4 6717-6718
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "583e19cf8827242fa8a93d446917c220f691c344",
+  "prompts": {},
+  "humans": {
+    "h_232a05c311cce4": {
+      "author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  }
+}
