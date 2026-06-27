@@ -1,0 +1,9 @@
+playbooks/templates/nginx/1mg.com
+  3490cca91f4c5c35 825
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "5ed99bf5cf9905b9157a4f35f0f11c0c5c4d5252",
+  "prompts": {}
+}
