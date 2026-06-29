@@ -1,0 +1,23 @@
+playbooks/templates/nginx/1mg.com
+  3490cca91f4c5c35 825
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "a6064785ba06ed4852dbd4d8f51bd45b0b2fbfc5",
+  "prompts": {
+    "3490cca91f4c5c35": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "448373",
+        "model": "AUTO"
+      },
+      "human_author": "Ritesh Kumar <ritesh.kumar2@1mg.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
