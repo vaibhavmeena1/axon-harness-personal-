@@ -1,0 +1,54 @@
+group_vars/services_stag_k8s
+  90e541111fa9292b 3262-3264,3278-3281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "440f0e31a971fe5a4e009addda6171cd2f5be745",
+  "prompts": {
+    "16ecd0551ea44435": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "3f4b0fe0-9a25-4bd9-aff0-f6b296cf19c8",
+        "model": "copilot/auto"
+      },
+      "human_author": "Anubhav.Sharma1",
+      "messages": [],
+      "total_additions": 184,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "90e541111fa9292b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "945756d4-95ab-4e90-8190-0c208a0afc24",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Anubhav.Sharma1",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 8,
+      "accepted_lines": 7,
+      "overriden_lines": 1
+    },
+    "f050bf812aef3f81": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "438357",
+        "model": "AUTO"
+      },
+      "human_author": "Anubhav.Sharma1",
+      "messages": [],
+      "total_additions": 1180,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_74e2a4722b4b05": {
+      "author": "Anubhav.Sharma1"
+    }
+  }
+}
