@@ -1,0 +1,26 @@
+infra/service_route.yml
+  s_4fe30725a04a36::t_a77d8864679207 80
+playbooks/templates/nginx/leqembi.1mg.com
+  s_4fe30725a04a36::t_bcd3a9d95433b8 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "a4cb714ebc73060aeb339bffbc91c60d158fac0f",
+  "prompts": {},
+  "humans": {
+    "h_dbe0d4b3a39102": {
+      "author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_4fe30725a04a36": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "449325",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}
