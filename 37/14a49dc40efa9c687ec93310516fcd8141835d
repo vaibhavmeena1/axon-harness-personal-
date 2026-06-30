@@ -1,0 +1,25 @@
+group_vars/services_stag_k8s
+  4f02f9f788f3ca21 1714
+group_vars/services_k8s
+  4f02f9f788f3ca21 9181-9191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "3714a49dc40efa9c687ec93310516fcd8141835d",
+  "prompts": {
+    "4f02f9f788f3ca21": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "90895cf5-489f-4831-964b-2b9fa85c71a1",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Suman0029 <suman.bishnoi1@1mg.com>",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 0,
+      "accepted_lines": 12,
+      "overriden_lines": 1
+    }
+  }
+}
