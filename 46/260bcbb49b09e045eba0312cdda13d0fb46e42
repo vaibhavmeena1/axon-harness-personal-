@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "46260bcbb49b09e045eba0312cdda13d0fb46e42",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}
