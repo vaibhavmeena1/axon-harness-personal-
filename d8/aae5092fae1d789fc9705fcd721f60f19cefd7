@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  035f0f4ddf732284 7091,7094
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "d8aae5092fae1d789fc9705fcd721f60f19cefd7",
+  "prompts": {
+    "035f0f4ddf732284": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97b6ac80-5b6a-42a7-a526-3a37f72b380f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Akash Angra <akash.angra@1mg.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

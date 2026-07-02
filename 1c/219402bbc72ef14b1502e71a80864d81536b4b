@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_ac584d43d076a0::t_7018683488ab9a 4980-5010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "1c219402bbc72ef14b1502e71a80864d81536b4b",
+  "prompts": {},
+  "sessions": {
+    "s_ac584d43d076a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efeeca77-5af6-4107-b96c-ccde92d3efad",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}
