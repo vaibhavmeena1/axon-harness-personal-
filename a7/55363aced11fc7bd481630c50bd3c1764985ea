@@ -1,0 +1,23 @@
+playbooks/templates/nginx/1mg.com
+  0f23218d80507ca5 3766
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "a755363aced11fc7bd481630c50bd3c1764985ea",
+  "prompts": {
+    "0f23218d80507ca5": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "453373",
+        "model": "AUTO"
+      },
+      "human_author": "krishna.reddy@1mg.com",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
