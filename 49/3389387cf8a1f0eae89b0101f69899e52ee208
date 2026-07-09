@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_232a05c311cce4 1912,1915,1917
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "493389387cf8a1f0eae89b0101f69899e52ee208",
+  "prompts": {},
+  "humans": {
+    "h_232a05c311cce4": {
+      "author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  }
+}

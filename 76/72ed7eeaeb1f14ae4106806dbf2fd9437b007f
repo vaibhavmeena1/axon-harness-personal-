@@ -1,0 +1,20 @@
+group_vars/services_k8s
+  s_ef1a4e3316fda7::t_469ec84c3f23a8 5830
+  s_ef1a4e3316fda7::t_b781ae2207ef5f 1915
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "7672ed7eeaeb1f14ae4106806dbf2fd9437b007f",
+  "prompts": {},
+  "sessions": {
+    "s_ef1a4e3316fda7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "03e35413-9df9-471f-9e54-126c659d8e70",
+        "model": "default"
+      },
+      "human_author": "geekayush1mg <ayush.srivastava@1mg.com>"
+    }
+  }
+}

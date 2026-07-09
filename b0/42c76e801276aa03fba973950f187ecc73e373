@@ -1,0 +1,25 @@
+group_vars/services_k8s
+  s_27f5ec79f3cc8b::t_17e770503470ca 218
+  s_27f5ec79f3cc8b::t_edca14219d4cc6 178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b042c76e801276aa03fba973950f187ecc73e373",
+  "prompts": {},
+  "humans": {
+    "h_b475f61b93591d": {
+      "author": "Anubhav Verma <anubhav.verma@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_27f5ec79f3cc8b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "174f307d-482b-4619-ac39-e23b4b39f831",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Anubhav Verma <anubhav.verma@1mg.com>"
+    }
+  }
+}

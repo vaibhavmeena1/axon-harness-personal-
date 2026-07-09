@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_770d3a606e56dd::t_92d55f9a974551 6342-6343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cc6dda5b93c38a97bbc56379502f5d582ff5aff7",
+  "prompts": {},
+  "sessions": {
+    "s_770d3a606e56dd": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "427180",
+        "model": "OPENROUTER_GPT_5_POINT_4"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

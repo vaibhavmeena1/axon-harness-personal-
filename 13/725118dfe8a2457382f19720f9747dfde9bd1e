@@ -1,0 +1,25 @@
+group_vars/services_stag_k8s
+  d081d248e9cc5d78 4337-4341
+playbooks/templates/nginx/meditest.com
+  d081d248e9cc5d78 3,14-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "13725118dfe8a2457382f19720f9747dfde9bd1e",
+  "prompts": {
+    "d081d248e9cc5d78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "89dc606a-f642-4cc8-b278-28e29ac9a6c5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Prem Makwana",
+      "messages": [],
+      "total_additions": 43,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

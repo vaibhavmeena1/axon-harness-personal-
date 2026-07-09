@@ -1,0 +1,16 @@
+group_vars/services_k8s
+  h_cbc19accedcd8a 7196,7214,7227,7248,7261,7277,7290,7310
+group_vars/services_stag_k8s
+  h_cbc19accedcd8a 4832,4849-4851,4860,4875-4877,4973,4993-4995,5004,5024-5026
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "1744f13abb0f23dab067d9cb296df5101f78cee5",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
