@@ -1,0 +1,23 @@
+playbooks/templates/nginx/api.1mg.com
+  14c4e9850dd13d51 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a410cd0df4410b28e9840faa24f985d7d0298e36",
+  "prompts": {
+    "14c4e9850dd13d51": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4722-8843-7b01-8882-cea8d91fd6e4",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Bhavya Bajaj",
+      "messages": [],
+      "total_additions": 88,
+      "total_deletions": 87,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
