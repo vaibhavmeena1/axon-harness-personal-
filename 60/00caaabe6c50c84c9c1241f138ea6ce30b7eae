@@ -1,0 +1,20 @@
+group_vars/services_stag_k8s
+  s_4424a5fbe0f5ac::t_949348a3c4c934 4181-4198
+  s_4424a5fbe0f5ac::t_069116173827be 4179-4180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "6000caaabe6c50c84c9c1241f138ea6ce30b7eae",
+  "prompts": {},
+  "sessions": {
+    "s_4424a5fbe0f5ac": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "456055",
+        "model": "AUTO"
+      },
+      "human_author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  }
+}
