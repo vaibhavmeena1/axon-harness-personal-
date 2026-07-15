@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "e198a707333255040ce4c2a9e19ff643efc8af2f",
+  "prompts": {
+    "8b877fa16ec19046": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "456003",
+        "model": "AUTO"
+      },
+      "human_author": "krishna.reddy@1mg.com",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 227,
+      "accepted_lines": 138,
+      "overriden_lines": 0
+    }
+  }
+}
