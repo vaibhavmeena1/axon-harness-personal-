@@ -16,6 +16,14 @@ group_vars/services_stag_k8s
     }
   },
   "sessions": {
+    "s_4bb7239896e960": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450674",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    },
     "s_770d3a606e56dd": {
       "agent_id": {
         "tool": "DeputyDev",

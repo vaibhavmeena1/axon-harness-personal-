@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_fe1f93a7022148 1919,1961,8683
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "1cf6f80987f8a86bf2a1d38d9030ed31d6e6ed83",
+  "prompts": {},
+  "humans": {
+    "h_fe1f93a7022148": {
+      "author": "Aditya Singh <aditya.singh2@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+group_vars/services_stag_k8s
+  ea3b62bae5f0167c 3392
+  h_7d4235af666c36 3431,3470
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "44134279be5fc06eb8e5a2769b474040f7fcff98",
+  "prompts": {
+    "ea3b62bae5f0167c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f3610da4-4d75-45e4-a47b-e9541eec12c7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Prateek Saikia",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_7d4235af666c36": {
+      "author": "Prateek Saikia"
+    }
+  }
+}
