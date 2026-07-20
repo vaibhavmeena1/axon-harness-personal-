@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "fabc4efbfc1b0694993f77aee197351110d5aef8",
+  "prompts": {
+    "049280feb3a1fb83": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "454718",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Manish Chauhan <manish.chauhan@1mg.com>",
+      "messages": [],
+      "total_additions": 19,
+      "total_deletions": 17,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    }
+  }
+}

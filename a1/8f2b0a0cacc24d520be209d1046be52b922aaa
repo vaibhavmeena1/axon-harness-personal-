@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "a18f2b0a0cacc24d520be209d1046be52b922aaa",
+  "prompts": {
+    "634440ba7382e0bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3b142bd-6ffb-4246-8c00-d28c98cca85f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 36,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
