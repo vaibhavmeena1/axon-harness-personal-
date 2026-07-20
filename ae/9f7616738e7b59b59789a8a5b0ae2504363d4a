@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_3bfde2eaced44b::t_1d87b7e95fd63b 467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ae9f7616738e7b59b59789a8a5b0ae2504363d4a",
+  "prompts": {},
+  "sessions": {
+    "s_3bfde2eaced44b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37687944-7ae3-4001-bbd3-43c17f6e5689",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}
