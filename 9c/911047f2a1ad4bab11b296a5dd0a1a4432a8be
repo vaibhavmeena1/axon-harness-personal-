@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_2c49bb4607552e 6817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9c911047f2a1ad4bab11b296a5dd0a1a4432a8be",
+  "prompts": {},
+  "humans": {
+    "h_2c49bb4607552e": {
+      "author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}

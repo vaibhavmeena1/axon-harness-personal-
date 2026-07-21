@@ -1,0 +1,14 @@
+playbooks/templates/nginx/healthcheck.1mg.com
+  h_232a05c311cce4 19-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "69e5b2d2df6f906dc175373912e49eda74731ec4",
+  "prompts": {},
+  "humans": {
+    "h_232a05c311cce4": {
+      "author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  }
+}

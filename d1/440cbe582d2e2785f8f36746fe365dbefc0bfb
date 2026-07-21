@@ -1,0 +1,67 @@
+group_vars/services_stag_k8s
+  h_cbc19accedcd8a 4832,4849-4851,4860,4875-4877,4973,4993-4995,5004,5024-5026
+  s_1f97bb9308d024::t_6c70fe1e265594 8730-8731
+  6a7d7e01ea0b1d22 3069-3072
+infra/service_route.yml
+  s_1f97bb9308d024::t_af00d58e25fce4 80
+group_vars/services_k8s
+  h_cbc19accedcd8a 7198,7216-7217,7229,7250-7251,7263,7279-7280,7292,7312-7313
+playbooks/templates/nginx/1mg.com
+  05625817b092409b 2647-2688
+  h_dfddb6bc9d199c 1849
+  d395e5db08284175 30
+  h_232a05c311cce4 3548
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d1440cbe582d2e2785f8f36746fe365dbefc0bfb",
+  "prompts": {
+    "05625817b092409b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "434631",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vishal Polley <vishal.polley@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    },
+    "6a7d7e01ea0b1d22": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "437840",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "d395e5db08284175": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "438129",
+        "model": "AUTO"
+      },
+      "human_author": "Ritesh Kumar <ritesh.kumar2@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_1f97bb9308d024": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "437768",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

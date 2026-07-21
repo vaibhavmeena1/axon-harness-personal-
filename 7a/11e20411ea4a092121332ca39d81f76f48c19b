@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "7a11e20411ea4a092121332ca39d81f76f48c19b",
+  "prompts": {},
+  "humans": {
+    "h_b475f61b93591d": {
+      "author": "Anubhav Verma <anubhav.verma@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "a0a96cbfe3611ffd194d7e0a90fbac9695ac3c9b",
+  "prompts": {
+    "e056d5e18332e184": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be36e0c9-9b86-4a0d-9659-2eb4596d027f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Anand Raj <anand.raj@1mg.com>",
+      "messages": [],
+      "total_additions": 131,
+      "total_deletions": 0,
+      "accepted_lines": 124,
+      "overriden_lines": 0
+    }
+  }
+}

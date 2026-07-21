@@ -1,0 +1,25 @@
+playbooks/templates/nginx/cot-mcpapi.1mg.com
+  85ec090c167b3cc9 1-11
+group_vars/services_k8s
+  85ec090c167b3cc9 9526
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "018492e9815828a26963b377afeee84d03624968",
+  "prompts": {
+    "85ec090c167b3cc9": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "404549",
+        "model": "AUTO"
+      },
+      "human_author": "prashant.chaturvedi1 <prashant.chaturvedi@1mg.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 1,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

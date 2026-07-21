@@ -1,0 +1,53 @@
+scripts/accessmgmt/accessokr/create_vault_main_job.py
+  s_80e3d7dfa12da8::t_3d97ef3df0289d 55,76,89
+cloudwatch/cloudwatch.py
+  s_80e3d7dfa12da8::t_73afeffbfad4f2 14-37
+scripts/ebs_autoscale/get_volume_info.py
+  s_80e3d7dfa12da8::t_0dfa371552f534 6,9-27
+scripts/ebs_autoscale/snapshot_creation.py
+  s_80e3d7dfa12da8::t_6df513dcf39505 8,15-21,24-27
+scripts/nginxLogsProcessor.py
+  s_c728799ba7e7b8::t_2b4bfa5b83c1fd 58-75
+scripts/ebs_autoscale/check_instance_reachability.py
+  s_80e3d7dfa12da8::t_de0628c9bd4c72 7-13
+scripts/accessmgmt/create_vault_user_current.py
+  s_80e3d7dfa12da8::t_5304a60175e4d9 74,95,104
+scripts/accessmgmt/create_vault_base.py
+  s_80e3d7dfa12da8::t_959daf39f13ca3 46
+scripts/create_vault_user_current.py
+  s_80e3d7dfa12da8::t_95359eda82969b 46,63
+scripts/cloudwatch_alarms_retrigger_sent_to_flock.py
+  s_80e3d7dfa12da8::t_caf9417b2a3118 8-13
+cloudwatch/cloudwatch-custom-memory.py
+  s_80e3d7dfa12da8::t_c256f2cdeefebc 13-35
+scripts/ebs_autoscale/modify_volume.py
+  s_80e3d7dfa12da8::t_0404623e10e403 10,18-23,52-56,62-67
+scripts/cloudwatch.py
+  s_80e3d7dfa12da8::t_d5cca6822a5d89 40-64
+scripts/accessmgmt/create_vault_main_job.py
+  s_80e3d7dfa12da8::t_1a5683bf9e2134 72,124,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "bc1424ec382500aea249f2a590e449438c937d62",
+  "prompts": {},
+  "sessions": {
+    "s_80e3d7dfa12da8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "449964",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    },
+    "s_c728799ba7e7b8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "449808",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  }
+}

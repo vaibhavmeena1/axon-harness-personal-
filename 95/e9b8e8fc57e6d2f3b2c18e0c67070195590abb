@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_ee3b45bc181958 2255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "95e9b8e8fc57e6d2f3b2c18e0c67070195590abb",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}

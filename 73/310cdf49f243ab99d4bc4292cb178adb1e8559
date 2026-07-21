@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  6ada752a645d6da6 57-87,91-97,107-108,129-158,251,291,715,9369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "73310cdf49f243ab99d4bc4292cb178adb1e8559",
+  "prompts": {
+    "6ada752a645d6da6": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "433736",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "manthanv <manthan.vijayvergiya@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 74,
+      "overriden_lines": 0
+    }
+  }
+}

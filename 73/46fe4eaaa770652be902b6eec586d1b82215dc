@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_2c49bb4607552e 5331,5985
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7346fe4eaaa770652be902b6eec586d1b82215dc",
+  "prompts": {},
+  "humans": {
+    "h_2c49bb4607552e": {
+      "author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+scripts/revoke_grant_access.py
+  h_01673e60fd84f5 173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "5b46eedac9c3ee27101302197519595c2c15f94e",
+  "prompts": {},
+  "humans": {
+    "h_01673e60fd84f5": {
+      "author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  }
+}

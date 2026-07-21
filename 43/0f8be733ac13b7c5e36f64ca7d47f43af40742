@@ -1,0 +1,36 @@
+scripts/google_feed.py
+  7157a1906c1f9a3c 108-111,829
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "430f8be733ac13b7c5e36f64ca7d47f43af40742",
+  "prompts": {
+    "09babe7cd74074e6": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "388978",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Narendra Singh <int-narendra.singh@1mg.com>",
+      "messages": [],
+      "total_additions": 916,
+      "total_deletions": 222,
+      "accepted_lines": 626,
+      "overriden_lines": 8
+    },
+    "7157a1906c1f9a3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a493b70-a65d-49e0-83bb-4a8a67e45dab",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Narendra Singh <int-narendra.singh@1mg.com>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 4,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}

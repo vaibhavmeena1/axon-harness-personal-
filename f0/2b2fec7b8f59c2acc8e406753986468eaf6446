@@ -1,0 +1,21 @@
+group_vars/services_stag_k8s
+  s_d3ef76fa120fa1::t_6b0f44a938986a 3479
+group_vars/services_k8s
+  s_d3ef76fa120fa1::t_0b9b78af05fb49 196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f02b2fec7b8f59c2acc8e406753986468eaf6446",
+  "prompts": {},
+  "sessions": {
+    "s_d3ef76fa120fa1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b919ffa1-ccc5-46e2-90ac-3b667ea89881",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "agam20821mg <agam.agarwal@1mg.com>"
+    }
+  }
+}

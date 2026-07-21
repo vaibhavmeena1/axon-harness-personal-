@@ -1,0 +1,27 @@
+playbooks/templates/nginx/dropletadmin.1mg.com
+  3e638398d0205746 12-16
+playbooks/templates/nginx/droplet.net.in
+  3e638398d0205746 11-15
+playbooks/templates/nginx/droplet.1mg.com
+  3e638398d0205746 11-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "2daf6381488b8c209cea6aa4e98a50358040253a",
+  "prompts": {
+    "3e638398d0205746": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "993249cb-b7c1-470a-8287-10d80c509c2b",
+        "model": "claude-opus-4-7-thinking-xhigh"
+      },
+      "human_author": "Gursimranjit Singh <gursimranjit.channa@1mg.com>",
+      "messages": [],
+      "total_additions": 15,
+      "total_deletions": 3,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}

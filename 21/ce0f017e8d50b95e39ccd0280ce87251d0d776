@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "21ce0f017e8d50b95e39ccd0280ce87251d0d776",
+  "prompts": {
+    "e8be7b768ebf2e5f": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "370180",
+        "model": "AUTO"
+      },
+      "human_author": "ranjeet.madhav@1mg.com",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 45,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
