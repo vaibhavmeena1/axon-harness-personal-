@@ -1,0 +1,20 @@
+group_vars/services_k8s
+  s_a1621494b387c0::t_1224d6ca62d8ac 4624-4653
+  s_a1621494b387c0::t_8b76ce1584b92c 4621-4623
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "a3341e5af9584a0c67a7d8508de311c7998cb648",
+  "prompts": {},
+  "sessions": {
+    "s_a1621494b387c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "916b43b0-cbeb-4e04-93b7-d179dec41c3b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "“Sachin <“sachin.thakur”@1mg.com>"
+    }
+  }
+}
