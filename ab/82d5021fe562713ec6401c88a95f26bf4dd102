@@ -1,0 +1,20 @@
+group_vars/services_k8s
+  s_54ba815f555989::t_aa2b6215e8d29c 4591-4620
+  s_54ba815f555989::t_8b58003cf7aa8b 4588-4590
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "ab82d5021fe562713ec6401c88a95f26bf4dd102",
+  "prompts": {},
+  "sessions": {
+    "s_54ba815f555989": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "461009",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  }
+}
