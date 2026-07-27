@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_dbe0d4b3a39102 8714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "c9735d727a9c5b9f01c0b1a97b7aa3ffc1da767b",
+  "prompts": {},
+  "humans": {
+    "h_dbe0d4b3a39102": {
+      "author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}
