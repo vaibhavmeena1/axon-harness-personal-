@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_55faa7097fa982::t_9d9edb71b056ee 8597
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "aafb75751b05bd2d03c5f085e23948e4846ac514",
+  "prompts": {},
+  "sessions": {
+    "s_55faa7097fa982": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "458515",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

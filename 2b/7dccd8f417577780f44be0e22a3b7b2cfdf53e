@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "2b7dccd8f417577780f44be0e22a3b7b2cfdf53e",
+  "prompts": {
+    "929e4610c81d1bda": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "449006",
+        "model": "AUTO"
+      },
+      "human_author": "vindreshsingh <52521987+vindreshsingh@users.noreply.github.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

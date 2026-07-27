@@ -1,0 +1,72 @@
+playbooks/templates/nginx/lequembi.1mg.com
+  s_1f97bb9308d024::t_60141e8ea292ac 1-14
+infra/service_queues.yml
+  h_421a8c645471f6 424
+  h_cbc19accedcd8a 625-627
+playbooks/templates/nginx/1mg.com
+  h_83a1406b041db4 1813
+  05625817b092409b 2611-2640
+  b46f4902490028de 1083-1093
+group_vars/services_k8s
+  h_cbc19accedcd8a 6949,6967-6968,6980,7001-7002,7014,7030-7031,7043,7063-7064
+group_vars/services_stag_k8s
+  s_1f97bb9308d024::t_6c70fe1e265594 8659-8660
+  6a7d7e01ea0b1d22 3045-3048
+  h_b061a6048a3bb4 10145-10171
+  h_cbc19accedcd8a 4780,4797-4799,4808,4823-4825,4921,4941-4943,4952,4972-4974
+infra/service_route.yml
+  s_1f97bb9308d024::t_af00d58e25fce4 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "53886f3c4d88084fce462cca0cd20d610afaf103",
+  "prompts": {
+    "05625817b092409b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "434631",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vishal Polley <vishal.polley@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    },
+    "6a7d7e01ea0b1d22": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "437840",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "b46f4902490028de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54c0aa4f-5633-4f26-82ea-3ebd5dc8ff15",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "samarpit.sachan <samarpit.sachan@1mg.com>",
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_1f97bb9308d024": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "437768",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

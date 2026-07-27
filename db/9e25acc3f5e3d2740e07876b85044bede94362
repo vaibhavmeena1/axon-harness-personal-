@@ -1,0 +1,24 @@
+group_vars/services_stag_k8s
+  s_5a5ade3bf83b88::t_b2b0c9a7c79390 9622-9623
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "db9e25acc3f5e3d2740e07876b85044bede94362",
+  "prompts": {},
+  "humans": {
+    "h_5f8bce76960158": {
+      "author": "Jaskaran Batra <jaskaran.batra@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5a5ade3bf83b88": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "449563",
+        "model": "OPENROUTER_GPT_5_POINT_4"
+      },
+      "human_author": "Jaskaran Batra <jaskaran.batra@1mg.com>"
+    }
+  }
+}
