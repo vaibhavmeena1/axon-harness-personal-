@@ -1,0 +1,22 @@
+group_vars/services_k8s
+  s_93130934c72728::t_0282a1f93ca128 9685-9694,9696-9718
+  s_93130934c72728::t_aaf5d2c3129882 9695
+group_vars/services_stag_k8s
+  s_93130934c72728::t_52b39816ffa52e 3417-3448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "99430b5fa964f0b0d8034573535ecae14e49ac18",
+  "prompts": {},
+  "sessions": {
+    "s_93130934c72728": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d26ff851-1fd0-4a9e-ac09-b356e8ca9644",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "sudhir pal <sudhir.pal@1mg.com>"
+    }
+  }
+}

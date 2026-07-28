@@ -1,0 +1,19 @@
+playbooks/templates/nginx/unifiedadmin.1mg.com
+  s_0ce1ac93a7078a::t_3f5400f0600d68 68-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "92a17069be6da365e93670a1109c6025b45c6614",
+  "prompts": {},
+  "sessions": {
+    "s_0ce1ac93a7078a": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "426095",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": null
+    }
+  }
+}

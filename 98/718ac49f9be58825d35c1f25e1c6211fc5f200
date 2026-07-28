@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_5f8bce76960158 8700-8701
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "98718ac49f9be58825d35c1f25e1c6211fc5f200",
+  "prompts": {},
+  "humans": {
+    "h_5f8bce76960158": {
+      "author": "Jaskaran Batra <jaskaran.batra@1mg.com>"
+    }
+  }
+}

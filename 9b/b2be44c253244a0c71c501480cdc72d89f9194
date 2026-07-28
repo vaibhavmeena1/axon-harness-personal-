@@ -1,0 +1,19 @@
+playbooks/templates/nginx/healthcheck.1mg.com
+  s_346c908dcdd8c2::t_5a948752be859d 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9bb2be44c253244a0c71c501480cdc72d89f9194",
+  "prompts": {},
+  "sessions": {
+    "s_346c908dcdd8c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2a9eac9d-4982-4e0a-b34b-4bfb24533675",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+group_vars/services_k8s
+  s_a6f419f31c0521::t_969b0ce3f881cd 9541,9543-9547
+  h_ee3b45bc181958 9542
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f55bd0729508c44ac30ebc9d4faf36cd2e254bd1",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_a6f419f31c0521": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3814b56-75b5-4996-b1ad-65b8a8d0de86",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}

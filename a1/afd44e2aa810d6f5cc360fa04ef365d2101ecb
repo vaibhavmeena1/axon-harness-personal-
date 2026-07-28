@@ -1,0 +1,27 @@
+group_vars/services_stag_k8s
+  s_e2e0f850aabbe9::t_447513cda6af2c 923-924
+playbooks/templates/ingress-template-stag.j2
+  s_e2e0f850aabbe9::t_bbd86ee54887c1 42-43,47
+  s_e2e0f850aabbe9::t_fddacc53dfe0b8 44-46,48-50,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "a1afd44e2aa810d6f5cc360fa04ef365d2101ecb",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_e2e0f850aabbe9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe5253fb-a787-42eb-88a2-96c18ba9aa60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}
