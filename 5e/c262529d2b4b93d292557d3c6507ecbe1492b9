@@ -1,0 +1,19 @@
+playbooks/templates/nginx/1mg.com
+  s_e64114caaec86c::t_6de426cf362a02 854-884
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "5ec262529d2b4b93d292557d3c6507ecbe1492b9",
+  "prompts": {},
+  "sessions": {
+    "s_e64114caaec86c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b46080b3-0093-4bdb-9c0b-f237394dcf5c",
+        "model": "default"
+      },
+      "human_author": "Ritik Bansal <ritik.bansal@1mg.com>"
+    }
+  }
+}
