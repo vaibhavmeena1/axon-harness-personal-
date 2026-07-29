@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  b9a75199441a350b 1549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "c3d79b77ca595e5c23910534bb73b302701e1b8a",
+  "prompts": {
+    "b9a75199441a350b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "459179",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "ajay upreti <ajay.upreti@1mg.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 5,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
