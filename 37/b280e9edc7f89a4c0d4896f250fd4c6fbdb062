@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_6420c8229b7da6 5608,5643
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "37b280e9edc7f89a4c0d4896f250fd4c6fbdb062",
+  "prompts": {},
+  "humans": {
+    "h_6420c8229b7da6": {
+      "author": "Mudit Jain"
+    }
+  }
+}
