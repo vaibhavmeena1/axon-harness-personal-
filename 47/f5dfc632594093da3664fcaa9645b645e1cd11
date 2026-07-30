@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  5d59af494d66e5a1 9156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "47f5dfc632594093da3664fcaa9645b645e1cd11",
+  "prompts": {
+    "5d59af494d66e5a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d9676c9-c54c-4cd6-9803-60d02d77e414",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
