@@ -1,0 +1,31 @@
+group_vars/services_stag_k8s
+  s_52c4d6dfb040a8::t_49df8b4035cda2 7814
+  s_52c4d6dfb040a8::t_ec10b131a6e0c6 7803,7805-7809,7811,7813,7815-7831
+  h_da86ad7c2c17ee 7804,7810,7812
+infra/service_route.yml
+  h_da86ad7c2c17ee 88
+playbooks/templates/nginx/orion.1mg.com
+  h_da86ad7c2c17ee 13
+  s_52c4d6dfb040a8::t_eb6177226de831 1-12,14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "b5b745a49efdf96ee93596eb6f7f6d747e673c92",
+  "prompts": {},
+  "humans": {
+    "h_da86ad7c2c17ee": {
+      "author": "Vaibhav Misra <vaibhav.misra@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_52c4d6dfb040a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0fd577eaaffevi0U1qVPh0Qpkz",
+        "model": "minimax-m3"
+      },
+      "human_author": "Vaibhav Misra <vaibhav.misra@1mg.com>"
+    }
+  }
+}

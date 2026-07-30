@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  219597954404a573 120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "b960d1bbeca333af302362c38f7b84adc62024f1",
+  "prompts": {
+    "219597954404a573": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "432853",
+        "model": "AUTO"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

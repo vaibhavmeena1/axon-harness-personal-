@@ -1,0 +1,25 @@
+playbooks/templates/nginx/deputydev.ai
+  s_3000a0704302ef::t_c5875e18278be2 46-50,86-90
+  h_cbc19accedcd8a 45,51-85,91-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "38bee411b81772362e23766456e0d79953058813",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_3000a0704302ef": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "455811",
+        "model": "OPENROUTER_GPT_5_POINT_5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

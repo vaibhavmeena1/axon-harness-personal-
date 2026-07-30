@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  9c11de43914ef5eb 844-867,869,871,873,921,4819
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "43b5cd48428aa42c82a75a417743b71b6a0c2c13",
+  "prompts": {
+    "9c11de43914ef5eb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3110aaec-dd8f-47b4-b95a-790d722e7954",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Akash Angra <akash.angra@1mg.com>",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 5,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    }
+  }
+}

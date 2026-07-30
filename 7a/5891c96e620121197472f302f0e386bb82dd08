@@ -1,0 +1,27 @@
+group_vars/nginx_vhost_2
+  6bcfd814028f4840 354
+group_vars/nginx_vhost
+  6bcfd814028f4840 309
+playbooks/templates/nginx/api.1mg.com
+  6bcfd814028f4840 502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "7a5891c96e620121197472f302f0e386bb82dd08",
+  "prompts": {
+    "6bcfd814028f4840": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "433565",
+        "model": "OPENROUTER_GPT_5_POINT_3_CODEX"
+      },
+      "human_author": "unknown",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

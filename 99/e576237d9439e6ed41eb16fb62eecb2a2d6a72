@@ -1,0 +1,36 @@
+group_vars/services_stag_k8s
+  0325ed97e465d7e4 8107,8113,8146,8152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "99e576237d9439e6ed41eb16fb62eecb2a2d6a72",
+  "prompts": {
+    "0325ed97e465d7e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "35514077-9404-453f-9cf8-f518b86224fe",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Apoorva Ranjan",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    },
+    "0637010ec85d647c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b68071a-0cc7-4661-a138-7346ddcbb256",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Apoorva Ranjan",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

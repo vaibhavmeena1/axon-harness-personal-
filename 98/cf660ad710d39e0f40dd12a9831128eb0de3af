@@ -1,0 +1,19 @@
+scripts/google_feed.py
+  s_2f055da43b1837::t_01bbf81d474d3a 704-706
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "98cf660ad710d39e0f40dd12a9831128eb0de3af",
+  "prompts": {},
+  "sessions": {
+    "s_2f055da43b1837": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "424920",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Narendra Singh <int-narendra.singh@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  2f95ae1371117558 2293-2325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "7a4fb13b8bcd58f91ad0d7f3bdf2d989bfb762d6",
+  "prompts": {
+    "2f95ae1371117558": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "433746",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "manthanv <manthan.vijayvergiya@1mg.com>",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 4,
+      "accepted_lines": 67,
+      "overriden_lines": 0
+    }
+  }
+}

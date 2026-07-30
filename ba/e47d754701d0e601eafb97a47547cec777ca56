@@ -1,0 +1,19 @@
+playbooks/templates/nginx/healthcheck.1mg.com
+  s_8e0fac829e4944::t_eec0b7b6dfe9a0 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "bae47d754701d0e601eafb97a47547cec777ca56",
+  "prompts": {},
+  "sessions": {
+    "s_8e0fac829e4944": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4bd69709-8638-4481-a7ef-a4229220751d",
+        "model": "default"
+      },
+      "human_author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}

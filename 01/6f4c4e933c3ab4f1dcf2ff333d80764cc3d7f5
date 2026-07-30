@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  3c35600ab78f24a9 1593,1628,1682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "016f4c4e933c3ab4f1dcf2ff333d80764cc3d7f5",
+  "prompts": {
+    "3c35600ab78f24a9": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "432794",
+        "model": "AUTO"
+      },
+      "human_author": "Ritesh Kumar <ritesh.kumar2@1mg.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

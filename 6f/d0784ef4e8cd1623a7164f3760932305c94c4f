@@ -1,0 +1,42 @@
+group_vars/services_k8s
+  cdad7d2f1f8ab824 7490
+  42b6ece7679ca05b 7466,7468-7489,7491-7498
+playbooks/templates/nginx/catalyst.1mg.com
+  42b6ece7679ca05b 16-17,24-25
+group_vars/services_stag_k8s
+  cdad7d2f1f8ab824 8351
+  42b6ece7679ca05b 8330,8332-8350,8352-8359
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "6fd0784ef4e8cd1623a7164f3760932305c94c4f",
+  "prompts": {
+    "42b6ece7679ca05b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b28623cd-2d62-4534-862a-009e622ab8b7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "mayankmahavar1mg <mayank.mahavar@1mg.com>",
+      "messages": [],
+      "total_additions": 71,
+      "total_deletions": 8,
+      "accepted_lines": 63,
+      "overriden_lines": 0
+    },
+    "cdad7d2f1f8ab824": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7f37985-ef0e-4025-9306-909f7a6532c3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "mayankmahavar1mg <mayank.mahavar@1mg.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 12,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

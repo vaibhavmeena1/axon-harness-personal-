@@ -1,0 +1,14 @@
+playbooks/templates/nginx/catalyst.1mg.com
+  h_0ec34e9d9288fa 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "47cc5e058b89ff561cb13761e9fc3682f0c2d0bb",
+  "prompts": {},
+  "humans": {
+    "h_0ec34e9d9288fa": {
+      "author": "mayankmahavar1mg"
+    }
+  }
+}

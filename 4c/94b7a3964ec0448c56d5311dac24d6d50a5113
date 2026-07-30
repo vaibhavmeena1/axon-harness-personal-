@@ -1,0 +1,23 @@
+playbooks/templates/nginx/1mg.com
+  b46f4902490028de 1170-1180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "4c94b7a3964ec0448c56d5311dac24d6d50a5113",
+  "prompts": {
+    "b46f4902490028de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54c0aa4f-5633-4f26-82ea-3ebd5dc8ff15",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "samarpit.sachan <samarpit.sachan@1mg.com>",
+      "messages": [],
+      "total_additions": 47,
+      "total_deletions": 0,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}

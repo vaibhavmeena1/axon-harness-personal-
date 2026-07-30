@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "a7c7cc3c2ea50500487122aef298d462b701a3ad",
+  "prompts": {
+    "2f95ae1371117558": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "433746",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "manthanv <manthan.vijayvergiya@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 34,
+      "overriden_lines": 0
+    }
+  }
+}

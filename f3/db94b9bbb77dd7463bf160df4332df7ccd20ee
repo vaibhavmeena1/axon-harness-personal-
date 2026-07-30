@@ -1,0 +1,25 @@
+scripts/memory_check.sh
+  s_36dd1d767ffc07::t_3d62394bf41114 7-8,12,15,18-24,26-33,74-79,81
+scripts/db/db.py
+  s_36dd1d767ffc07::t_5b8e311d07e283 13,29-31,34-40,44-45,48-53,57-63
+scripts/revoke_grant_access.py
+  s_36dd1d767ffc07::t_c307453366cbed 5,134-135,175-176
+scripts/db/dbmate_pre_post.py
+  s_36dd1d767ffc07::t_97ff84f920135c 11,81-87,89-93,100-128,131-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f3db94b9bbb77dd7463bf160df4332df7ccd20ee",
+  "prompts": {},
+  "sessions": {
+    "s_36dd1d767ffc07": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "458852",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  }
+}
