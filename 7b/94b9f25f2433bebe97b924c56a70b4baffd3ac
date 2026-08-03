@@ -1,0 +1,36 @@
+playbooks/templates/nginx/internalapi.1mg.com
+  647337bf9f145a02 39-51,55-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.5",
+  "base_commit_sha": "7b94b9f25f2433bebe97b924c56a70b4baffd3ac",
+  "prompts": {
+    "181a58ea1b640490": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "58d77a81-ea73-44c8-bea1-20a7f780e956",
+        "model": "default"
+      },
+      "human_author": "unknown",
+      "messages": [],
+      "total_additions": 793,
+      "total_deletions": 1,
+      "accepted_lines": 792,
+      "overriden_lines": 0
+    },
+    "647337bf9f145a02": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "47c68d05-0885-41da-92d4-a32fb40b1dde",
+        "model": "grok-4.5"
+      },
+      "human_author": "unknown",
+      "messages": [],
+      "total_additions": 32,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 3
+    }
+  }
+}
