@@ -1,0 +1,14 @@
+cron/prod-devops-cron.j2
+  h_ad3d0cec120610 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "4af289eecae6f71250cc20630d8d99d2a225a134",
+  "prompts": {},
+  "humans": {
+    "h_ad3d0cec120610": {
+      "author": "“Sachin <“sachin.thakur”@1mg.com>"
+    }
+  }
+}
