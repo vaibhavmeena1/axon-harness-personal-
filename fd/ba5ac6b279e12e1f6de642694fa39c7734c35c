@@ -1,0 +1,38 @@
+terraform/components/vpc/main.tf
+  s_81c775d88abe00::t_c8c92e13ede6ff 23
+scripts/devops_on_call_roster/start_server.py
+  h_01673e60fd84f5 170
+files/index.html
+  s_cc6a701517d66c::t_6088567d8c203e 19,21
+scripts/devtron/expose_sts_automated.py
+  s_cc6a701517d66c::t_412b3e28689787 41-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.8",
+  "base_commit_sha": "fdba5ac6b279e12e1f6de642694fa39c7734c35c",
+  "prompts": {},
+  "humans": {
+    "h_01673e60fd84f5": {
+      "author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_81c775d88abe00": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450415",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    },
+    "s_cc6a701517d66c": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450713",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  6d484f7db6011d10 436,463,496
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "956df9fef6d8e3618e9d7aa5b6dd246a6f8c2cc6",
+  "prompts": {
+    "6d484f7db6011d10": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff7f2fe0-9535-4dd5-9680-d616164a9e6a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}

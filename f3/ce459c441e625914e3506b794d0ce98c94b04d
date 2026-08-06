@@ -1,0 +1,25 @@
+group_vars/services_stag_k8s
+  79e01125df46ec90 3361,3403,3442,3480,5349
+group_vars/services_k8s
+  79e01125df46ec90 565,596,758,789,2710
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "f3ce459c441e625914e3506b794d0ce98c94b04d",
+  "prompts": {
+    "79e01125df46ec90": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf6d450b-f34a-42be-b87b-5c0219aa9301",
+        "model": "composer-2.5"
+      },
+      "human_author": "ranjeet.madhav@1mg.com",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}

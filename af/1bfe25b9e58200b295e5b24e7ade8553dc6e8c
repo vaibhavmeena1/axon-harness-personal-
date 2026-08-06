@@ -1,0 +1,27 @@
+group_vars/services_stag_k8s
+  h_cbc19accedcd8a 4941-5009
+playbooks/templates/nginx/deputydev.ai
+  h_cbc19accedcd8a 19-37,42
+  s_dc0589b44ea8a3::t_52860be7298386 39-41,43-44,53-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "af1bfe25b9e58200b295e5b24e7ade8553dc6e8c",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_dc0589b44ea8a3": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "451999",
+        "model": "OPENROUTER_GPT_5_POINT_5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

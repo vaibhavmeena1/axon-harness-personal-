@@ -1,0 +1,14 @@
+playbooks/templates/nginx/1mg.com
+  h_423c4a4c998c13 1111,1153,1405,1467,1545,3147,3158,3190,3201,3233,3242,3339,3348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "27c36dee1fe2f641066216b75ac3ecd65b56887f",
+  "prompts": {},
+  "humans": {
+    "h_423c4a4c998c13": {
+      "author": "Shyam Krishn Dubey <shyamkrishndubey@RV43QK9XNN.local>"
+    }
+  }
+}

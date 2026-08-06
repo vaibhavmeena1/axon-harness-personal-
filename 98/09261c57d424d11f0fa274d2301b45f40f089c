@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.1",
+  "base_commit_sha": "9809261c57d424d11f0fa274d2301b45f40f089c",
+  "prompts": {
+    "a1490f8f16c59cff": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450918",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Mukesh Sardiwal",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
