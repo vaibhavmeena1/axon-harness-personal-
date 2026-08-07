@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_dfddb6bc9d199c 580-581,583-584
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "25e950e45005e4a762a40359864f21e2809e3003",
+  "prompts": {},
+  "humans": {
+    "h_dfddb6bc9d199c": {
+      "author": "asthadhakar <astha.dhakar@1mg.com>"
+    }
+  }
+}
