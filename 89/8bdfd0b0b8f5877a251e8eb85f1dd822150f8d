@@ -1,0 +1,25 @@
+group_vars/services_k8s
+  s_5b43ebeddb98d8::t_8f0338c57d9a06 4723,4726
+  h_ac816c8a41f89c 4724,4727
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "898bdfd0b0b8f5877a251e8eb85f1dd822150f8d",
+  "prompts": {},
+  "humans": {
+    "h_ac816c8a41f89c": {
+      "author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_5b43ebeddb98d8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "462629",
+        "model": "AUTO"
+      },
+      "human_author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  }
+}

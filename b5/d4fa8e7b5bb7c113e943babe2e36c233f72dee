@@ -1,0 +1,24 @@
+playbooks/templates/devtron-app.j2
+  h_693c1ca0ab73b5 405
+playbooks/templates/devtron-jsg-app.j2
+  h_693c1ca0ab73b5 341
+playbooks/templates/devtron-jsg-shoryuken-app.j2
+  h_693c1ca0ab73b5 341
+playbooks/templates/devtron-workflow-jsg-shoryuken.j2
+  h_693c1ca0ab73b5 30
+playbooks/templates/devtron-workflow-jsg.j2
+  h_693c1ca0ab73b5 30
+playbooks/templates/devtron-workflow.j2
+  h_693c1ca0ab73b5 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "b5d4fa8e7b5bb7c113e943babe2e36c233f72dee",
+  "prompts": {},
+  "humans": {
+    "h_693c1ca0ab73b5": {
+      "author": "parvkamal1 <parv.kamal@1mg.com>"
+    }
+  }
+}

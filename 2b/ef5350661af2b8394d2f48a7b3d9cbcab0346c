@@ -1,0 +1,19 @@
+playbooks/templates/nginx/healthcheck.1mg.com
+  s_80b7db907a6340::t_ed39f2107af643 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2bef5350661af2b8394d2f48a7b3d9cbcab0346c",
+  "prompts": {},
+  "sessions": {
+    "s_80b7db907a6340": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa277-6587-7a13-a5a1-1f09f7a77443",
+        "model": "gpt-5.5"
+      },
+      "human_author": "DeepikaBajaj <deepika.bajaj@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+playbooks/templates/nginx/emr.1mg.com
+  h_dfddb6bc9d199c 1-15
+infra/service_route.yml
+  h_dfddb6bc9d199c 89
+group_vars/services_stag_k8s
+  h_dfddb6bc9d199c 554,556-573
+  h_dfddb6bc9d199c 544-553,555
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "b32ba633ea0939e8df0ecc9a0caffb293e3baae9",
+  "prompts": {},
+  "humans": {
+    "h_dfddb6bc9d199c": {
+      "author": "asthadhakar <astha.dhakar@1mg.com>"
+    }
+  }
+}
