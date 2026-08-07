@@ -1,0 +1,19 @@
+scripts/accessmgmt/accessokr/create_vault_main_job.py
+  s_c46bc72b05e072::t_f97a4c3b8fbbf6 19-22,26-28,61-70,119-128,140-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "396bda4b02ac880b05d1d16d3e280992613e51d7",
+  "prompts": {},
+  "sessions": {
+    "s_c46bc72b05e072": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "465955",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "ramit-1mg <ramit.dhamija@1mg.com>"
+    }
+  }
+}
