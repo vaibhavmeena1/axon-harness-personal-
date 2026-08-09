@@ -1,0 +1,22 @@
+group_vars/services_k8s
+  h_0644ac61e50fad 6484,9581-9582,9587,9590
+group_vars/services_stag_k8s
+  h_0644ac61e50fad 10295,10348-10403
+playbooks/templates/nginx/1mg.com
+  h_0644ac61e50fad 1624-1654
+playbooks/templates/nginx/odyssey.1mg.com
+  h_0644ac61e50fad 3,36
+scripts/accessmgmt/accessokr/create_vault_main_job.py
+  h_0644ac61e50fad 19-22,26-28,58,61-71,118-120,123-131,133,145-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "65393e848d58bfa8ffacdaa16cbf788bef2d9703",
+  "prompts": {},
+  "humans": {
+    "h_0644ac61e50fad": {
+      "author": "Ishita <ishita.a1@1mg.com>"
+    }
+  }
+}
