@@ -1,0 +1,16 @@
+playbooks/templates/nginx/deputydev.ai
+  h_cbc19accedcd8a 39-58
+group_vars/services_stag_k8s
+  h_cbc19accedcd8a 4909-4939
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4debf7c7928ee5d4caef77f471b230b7cd664e15",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_3648ebb786b6c5 910
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f7e61501e065d98900ed874ceaa11fcf25ef2d74",
+  "prompts": {},
+  "humans": {
+    "h_3648ebb786b6c5": {
+      "author": "Narendra Singh <int-narendra.singh@1mg.com>"
+    }
+  }
+}
