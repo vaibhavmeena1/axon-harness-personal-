@@ -1,0 +1,23 @@
+playbooks/templates/nginx/1mg.com
+  529adbe3bb19e091 3713-3718
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "4fc7872ff67bfd7a08caf91ce61b991fdc1262f6",
+  "prompts": {
+    "529adbe3bb19e091": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "466775",
+        "model": "AUTO"
+      },
+      "human_author": "deepakmittal1mg <deepak.mittal@1mg.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 1,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
