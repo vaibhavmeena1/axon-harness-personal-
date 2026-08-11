@@ -1,0 +1,25 @@
+group_vars/services_stag_k8s
+  f962d41294cf7194 3018,3454
+group_vars/services_k8s
+  f962d41294cf7194 5407,7704
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "a13a9d4d4d8088384128602c71043f833bfd6473",
+  "prompts": {
+    "f962d41294cf7194": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "385956d5-168c-4871-84e3-d0bf24abae0a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
