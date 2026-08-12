@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "4f6ea096f6f2de45a231016b154ffcad0fa1971e",
+  "prompts": {
+    "2651342a65decf01": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2d08738f-fc9d-4721-a207-a125d759ad8b",
+        "model": "default"
+      },
+      "human_author": "ranjeet.madhav@1mg.com",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 1,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
