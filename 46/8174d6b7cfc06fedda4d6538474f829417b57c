@@ -1,0 +1,34 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "468174d6b7cfc06fedda4d6538474f829417b57c",
+  "prompts": {
+    "0415e08d33232f2e": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "464001",
+        "model": "AUTO"
+      },
+      "human_author": "Naga Deepak Kaza",
+      "messages": [],
+      "total_additions": 4632,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "6a13a48f4f8db6ed": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "463893",
+        "model": "AUTO"
+      },
+      "human_author": "Naga Deepak Kaza",
+      "messages": [],
+      "total_additions": 185,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

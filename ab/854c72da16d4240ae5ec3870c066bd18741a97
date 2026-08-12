@@ -1,0 +1,36 @@
+group_vars/services_stag_k8s
+  1338ceebb10cc3ed 6052,7017,7025-7026,7650,7690
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "ab854c72da16d4240ae5ec3870c066bd18741a97",
+  "prompts": {
+    "1338ceebb10cc3ed": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "453151",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Prashant Kishore <prashant.kishore@1mg.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 2,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "a0ddb64dcbddfbd8": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "453128",
+        "model": "OPENROUTER_GPT_5_POINT_4"
+      },
+      "human_author": "Prashant Kishore <prashant.kishore@1mg.com>",
+      "messages": [],
+      "total_additions": 22,
+      "total_deletions": 10,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}

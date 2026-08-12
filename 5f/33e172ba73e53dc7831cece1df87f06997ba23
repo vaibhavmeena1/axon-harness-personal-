@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_5e3286aecedf2e 4404-4405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5f33e172ba73e53dc7831cece1df87f06997ba23",
+  "prompts": {},
+  "humans": {
+    "h_5e3286aecedf2e": {
+      "author": "agam20821mg <agam.agarwal@1mg.com>"
+    }
+  }
+}

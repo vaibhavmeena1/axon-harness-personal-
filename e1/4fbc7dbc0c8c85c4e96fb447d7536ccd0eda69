@@ -1,0 +1,19 @@
+playbooks/templates/nginx/sybravapap.1mg.com
+  s_fe00c1fb873c6b::t_b157c41e361c4c 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e14fbc7dbc0c8c85c4e96fb447d7536ccd0eda69",
+  "prompts": {},
+  "sessions": {
+    "s_fe00c1fb873c6b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "455871",
+        "model": "AUTO"
+      },
+      "human_author": "Shubham <shubham.kumar3@1mg.com>"
+    }
+  }
+}

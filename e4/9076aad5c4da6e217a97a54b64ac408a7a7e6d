@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  df059835518ccd0b 10197,10200,10204-10215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "e49076aad5c4da6e217a97a54b64ac408a7a7e6d",
+  "prompts": {
+    "df059835518ccd0b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "459981",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Manish Chauhan <manish.chauhan@1mg.com>",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 11,
+      "accepted_lines": 14,
+      "overriden_lines": 0
+    }
+  }
+}

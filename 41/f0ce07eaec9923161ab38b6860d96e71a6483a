@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  7ba3e4fdb95a1156 7191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "41f0ce07eaec9923161ab38b6860d96e71a6483a",
+  "prompts": {
+    "7ba3e4fdb95a1156": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "453576",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Shashank Pandey <shashank.pandey@1mg.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 4,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,25 @@
+playbooks/templates/nginx/1mg.com
+  s_b5cf88ab03d8f0::t_184c42d88c9390 1881,1893-1894
+  s_b5cf88ab03d8f0::t_757aa86779b40e 1953,1962-1963,2402
+  s_b5cf88ab03d8f0::t_6d9aeaa5078242 1180,1196-1200,1426,1440-1443,1500,1517-1521,1574,1589-1593
+  s_b5cf88ab03d8f0::t_550c33de4efecd 2144,2158-2159,2161
+  s_b5cf88ab03d8f0::t_2e131e098633f2 1996,2009-2010
+  s_b5cf88ab03d8f0::t_1f9a015fd3311a 2380,2387,2398-2399
+  s_b5cf88ab03d8f0::t_e6e24aeb3995cf 2400-2401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "66f5546586b2dc85c7bfd521df30ef88900d207c",
+  "prompts": {},
+  "sessions": {
+    "s_b5cf88ab03d8f0": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "467182",
+        "model": "AUTO"
+      },
+      "human_author": "Shyam Krishn Dubey <shyamkrishndubey@RV43QK9XNN.local>"
+    }
+  }
+}
