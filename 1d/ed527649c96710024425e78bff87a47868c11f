@@ -1,0 +1,16 @@
+group_vars/services_stag_k8s
+  h_b061a6048a3bb4 7894,10151
+group_vars/services_k8s
+  h_b061a6048a3bb4 6362,9680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1ded527649c96710024425e78bff87a47868c11f",
+  "prompts": {},
+  "humans": {
+    "h_b061a6048a3bb4": {
+      "author": "AnimeshRy <animesh.gautam@1mg.com>"
+    }
+  }
+}
