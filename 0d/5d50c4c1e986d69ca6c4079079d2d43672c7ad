@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_ac816c8a41f89c 1938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0d5d50c4c1e986d69ca6c4079079d2d43672c7ad",
+  "prompts": {},
+  "humans": {
+    "h_ac816c8a41f89c": {
+      "author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  }
+}
