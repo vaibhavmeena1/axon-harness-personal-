@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "264dc68eac71606099c2c7958164072fe6c3a329",
+  "prompts": {
+    "e56a05bae2cde316": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "877f3879-7460-4f00-a8a3-b43864583dde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Priyansh <priyansh.p@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 50,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,14 @@
+terraform/components/cloudwatch/files/ec2_instance_config.csv
+  h_693c1ca0ab73b5 39-41,45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2257ea2a3f658462b6ca0a5bb4c691f1776bd3f8",
+  "prompts": {},
+  "humans": {
+    "h_693c1ca0ab73b5": {
+      "author": "parvkamal1 <parv.kamal@1mg.com>"
+    }
+  }
+}

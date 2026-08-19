@@ -1,0 +1,23 @@
+infra/service_queues.yml
+  efa71344a7e0b8c6 244-245,247-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "6c1177061031bad7f894bc7959c466e349fdf34d",
+  "prompts": {
+    "efa71344a7e0b8c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "85b9678c-6126-4c39-bf91-dc0e54585c3d",
+        "model": "<synthetic>"
+      },
+      "human_author": "Nipun Gandhi <nipun.gandhi@1mg.com>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 2,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

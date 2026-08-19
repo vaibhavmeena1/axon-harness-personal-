@@ -1,0 +1,19 @@
+playbooks/templates/nginx/1mg.com
+  s_ae38b223550fa6::t_10896fdb4a5a64 2788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0cea8b01578a67efb566e58ded105f3497c6085d",
+  "prompts": {},
+  "sessions": {
+    "s_ae38b223550fa6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "68bb7951-0598-4626-9679-cebfbd2c80d5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "anuj-kaushik-1mg <anuj.kaushik@1mg.com>"
+    }
+  }
+}

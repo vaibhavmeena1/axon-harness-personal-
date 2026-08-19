@@ -1,0 +1,16 @@
+group_vars/services_k8s
+  h_48d3af4cb421eb 4000-4033
+group_vars/services_stag_k8s
+  h_48d3af4cb421eb 3739-3740,3743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4ab9de86ae25ce564db086865a296727ab73d51f",
+  "prompts": {},
+  "humans": {
+    "h_48d3af4cb421eb": {
+      "author": "Darshan <darshan.salecha@1mg.com>"
+    }
+  }
+}

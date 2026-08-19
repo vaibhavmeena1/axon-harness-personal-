@@ -1,0 +1,14 @@
+playbooks/templates/nginx/1mg.com
+  h_83a1406b041db4 1830
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "baef30d794b92b63ae9eda7af0cc19cafde63547",
+  "prompts": {},
+  "humans": {
+    "h_83a1406b041db4": {
+      "author": "Ashref Raj <ashref.raj@1mg.com>"
+    }
+  }
+}

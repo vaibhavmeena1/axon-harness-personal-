@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_74e2a4722b4b05 9606
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "d5bde3058534d8184cac69e28fc6d524bdd76250",
+  "prompts": {},
+  "humans": {
+    "h_74e2a4722b4b05": {
+      "author": "Anubhav.Sharma1"
+    }
+  }
+}

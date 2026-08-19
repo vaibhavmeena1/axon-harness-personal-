@@ -1,0 +1,16 @@
+group_vars/services_k8s
+  h_0f4f91aaf65b8d 7728
+group_vars/services_stag_k8s
+  h_0f4f91aaf65b8d 3115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d7a0ded6a9758973b384e2f420945fe82e0a17de",
+  "prompts": {},
+  "humans": {
+    "h_0f4f91aaf65b8d": {
+      "author": "vaishali.jain1 <vaishali.jain1@1mg.com>"
+    }
+  }
+}

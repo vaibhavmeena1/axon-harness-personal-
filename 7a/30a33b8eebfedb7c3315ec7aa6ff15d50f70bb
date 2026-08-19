@@ -1,0 +1,25 @@
+group_vars/services_k8s
+  091156a07e2b5caa 2465
+group_vars/services_stag_k8s
+  091156a07e2b5caa 5385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "7a30a33b8eebfedb7c3315ec7aa6ff15d50f70bb",
+  "prompts": {
+    "091156a07e2b5caa": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "31555762-53a5-493f-b644-bdbc6b2d21d9",
+        "model": "composer-2.5"
+      },
+      "human_author": "amandeep.miriyala@1mg.com",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

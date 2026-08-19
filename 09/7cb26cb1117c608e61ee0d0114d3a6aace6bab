@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  e132ef4f0021db2d 1565,1594,1618,1645
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.34-dd1",
+  "base_commit_sha": "097cb26cb1117c608e61ee0d0114d3a6aace6bab",
+  "prompts": {
+    "e132ef4f0021db2d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "451384",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Mudit Jain",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "fbb0f6a19039e27685e2225e23ff4bf1fc43dba1",
+  "prompts": {},
+  "humans": {
+    "h_dcb45f134666ea": {
+      "author": "geekayush1mg <ayush.srivastava@1mg.com>"
+    }
+  }
+}
