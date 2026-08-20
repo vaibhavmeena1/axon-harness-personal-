@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  8f3e50c872249d8f 56-92,94-95,97-134,136-137,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "4299e5ae905b5e9b1c73b2eb8f2ec75dea349518",
+  "prompts": {
+    "8f3e50c872249d8f": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "470601",
+        "model": "OPENROUTER_GPT_5_POINT_6_TERRA"
+      },
+      "human_author": "Rishab Binoy <rishab.binoy@1mg.com>",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 0,
+      "accepted_lines": 80,
+      "overriden_lines": 4
+    }
+  }
+}
