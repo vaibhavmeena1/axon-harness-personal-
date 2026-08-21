@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  fb9c5f6a6481be87 127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "94146811dc9474652667a9bd5c7544507f7bcce1",
+  "prompts": {
+    "fb9c5f6a6481be87": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f38006d-e558-4dda-b699-c89218d88ad5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "pareeksourav <sourav.pareek@1mg.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
