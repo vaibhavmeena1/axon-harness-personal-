@@ -1,0 +1,19 @@
+group_vars/services_k8s
+  s_4bf53a51a30176::t_007288e1a43805 9735-9767
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "d2cf6554670f23058489b0eed60780f84bbf1a3d",
+  "prompts": {},
+  "sessions": {
+    "s_4bf53a51a30176": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b9ff58c6-20fc-4f9f-9435-5a2e8ec25582",
+        "model": "composer-2.5"
+      },
+      "human_author": "AnimeshRy <animesh.gautam@1mg.com>"
+    }
+  }
+}
