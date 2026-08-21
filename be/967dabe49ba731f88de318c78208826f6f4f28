@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_48d3af4cb421eb 4029-4030
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "be967dabe49ba731f88de318c78208826f6f4f28",
+  "prompts": {},
+  "humans": {
+    "h_48d3af4cb421eb": {
+      "author": "Darshan <darshan.salecha@1mg.com>"
+    }
+  }
+}

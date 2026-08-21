@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_4dc90dc7a0c82a::t_31823e80ccf347 554,10294-10346
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "fda18b618ddbcdb2543de88ca16198c2c9a906a4",
+  "prompts": {},
+  "sessions": {
+    "s_4dc90dc7a0c82a": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "466518",
+        "model": "AUTO"
+      },
+      "human_author": "Ishita <ishita.a1@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_be5c22cc6c24e0::t_bfb67b81f36aec 435,462,497
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fb68e521aee458387b9d29446deb686b700f092a",
+  "prompts": {},
+  "sessions": {
+    "s_be5c22cc6c24e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64a91830-8689-43a3-80b1-8daf623c7bd5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Anmol Chaudhary <anmol.chaudhary@1mg.com>"
+    }
+  }
+}

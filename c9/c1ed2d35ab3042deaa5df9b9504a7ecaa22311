@@ -1,0 +1,15 @@
+playbooks/templates/nginx/1mg.com
+  h_232a05c311cce4 1624-1631
+  h_232a05c311cce4 1596-1623
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c9c1ed2d35ab3042deaa5df9b9504a7ecaa22311",
+  "prompts": {},
+  "humans": {
+    "h_232a05c311cce4": {
+      "author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  }
+}

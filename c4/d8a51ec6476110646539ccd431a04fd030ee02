@@ -1,0 +1,16 @@
+group_vars/services_stag_k8s
+  h_dcb45f134666ea 851
+playbooks/templates/nginx/cs-console.1mg.com
+  h_dcb45f134666ea 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c4d8a51ec6476110646539ccd431a04fd030ee02",
+  "prompts": {},
+  "humans": {
+    "h_dcb45f134666ea": {
+      "author": "geekayush1mg <ayush.srivastava@1mg.com>"
+    }
+  }
+}

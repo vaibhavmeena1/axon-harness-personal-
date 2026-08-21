@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_b475f61b93591d 945
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "9db8e6a3481279e24b04081577b28ec7bd8e468a",
+  "prompts": {},
+  "humans": {
+    "h_b475f61b93591d": {
+      "author": "Anubhav Verma <anubhav.verma@1mg.com>"
+    }
+  }
+}
