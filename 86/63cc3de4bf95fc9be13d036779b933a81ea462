@@ -1,0 +1,36 @@
+playbooks/templates/nginx/tata1mgpsp.1mg.com
+  s_770d3a606e56dd::t_6add6474a2da21 1-14
+infra/service_route.yml
+  h_dbe0d4b3a39102 79
+group_vars/services_stag_k8s
+  s_770d3a606e56dd::t_43ca702d538160 8445-8446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "8663cc3de4bf95fc9be13d036779b933a81ea462",
+  "prompts": {},
+  "humans": {
+    "h_dbe0d4b3a39102": {
+      "author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_4bb7239896e960": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450674",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    },
+    "s_770d3a606e56dd": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "427180",
+        "model": "AUTO"
+      },
+      "human_author": "Vignesh Bharani Kumar <vignesh.bharani@1mg.com>"
+    }
+  }
+}

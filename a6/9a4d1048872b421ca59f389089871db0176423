@@ -1,0 +1,20 @@
+playbooks/templates/nginx/1mg.com
+  s_f0dc27067c965b::t_80944b53cf6322 179-181
+  s_f0dc27067c965b::t_025c4539e84665 176-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "a69a4d1048872b421ca59f389089871db0176423",
+  "prompts": {},
+  "sessions": {
+    "s_f0dc27067c965b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "456586",
+        "model": "AUTO"
+      },
+      "human_author": null
+    }
+  }
+}

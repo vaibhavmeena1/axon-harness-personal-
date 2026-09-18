@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_ba2a2814b51fa3::t_4392fb779c612d 2963
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "10916da17f3fb07c497cce29037d179af4314c5b",
+  "prompts": {},
+  "sessions": {
+    "s_ba2a2814b51fa3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e7c03617-771e-4459-bdf7-10937b68d09b",
+        "model": "grok-4.6"
+      },
+      "human_author": "Sumit.Gangwar1 <sumit.gangwar1@1mg.com>"
+    }
+  }
+}

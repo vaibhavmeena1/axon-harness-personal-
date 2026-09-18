@@ -1,0 +1,30 @@
+group_vars/services_stag_k8s
+  s_19d39acc062fc7::t_b8e67e60f7f54e 276
+  s_19d39acc062fc7::t_646484a2e21d26 345
+  s_19d39acc062fc7::t_f0be1193d43e2a 457
+  s_19d39acc062fc7::t_69cee93cd6c1e2 1962
+  s_19d39acc062fc7::t_0932964f4bd029 4569
+  s_19d39acc062fc7::t_444cd5c5e06fa3 7142
+  s_19d39acc062fc7::t_e2a7a8b9ab2b75 1920
+  s_19d39acc062fc7::t_4f57c19003639b 5678
+  s_19d39acc062fc7::t_c1147355ccff3b 491
+  s_19d39acc062fc7::t_536bea3a115439 4598
+  s_19d39acc062fc7::t_3a1bf7d433c037 5707
+  s_19d39acc062fc7::t_9ed9aeb316932e 430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "cae83ace56108422cd4cfa1a4032b56646e7bc65",
+  "prompts": {},
+  "sessions": {
+    "s_19d39acc062fc7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81007e01-305c-47cc-be3b-6ff92fbb3ac8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Aditya Singh <aditya.singh2@1mg.com>"
+    }
+  }
+}

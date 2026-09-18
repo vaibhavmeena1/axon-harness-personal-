@@ -1,0 +1,16 @@
+playbooks/templates/nginx/vmg.1mg.com
+  h_ee3b45bc181958 34
+group_vars/services_stag_k8s
+  h_ee3b45bc181958 3113-3114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "a4ae7bb5574a870432a027ef6333c254323aad43",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}

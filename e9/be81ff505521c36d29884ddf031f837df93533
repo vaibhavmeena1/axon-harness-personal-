@@ -1,0 +1,25 @@
+playbooks/templates/nginx/healthcheck.1mg.com
+  s_d803d08e27002f::t_fe4ecfb617a427 7-8
+  s_d803d08e27002f::t_2aab3e13d22c9a 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "e9be81ff505521c36d29884ddf031f837df93533",
+  "prompts": {},
+  "humans": {
+    "h_232a05c311cce4": {
+      "author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_d803d08e27002f": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "448425",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Sagar Tanwar <sagar.tanwar@1mg.com>"
+    }
+  }
+}

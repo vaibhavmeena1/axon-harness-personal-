@@ -1,0 +1,14 @@
+scripts/google_feed.py
+  h_3648ebb786b6c5 59,551,553,558,684,824
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4c51643e8b0f4c5230582adb74947a3f9eb3cab9",
+  "prompts": {},
+  "humans": {
+    "h_3648ebb786b6c5": {
+      "author": "Narendra Singh <int-narendra.singh@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+playbooks-devtron/templates/devtron-workflow-prod.j2
+  s_a1621494b387c0::t_903bc88f934e72 324
+  s_a1621494b387c0::t_3e452cdde0b5ca 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "96012f79fb7e885b8ef2ca1fcac1086cc2648f3d",
+  "prompts": {},
+  "sessions": {
+    "s_a1621494b387c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "916b43b0-cbeb-4e04-93b7-d179dec41c3b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "“Sachin <“sachin.thakur”@1mg.com>"
+    }
+  }
+}

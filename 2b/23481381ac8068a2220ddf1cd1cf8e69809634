@@ -1,0 +1,25 @@
+playbooks/templates/devtron-bulk-edit.j2
+  5d89046438d29e86 16
+playbooks/templates/devtron-app.j2
+  5d89046438d29e86 222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "2b23481381ac8068a2220ddf1cd1cf8e69809634",
+  "prompts": {
+    "5d89046438d29e86": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a01711ba-3593-44db-86b2-7b40eec641f7",
+        "model": "default"
+      },
+      "human_author": "ranjeet.madhav@1mg.com",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}

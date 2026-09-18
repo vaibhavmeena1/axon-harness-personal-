@@ -1,0 +1,29 @@
+group_vars/services_k8s
+  s_e2e0f850aabbe9::t_582586fc782e9f 7857-7871,7874-7875
+  s_e2e0f850aabbe9::t_2a00fc0320f6df 7941
+  s_e2e0f850aabbe9::t_ca80fa96da61b4 7908-7909
+group_vars/services_stag_k8s
+  s_e2e0f850aabbe9::t_5504a511ada139 5693
+  s_e2e0f850aabbe9::t_5da952c161d417 5694-5695
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.10",
+  "base_commit_sha": "579166ac2529779bc9866c64a3c2d26bbe2eb477",
+  "prompts": {},
+  "humans": {
+    "h_ee3b45bc181958": {
+      "author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_e2e0f850aabbe9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe5253fb-a787-42eb-88a2-96c18ba9aa60",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "7u5h4r <49778468+7u5h4r@users.noreply.github.com>"
+    }
+  }
+}

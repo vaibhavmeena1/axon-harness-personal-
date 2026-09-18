@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_6e075df53f3eeb::t_9072856ad7a75b 7202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "070133157f5157837e9cb00b3d2e4ace27e1e152",
+  "prompts": {},
+  "sessions": {
+    "s_6e075df53f3eeb": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "450861",
+        "model": "CLAUDE_4_POINT_6_SONNET"
+      },
+      "human_author": "Bhanu Pratap <bhanu.pratap1@1mg.com>"
+    }
+  }
+}

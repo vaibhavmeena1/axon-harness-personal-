@@ -1,0 +1,23 @@
+group_vars/services_k8s
+  71f4f79e29bd0520 1920,1953,1994,2024,2056,2110,8232,8267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "075e10d2dd037a7ccdf0dce0abf32bc9464be62a",
+  "prompts": {
+    "71f4f79e29bd0520": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "607bfed1-fe57-45db-a6f4-80fb741cfc6d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "praful.parashar@1mg.com",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 0,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

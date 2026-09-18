@@ -1,0 +1,16 @@
+group_vars/services_k8s
+  h_68f8e2b750274c 7033
+group_vars/services_stag_k8s
+  h_68f8e2b750274c 928
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "ca110346610739a97125064dbda8bcc69aa14b5a",
+  "prompts": {},
+  "humans": {
+    "h_68f8e2b750274c": {
+      "author": "Aninash"
+    }
+  }
+}

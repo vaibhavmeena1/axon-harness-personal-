@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_c19ea5d582e546 2254-2256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1af71524bc3d9925e986dac5bf5049efdc81e948",
+  "prompts": {},
+  "humans": {
+    "h_c19ea5d582e546": {
+      "author": "Anuj Pratap Singh"
+    }
+  }
+}

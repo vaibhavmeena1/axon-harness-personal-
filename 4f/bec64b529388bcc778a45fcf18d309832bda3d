@@ -1,0 +1,19 @@
+group_vars/services_stag_k8s
+  s_6bbb633e35ba6e::t_5573e89e4d3c55 7959
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "4fbec64b529388bcc778a45fcf18d309832bda3d",
+  "prompts": {},
+  "sessions": {
+    "s_6bbb633e35ba6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05f54612-72de-417a-887e-4c2127abff6c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Vaibhav Misra <vaibhav.misra@1mg.com>"
+    }
+  }
+}

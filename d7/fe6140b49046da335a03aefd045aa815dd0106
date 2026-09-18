@@ -1,0 +1,14 @@
+group_vars/services_k8s
+  h_31421dfead35d2 4452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "d7fe6140b49046da335a03aefd045aa815dd0106",
+  "prompts": {},
+  "humans": {
+    "h_31421dfead35d2": {
+      "author": "gagan.hv <gagan.hv@1mg.com>"
+    }
+  }
+}

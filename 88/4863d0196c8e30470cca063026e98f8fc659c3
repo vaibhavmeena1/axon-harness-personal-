@@ -1,0 +1,24 @@
+scripts/pulsecheck/vault_config.json
+  s_0dddc87d90ecf4::t_c6c684fe692347 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "884863d0196c8e30470cca063026e98f8fc659c3",
+  "prompts": {},
+  "humans": {
+    "h_0644ac61e50fad": {
+      "author": "Ishita <ishita.a1@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_0dddc87d90ecf4": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "467184",
+        "model": "AUTO"
+      },
+      "human_author": "Ishita <ishita.a1@1mg.com>"
+    }
+  }
+}

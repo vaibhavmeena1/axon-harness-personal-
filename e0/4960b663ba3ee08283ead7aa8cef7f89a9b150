@@ -1,0 +1,14 @@
+playbooks/templates/nginx/1mg.com
+  h_ee346400b6b23a 3529
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "e04960b663ba3ee08283ead7aa8cef7f89a9b150",
+  "prompts": {},
+  "humans": {
+    "h_ee346400b6b23a": {
+      "author": "Sahil <sahil.kandpal@1mg.com>"
+    }
+  }
+}

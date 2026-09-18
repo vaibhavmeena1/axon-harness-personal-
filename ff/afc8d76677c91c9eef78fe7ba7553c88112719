@@ -1,0 +1,14 @@
+group_vars/services_stag_k8s
+  h_e4025c88f3e553 6019,7633,7676
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ffafc8d76677c91c9eef78fe7ba7553c88112719",
+  "prompts": {},
+  "humans": {
+    "h_e4025c88f3e553": {
+      "author": "Megha <megha.a@1mg.com>"
+    }
+  }
+}

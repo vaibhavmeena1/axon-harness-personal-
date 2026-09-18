@@ -1,0 +1,23 @@
+group_vars/services_stag_k8s
+  64d80ad1eb241cd0 6349-6350,6352-6353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.7",
+  "base_commit_sha": "da32eee86e7b161927755afb76f38d92bdbd0f00",
+  "prompts": {
+    "64d80ad1eb241cd0": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "401959",
+        "model": "AUTO"
+      },
+      "human_author": "amandeep.miriyala@1mg.com",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}

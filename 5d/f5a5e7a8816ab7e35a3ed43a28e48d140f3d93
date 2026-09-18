@@ -1,0 +1,26 @@
+scripts/google_feed.py
+  s_2f055da43b1837::t_a8a34b9d1d3e03 34-39,547,559-589,653,860-896
+  s_2f055da43b1837::t_0500ea63dae4f7 1610-1615,1808-1813
+  s_2f055da43b1837::t_282720333017d6 1747-1750,1860-1863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5df5a5e7a8816ab7e35a3ed43a28e48d140f3d93",
+  "prompts": {},
+  "humans": {
+    "h_3648ebb786b6c5": {
+      "author": "Narendra Singh <int-narendra.singh@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_2f055da43b1837": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "424920",
+        "model": "CLAUDE_4_POINT_5_SONNET"
+      },
+      "human_author": "Narendra Singh <int-narendra.singh@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+playbooks/templates/nginx/unifiedadmin.1mg.com
+  s_f0e97a2494919a::t_4bb5e57a9c9d47 66-71
+  s_f0e97a2494919a::t_f7172693ca7fae 152-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "11971a1bd0f45967234ce0a6e6af1d168d02ef3e",
+  "prompts": {},
+  "sessions": {
+    "s_f0e97a2494919a": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "456641",
+        "model": "AUTO"
+      },
+      "human_author": "Aaditya Gagneja <aaditya.gagneja@1mg.com>"
+    }
+  }
+}

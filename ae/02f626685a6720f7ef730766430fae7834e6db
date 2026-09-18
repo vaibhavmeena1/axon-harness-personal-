@@ -1,0 +1,28 @@
+scripts/config_template.json
+  s_4fe2907f6150ec::t_2d64dda8bcc56e 330-332
+playbooks/templates/cron/prod-catalog-autopilot-backend-background-cron.j2
+  s_4fe2907f6150ec::t_a9c1517bf4aed1 35,37
+  h_cbc19accedcd8a 43
+  s_4fe2907f6150ec::t_ee83e4ebd51f68 5-34,36,38-42,44-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ae02f626685a6720f7ef730766430fae7834e6db",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_4fe2907f6150ec": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "434445",
+        "model": "OPENROUTER_GPT_5_POINT_4"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+playbooks/templates/nginx/admin.1mg.com
+  b41b25dc7734cfd2 15
+playbooks/templates/nginx/api.1mg.com
+  b41b25dc7734cfd2 600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.12",
+  "base_commit_sha": "cdd5f94396a4d038b3b804e1721d1bdde5d7366a",
+  "prompts": {
+    "b41b25dc7734cfd2": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "471518",
+        "model": "OPENROUTER_GPT_5_POINT_6_TERRA"
+      },
+      "human_author": "Aniket Kumar <aniket.kumar@1mg.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
