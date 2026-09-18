@@ -18,6 +18,8 @@ make install
 
 `config.json` is local and git-ignored. Keep `config_template.json` updated whenever the configuration shape changes.
 
+Before adding application code, read [`VORTEX_REFERENCE.md`](VORTEX_REFERENCE.md) for the audited locked Vortex API, reusable components, configuration behavior, and known caveats.
+
 ## Commands
 
 ```bash

@@ -6,7 +6,7 @@ authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "vortex @ git+ssh://git@bitbucket.org/tata1mg/vortex.git@3.1.0",
+    "vortex @ git+ssh://git@bitbucket.org/tata1mg/vortex.git@3.3.1",
 ]
 
 [dependency-groups]

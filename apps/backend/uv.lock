@@ -157,7 +157,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "vortex", git = "ssh://git@bitbucket.org/tata1mg/vortex.git?rev=3.1.0" }]
+requires-dist = [{ name = "vortex", git = "ssh://git@bitbucket.org/tata1mg/vortex.git?rev=3.3.1" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1171,8 +1171,8 @@ wheels = [
 
 [[package]]
 name = "vortex"
-version = "3.1.0"
-source = { git = "ssh://git@bitbucket.org/tata1mg/vortex.git?rev=3.1.0#528eb2611ddfb49f3c16237d8ccea6d7df67f030" }
+version = "3.3.1"
+source = { git = "ssh://git@bitbucket.org/tata1mg/vortex.git?rev=3.3.1#e5e546595c43c73faf1c7b8ac7ffecff4473ec02" }
 dependencies = [
     { name = "asgi-correlation-id" },
     { name = "fastapi" },

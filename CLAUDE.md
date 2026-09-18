@@ -114,6 +114,12 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 This is a Bun workspaces monorepo. `bun install` runs once at the root and produces the single `bun.lock`.
 
+Root `check`, `typecheck`, and `test` fan out to every app explicitly, crossing package-manager
+boundaries (`bun` for the CLI, `pnpm` for the frontend, `make`/`uv` for the backend). Never scope
+them with `bun run --filter`: that resolves Bun workspace members only, so it would silently skip
+`apps/frontend` and `apps/backend`. Per-app variants are suffixed (`check:frontend`, `test:backend`).
+`lint`, `format`, and `format:check` at the root are Biome-only and therefore Bun-apps-only by design.
+
 - `apps/cli` is the `ddcli` launcher. Run its scripts from that directory (`cd apps/cli && bun test`), or from the root with `bun run --cwd apps/cli <script>`.
 - `apps/frontend` is the management console: pnpm, Vite, React 19, TypeScript, Tailwind v4, and shadcn. It is **not** a Bun workspace member and is excluded from Biome, so use pnpm from inside that directory and never `bun install` there. It has its own ESLint and Prettier. Its `config.json` is git-ignored; `config_template.json` is the checked-in shape and both change together.
 - `apps/backend` is the centralized management API: a standalone Python 3.12 project managed by uv, with Vortex, Ruff, pytest, and its own `uv.lock`. Run its commands from that directory; it is not a Bun workspace member and is excluded from Biome. Its `config.json` is git-ignored; keep `config_template.json` in sync with its shape.
