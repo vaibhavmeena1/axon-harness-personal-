@@ -1,0 +1,270 @@
+apps/backend/app/clients/openrouter/client.py
+  s_a46bda403ea7fa::t_51d6ebde96fdab 5
+  s_1c2feedde7ac20::t_8b067de16be9ce 1-2,6-20,29-57,59-91,93-114,116-170
+  s_a46bda403ea7fa::t_2b24540b3542a7 92,115
+  s_a46bda403ea7fa::t_2123911200d43a 3-4,21-28,58
+  s_1c2feedde7ac20::t_4ea3c8c623c5bf 171
+apps/backend/app/listeners/openrouter.py
+  s_1c2feedde7ac20::t_ef6d7153185cc9 1-5,7-30
+  s_1c2feedde7ac20::t_d14addd62597f5 6
+  s_1c2feedde7ac20::t_c631d6546ef413 31
+apps/backend/app/services/model_recommendation/ranking.py
+  s_1c2feedde7ac20::t_6868a20f270ccb 88
+  s_a46bda403ea7fa::t_05d8710123178f 20
+  s_1c2feedde7ac20::t_2b81111eef694b 2,4-5,7-15,28,30-33,38,40,42-43,47-67,69-76,78,82-87
+  s_a46bda403ea7fa::t_f053f684cd9d1d 1,3,6,16-19,21-27,29,34-37,41,68,77,79
+  s_1c2feedde7ac20::t_733e9e46e03b55 39
+  s_a46bda403ea7fa::t_c13b097dad256e 44-46
+  s_1c2feedde7ac20::t_8d3616c2166a49 80-81
+apps/backend/app/services/model_recommendation/model_catalog.json
+  s_a46bda403ea7fa::t_9253c419bf6fc9 1-46
+apps/backend/app/web/__init__.py
+  s_fa166dcbbfef5e::t_c703cc0f310916 1-5
+apps/frontend/vite.config.ts
+  s_fa166dcbbfef5e::t_093413e8ede059 13-21,25-30
+apps/backend/app/clients/openrouter/dependencies.py
+  s_1c2feedde7ac20::t_fb8289d20afb05 15
+  s_1c2feedde7ac20::t_461d8cc88892fb 1-14
+apps/cli/src/harnesses/pi/environment.ts
+  s_1c2feedde7ac20::t_77d65977a041e6 1,7-10
+apps/cli/src/harnesses/pi/resources/extensions/model-recommender.ts
+  s_25b517032ef8d8::t_83b4e3428e2f44 1-11,16-32,34-36,43-66,68,70,72-73,76-102,104-106,110-120,122-132,134-153,155-156,158-200,204-224,229-231,236-254,273,289-292,295-326,341-436,445-446,448,450-451,453-454,456-469
+  s_25b517032ef8d8::t_251ca1cb21828c 37-42,67,69,71,74,202-203
+  s_25b517032ef8d8::t_0950d0cc7b109f 107-109,232-235
+  s_a46bda403ea7fa::t_2e0b12e14d74bc 441-444
+  s_1c2feedde7ac20::t_81327bca079d6c 12-15,33,154,157,438-440,447,449,452,455
+  s_a46bda403ea7fa::t_ed2074fffd7adc 103,225-228,437
+  s_9f5e56743d32b0::t_2af139647d979e 255,262-266,271-272,293-294,327-340
+  s_9f5e56743d32b0::t_6eb8e355b352a1 256-261,267-270,274-288
+  s_1c2feedde7ac20::t_b563f15bedc068 121,133
+  s_25b517032ef8d8::t_6511317dd16c88 75,201
+apps/backend/app/models/base.py
+  s_fa166dcbbfef5e::t_e27abfbab5fac5 39
+  s_d0f86a2e1d5234::t_922dbfb9513584 1-2,5,33-34,36-38
+  s_01f308825483ea::t_59382933d22779 3-4,6-32,35
+apps/backend/app/clients/openrouter/exceptions.py
+  s_1c2feedde7ac20::t_3221a0fbb36be0 1-28
+  s_1c2feedde7ac20::t_fbbdbe2261c069 29
+apps/backend/app/clients/openrouter/__init__.py
+  s_1c2feedde7ac20::t_511ca9988408d3 1-3,8-15,17-21
+  s_1c2feedde7ac20::t_c64aea4e00cdc7 4-7,16,22
+  s_1c2feedde7ac20::t_a385802e549acf 23
+apps/cli/.env.example
+  s_1c2feedde7ac20::t_372a1c1f2a69a7 27-41
+apps/frontend/README.md
+  s_fa166dcbbfef5e::t_ba29bd06200eb9 36-41
+apps/backend/tests/test_web_static.py
+  s_fa166dcbbfef5e::t_e27abfbab5fac5 117,131
+  s_fa166dcbbfef5e::t_f9cdef56d34e2d 3,102,112
+  s_fa166dcbbfef5e::t_5f2d7f73a9645d 101,103-111,113-116
+  s_fa166dcbbfef5e::t_8713169cda53ca 1-2,4-100,118-130,132-141
+apps/backend/app/clients/__init__.py
+  s_1c2feedde7ac20::t_5614ba81b45fcf 1
+apps/backend/app/services/model_recommendation/__init__.py
+  s_1c2feedde7ac20::t_57e06319b3141c 1-18
+  s_1c2feedde7ac20::t_37ef7515f95aa7 19
+apps/backend/app/listeners/database.py
+  s_d0f86a2e1d5234::t_9b5b4ba3a3cf35 1-28
+.dockerignore
+  s_fa166dcbbfef5e::t_f6cdeff3cb3030 1-39
+apps/backend/app/core/config.py
+  s_01f308825483ea::t_2d834b3aa79b90 12
+  h_cbc19accedcd8a 11
+  s_d0f86a2e1d5234::t_f3fe3bc50eca77 1-4,6,8-10,13,17,19-70,101-108,110,113-144,154-160,179,222,224-232,235-246,286,339-366,368,371
+  s_2b4fba341f61f1::t_62306c5b6cf7f0 7,71-83,111,161-175,177-178,212-221,223,233,247-285,287,369
+  s_1c2feedde7ac20::t_8eee0c2c0282aa 84-100,112,180-202,204-211,234,289-337,370
+  s_1c2feedde7ac20::t_512b171a41447c 203,338
+  s_fa166dcbbfef5e::t_314c1a0aee558f 5,14-16,18,109,145-153,367
+  s_2b4fba341f61f1::t_7d81a0d9c35405 176,288
+apps/backend/app/services/model_recommendation/service.py
+  s_1c2feedde7ac20::t_3a1fd13e9dd1f7 32
+  s_1c2feedde7ac20::t_a76b65f1defd44 48
+  s_1c2feedde7ac20::t_8d7d4d117c11c8 1-31,33-47
+apps/backend/db/schema.sql
+  s_d0f86a2e1d5234::t_710ea37e3dbc14 1
+apps/backend/app/services/model_recommendation/schemas.py
+  s_1c2feedde7ac20::t_cc26406392e188 118
+  s_a46bda403ea7fa::t_9d4df7f96a5e46 29-52
+  s_1c2feedde7ac20::t_08b7f0666d1c42 1-28,65-117
+  s_a46bda403ea7fa::t_c3f1a5271e1f79 53-64
+apps/cli/tests/pi-package-setup.test.ts
+  s_25b517032ef8d8::t_1bd4b999ba0067 663,668
+apps/backend/app/__init__.py
+  s_d0f86a2e1d5234::t_a96ad7b7108dc9 1
+apps/backend/deployment/run_migrations.py
+  s_01f308825483ea::t_5ad4856a744593 8-12,34-35
+  s_d0f86a2e1d5234::t_e9fbebf9e8471e 17-18
+  s_01f308825483ea::t_79f3b9bc9914f9 5-7
+  s_01f308825483ea::t_e9000002f6b25f 36-38
+  h_cbc19accedcd8a 1-4,13-16,19-33,39-47
+apps/cli/src/product/manifest.ts
+  s_25b517032ef8d8::t_aa2374de3c306e 7-9,32-37,72,97-99
+  s_25b517032ef8d8::t_85f38fa2633fc7 100
+package.json
+  s_6af875e0bc9fe2::t_578d06ae08c030 28
+  s_fa166dcbbfef5e::t_f1fd9fb928c7af 27
+apps/backend/app/proxies/__init__.py
+  s_2b4fba341f61f1::t_b5a559274759d4 1-5
+apps/backend/app/services/model_recommendation/catalog.py
+  s_a46bda403ea7fa::t_492104a6cb8b11 6,8,14,17,21,24-25,27-32
+  s_a46bda403ea7fa::t_fe54b2ef8a5bd2 1-5,7,9-13,15-16,18-20,22-23,26
+apps/frontend/config_template.json
+  s_fa166dcbbfef5e::t_093413e8ede059 7-8
+apps/backend/app/web/static.py
+  s_fa166dcbbfef5e::t_c703cc0f310916 1-20,22-61,67-68,70-97
+  s_fa166dcbbfef5e::t_0105bb58f0f650 21,62-66,69
+apps/backend/config_template.json
+  s_fa166dcbbfef5e::t_091bcb1e600783 9
+  h_cbc19accedcd8a 22
+  s_2b4fba341f61f1::t_475b3b4afdcde5 12-20
+  s_1c2feedde7ac20::t_5416c188204ca9 50-62
+apps/cli/tests/launcher.test.ts
+  s_25b517032ef8d8::t_7609ad0af5820f 269-270,275
+apps/backend/app/main.py
+  s_fa166dcbbfef5e::t_091bcb1e600783 8,16,18-22
+  s_d0f86a2e1d5234::t_190a81a8f38730 1-5,7,9-15
+  s_2b4fba341f61f1::t_08dfbd938696cb 6,17
+apps/backend/pyproject.toml
+  s_d0f86a2e1d5234::t_0b367a107748f9 9,11
+  s_2b4fba341f61f1::t_9429cd594500fb 10
+apps/backend/.gitignore
+  s_fa166dcbbfef5e::t_f6cdeff3cb3030 19-21
+apps/backend/app/proxies/litellm.py
+  s_2b4fba341f61f1::t_cd21ee9496656e 135-181,236
+  s_2b4fba341f61f1::t_3f523940c7ae88 49,215
+  s_2b4fba341f61f1::t_1998e0e62abdf1 1-48,50-134,182-214,216-235,237-253
+apps/backend/app/services/__init__.py
+  s_1c2feedde7ac20::t_4e1f23901b8dcb 1
+apps/backend/README.md
+  s_fa166dcbbfef5e::t_ab70fd654f6dbe 59-60,62,64-67
+  s_6af875e0bc9fe2::t_d813682de15f3c 56
+  s_fa166dcbbfef5e::t_d32718ebee093d 61,63
+  s_fa166dcbbfef5e::t_ba29bd06200eb9 3,23-55,57-58
+  s_fa166dcbbfef5e::t_39e19a91ef183b 68
+apps/backend/app/services/model_recommendation/jev.py
+  s_1c2feedde7ac20::t_aa02047ce39f24 1-69,71-96,98-124,126-135
+  s_1c2feedde7ac20::t_b66958e1b3aa3d 70,97,125
+  s_1c2feedde7ac20::t_03299f555c3740 136
+apps/backend/app/core/__init__.py
+  s_d0f86a2e1d5234::t_74e81e28521f91 1
+apps/backend/app/routers/__init__.py
+  s_1c2feedde7ac20::t_50b82b323e6a6e 6,8
+  s_d0f86a2e1d5234::t_a16935e10df346 1-5,7
+apps/backend/app/routers/health.py
+  s_d0f86a2e1d5234::t_34ba807a08ec57 1-28
+apps/backend/app/models/__init__.py
+  s_d0f86a2e1d5234::t_ff80c2d84f07c8 1
+  s_d0f86a2e1d5234::t_6dba247d6642b8 2-5
+apps/backend/app/listeners/litellm.py
+  s_2b4fba341f61f1::t_08fb834561505a 1-43
+apps/frontend/package.json
+  s_fa166dcbbfef5e::t_070ad74ecd8151 6
+apps/backend/app/services/model_recommendation/dependencies.py
+  s_1c2feedde7ac20::t_143c3e1969c6f6 1-14
+  s_1c2feedde7ac20::t_a43f856d21dcdb 15
+apps/backend/app/listeners/__init__.py
+  s_1c2feedde7ac20::t_b2fd327c3d13c9 10,20-21
+  s_2b4fba341f61f1::t_670378f228bdb4 9,18-19
+  s_d0f86a2e1d5234::t_1cbeb59f1f8f30 1-8,11-17,22
+apps/backend/app/routers/model_recommendations.py
+  s_1c2feedde7ac20::t_afcf9abdc5dd61 1-4,7-15,17-20,26-31,33,47-49,52-54
+  s_a46bda403ea7fa::t_cf643d3017cdfe 5,16,21-25,32,39-45
+  s_1c2feedde7ac20::t_2ff1e94af5ce61 55
+  s_a46bda403ea7fa::t_e649c4e3b02165 6,34-38,46
+  s_a46bda403ea7fa::t_4568dcb3bfbd43 50-51
+Dockerfile
+  s_6af875e0bc9fe2::t_8fc91bee31bc68 1-126
+apps/backend/deployment/run_migrations.sh
+  s_25b517032ef8d8::t_98c6705ce070d6 1-5
+apps/backend/deployment/run_service.sh
+  s_25b517032ef8d8::t_8d7ab0cde36b43 1-32
+apps/backend/deployment/uvicorn_conf.py
+  s_25b517032ef8d8::t_af18c0efbc7efb 1-10
+apps/backend/uv.lock
+  h_cbc19accedcd8a 5-13,76-91,174-176,188-193,402-410,904-912,1089-1103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "0d0abd7f3a6e4173d317980cbe4ee0cc81ec1376",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_01f308825483ea": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480651",
+        "model": "OPENROUTER_GPT_5_POINT_6_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_1c2feedde7ac20": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480825",
+        "model": "OPENROUTER_GPT_5_POINT_6_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_25b517032ef8d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cffbfce-a117-4720-a489-8dfef40d5379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_2b4fba341f61f1": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480689",
+        "model": "OPENROUTER_GPT_5_POINT_6_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_6af875e0bc9fe2": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "481892",
+        "model": "OPENROUTER_GPT_5_POINT_6_TERRA"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_9f5e56743d32b0": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480844",
+        "model": "KIMI_K3"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_a46bda403ea7fa": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480840",
+        "model": "OPENROUTER_GPT_5_POINT_6_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d0f86a2e1d5234": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "480646",
+        "model": "OPENROUTER_GPT_5_POINT_6_SOL"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_fa166dcbbfef5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7188cf99-632a-43a0-8f7a-415c99627313",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
