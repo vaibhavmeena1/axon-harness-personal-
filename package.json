@@ -24,6 +24,8 @@
     "typecheck:frontend": "cd apps/frontend && pnpm typecheck",
     "check:backend": "make -C apps/backend check",
     "test:backend": "make -C apps/backend test",
+    "build:frontend": "cd apps/frontend && pnpm build",
+    "build:backend-image": "docker build --build-arg SERVICE_NAME=deputydev-console-backend --ssh default -t deputydev-console-backend .",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "format:check": "biome format ."

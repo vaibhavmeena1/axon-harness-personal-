@@ -6,14 +6,20 @@
   "WORKERS": 1,
   "DEBUG": true,
   "LOG_LEVEL": "INFO",
-  "ENABLE_APP_CORS": true,
-  "CORS_ORIGINS": [
-    "http://localhost:8010"
-  ],
+  "FRONTEND_DIR": "static",
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
+  "LITELLM": {
+    "UPSTREAM_URL": "http://10.1.0.62:4000",
+    "UPSTREAM_ROOT_PATH": "/engram-service/litellm",
+    "CONNECT_TIMEOUT_SECONDS": 10,
+    "POOL_TIMEOUT_SECONDS": 10,
+    "MAX_CONNECTIONS": 100,
+    "MAX_KEEPALIVE_CONNECTIONS": 20,
+    "KEEPALIVE_EXPIRY_SECONDS": 5
+  },
   "DATABASE": {
-    "DEPUTYDEV_DATABASE": {
+    "DEFAULT_DATABASE": {
       "DB_NAME": "deputydev",
       "DB_HOST": "localhost",
       "DB_PORT": 5432,
@@ -31,15 +37,6 @@
       "CONN_LIMIT": 20
     }
   },
-  "APM": {
-    "ENABLED": false,
-    "ENVIRONMENT": "local",
-    "SECRET_TOKEN": "",
-    "SERVER_TIMEOUT": "30s",
-    "SERVER_URL": "localhost",
-    "SPAN_FRAMES_MIN_DURATION": "10ms",
-    "TRANSACTION_SAMPLE_RATE": 0.1
-  },
   "SENTRY": {
     "DSN": "",
     "SERVICE_NAME": "deputydev-console-backend"
@@ -50,5 +47,18 @@
     "ENDPOINT": "",
     "EVENT_LOOP_MONITORING": true,
     "SAMPLING_RATE": 0.1
+  },
+  "OPENROUTER": {
+    "API_KEY": "<OPENROUTER_API_KEY>",
+    "BASE_URL": "https://openrouter.ai/api",
+    "HTTP_REFERER": "https://deputydev.ai",
+    "APP_TITLE": "deputydev meta-harness",
+    "APP_CATEGORIES": "cli-agent,cloud-agent",
+    "CONNECT_TIMEOUT_SECONDS": 10,
+    "REQUEST_TIMEOUT_SECONDS": 120,
+    "POOL_TIMEOUT_SECONDS": 10,
+    "MAX_CONNECTIONS": 20,
+    "MAX_KEEPALIVE_CONNECTIONS": 10,
+    "KEEPALIVE_EXPIRY_SECONDS": 5
   }
 }

@@ -1,0 +1,39 @@
+# The backend image builds from the repository root so it can also build the
+# console frontend. Keep local-only and reinstallable paths out of the context.
+
+.git
+.github
+.claude
+
+# Dependencies and virtualenvs (reinstalled from lockfiles inside the build)
+node_modules
+**/node_modules
+apps/backend/.venv
+
+# Build output
+dist
+**/dist
+build
+out
+release
+
+# Local, per-environment configuration (the image uses config_template.json)
+apps/backend/config.json
+apps/frontend/config.json
+apps/backend/static
+.env
+.env.*
+
+# Caches, logs, and editor/OS files
+**/__pycache__
+*.py[cod]
+.ruff_cache
+.pytest_cache
+.cache
+coverage
+*.tsbuildinfo
+logs
+*.log
+.idea
+.vscode
+.DS_Store

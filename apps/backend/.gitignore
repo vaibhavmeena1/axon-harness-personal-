@@ -16,6 +16,9 @@ htmlcov/
 build/
 dist/
 
+# Frontend bundle copied in by the Docker build (config.json FRONTEND_DIR)
+static/
+
 # Local configuration
 config.json
 

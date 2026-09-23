@@ -660,11 +660,12 @@ describe("package and resource locks", () => {
 
     expect(second.hash).toBe(first.hash);
     expect(await readlink(context.paths.runtimeCurrent)).toContain(first.hash.slice(0, 16));
-    expect(first.arguments).toHaveLength(4);
+    expect(first.arguments).toHaveLength(6);
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "deputydev.ts",
       "pi-org-telemetry.mjs",
+      "model-recommender.ts",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

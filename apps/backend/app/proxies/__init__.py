@@ -1,0 +1,5 @@
+"""Reverse-proxy application registration."""
+
+from app.proxies.litellm import mount_litellm_proxy
+
+__all__ = ["mount_litellm_proxy"]

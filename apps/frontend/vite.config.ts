@@ -10,9 +10,24 @@ export default defineConfig({
   base: config.VITE_BASE_PATH,
   server: {
     port: config.port,
+    // In production the backend serves this build from its own origin, so the
+    // app calls the API with relative URLs and needs no CORS. Proxying /api here
+    // gives `vite dev` the same same-origin behaviour.
+    proxy: {
+      "/api": {
+        target: config.DEV_API_PROXY_TARGET,
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: config.port,
+    proxy: {
+      "/api": {
+        target: config.DEV_API_PROXY_TARGET,
+        changeOrigin: true,
+      },
+    },
   },
   resolve: {
     alias: {

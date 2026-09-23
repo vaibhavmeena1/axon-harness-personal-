@@ -6,6 +6,9 @@ authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "asyncpg>=0.30.0",
+    "httpx>=0.28.1",
+    "tortoise-orm>=0.25.1",
     "vortex @ git+ssh://git@bitbucket.org/tata1mg/vortex.git@3.3.1",
 ]
 

@@ -1,8 +1,13 @@
+import { BUILD_INFO } from "../../build-info.ts";
 import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launcher/environment.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
+  PI_MODEL_RECOMMENDER_URL: new URL(
+    "/api/v1/model-recommendations",
+    BUILD_INFO.serviceOrigin,
+  ).toString(),
 }) satisfies EnvironmentOverrides;
 
 /**

@@ -4,6 +4,9 @@ import deputyDevOpenCodePluginAsset from "../harnesses/opencode/resources/plugin
 import deputyDevExtensionAsset from "../harnesses/pi/resources/extensions/deputydev.ts" with {
   type: "file",
 };
+import modelRecommenderExtensionAsset from "../harnesses/pi/resources/extensions/model-recommender.ts" with {
+  type: "file",
+};
 import piOrgTelemetryExtensionAsset from "../harnesses/pi/resources/extensions/pi-org-telemetry.mjs" with {
   type: "file",
 };
@@ -24,6 +27,12 @@ const PI_ORG_TELEMETRY_RESOURCE = Object.freeze({
   id: "pi-org-telemetry",
   type: "extension",
   destination: "pi/extensions/pi-org-telemetry.mjs",
+}) satisfies PiResourceManifestEntry;
+
+const MODEL_RECOMMENDER_RESOURCE = Object.freeze({
+  id: "model-recommender",
+  type: "extension",
+  destination: "pi/extensions/model-recommender.ts",
 }) satisfies PiResourceManifestEntry;
 
 const DEPUTYDEV_OPENCODE_CORE_RESOURCE = Object.freeze({
@@ -60,7 +69,7 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
         install: { action: "pi.install" },
       },
     ],
-    resources: [DEPUTYDEV_CORE_RESOURCE, PI_ORG_TELEMETRY_RESOURCE],
+    resources: [DEPUTYDEV_CORE_RESOURCE, PI_ORG_TELEMETRY_RESOURCE, MODEL_RECOMMENDER_RESOURCE],
   },
   opencode: {
     // Public npm plugins enabled for OpenCode sessions. Entries are added as
@@ -84,6 +93,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...PI_ORG_TELEMETRY_RESOURCE,
     sourcePath: piOrgTelemetryExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...MODEL_RECOMMENDER_RESOURCE,
+    sourcePath: modelRecommenderExtensionAsset as unknown as string,
   }),
 ] as const satisfies readonly EmbeddedPiResource[]);
 

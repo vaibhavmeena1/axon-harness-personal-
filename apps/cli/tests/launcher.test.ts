@@ -266,10 +266,13 @@ describe("launcher dispatch", () => {
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "deputydev.ts"),
       "--extension",
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
+      "--extension",
+      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");
     expect(stdout.arguments[3]).not.toContain("/current/");
+    expect(stdout.arguments[5]).not.toContain("/current/");
   });
 
   test("forwards Pi auth commands without setup arguments", async () => {

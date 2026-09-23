@@ -33,3 +33,9 @@ pnpm dev
 ## Conventions
 
 `@/*` resolves to `src/*`. Add shadcn components with `pnpm exec shadcn add <name>`; they land in `src/components/ui` and are excluded from Prettier so they stay close to upstream.
+
+## How this is deployed
+
+The console is a static build with nothing to run, so it is not deployed as its own service. `apps/backend` serves `dist/` from its own origin at `/`, and its Docker image runs `pnpm build` here and embeds the output. See that app's README for the routing and caching rules.
+
+Because the API and the console share an origin in production, the app calls the API with **relative** URLs (`BASE_API_URL` is `""`) and there is no CORS. `vite dev` reproduces that: it proxies `/api` to `DEV_API_PROXY_TARGET` (the backend on port 3000 by default), so the same relative URLs work in development.
