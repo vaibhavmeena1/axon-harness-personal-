@@ -1,11 +1,14 @@
 """LiteLLM reverse-proxy client startup and shutdown listeners."""
 
+import logging
+
 import httpx
 from fastapi import FastAPI
-from vortex import logger
 
 from app.core.config import get_settings
 from app.proxies.litellm import LITELLM_CLIENT_STATE_KEY
+
+logger = logging.getLogger(__name__)
 
 
 async def initialize_litellm_proxy(app: FastAPI) -> None:

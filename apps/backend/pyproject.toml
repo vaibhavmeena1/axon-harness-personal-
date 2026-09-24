@@ -7,9 +7,10 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "asyncpg>=0.30.0",
+    "fastapi>=0.136.3",
     "httpx>=0.28.1",
     "tortoise-orm>=0.25.1",
-    "vortex @ git+ssh://git@bitbucket.org/tata1mg/vortex.git@3.3.1",
+    "uvicorn[standard]>=0.35.0",
 ]
 
 [dependency-groups]

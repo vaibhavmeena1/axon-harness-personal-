@@ -1,22 +1,25 @@
 """ASGI application entry point."""
 
-from vortex import Vortex
+from fastapi import FastAPI
 
-from app.listeners import LIFESPANS
+from app.core.config import get_settings
+from app.listeners import lifespan
 from app.proxies import mount_litellm_proxy
 from app.routers import ROUTERS
 from app.web import mount_frontend
 
-vortex = Vortex(
-    routers=ROUTERS,
-    lifespans=LIFESPANS,
+settings = get_settings()
+app = FastAPI(
+    title=settings.name,
+    debug=settings.debug,
+    lifespan=lifespan,
     description="Centralized management API for DeputyDev CLI installations",
     version="0.1.0",
 )
-app = vortex.create_app()
+for router in ROUTERS:
+    app.include_router(router)
 mount_litellm_proxy(app)
 
-# Must run after create_app(): the console is mounted at "/" as a catch-all, and
-# Starlette matches routes in registration order, so every API route has to be
-# registered first.
+# Must run after the API routes: the console is mounted at "/" as a catch-all,
+# and Starlette matches routes in registration order.
 mount_frontend(app)

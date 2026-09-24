@@ -1,10 +1,17 @@
-"""Service health endpoints beyond Vortex's basic liveness check."""
+"""Service liveness and readiness endpoints."""
 
 from asyncpg import PostgresError
 from fastapi import APIRouter, HTTPException, Request, status
 from tortoise.exceptions import DBConnectionError, OperationalError
 
+ping_router = APIRouter(tags=["health"])
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
+
+
+@ping_router.get("/ping")
+async def ping() -> dict[str, str]:
+    """Report liveness without checking downstream services."""
+    return {"ping": "pong"}
 
 
 @router.get("/readiness", status_code=status.HTTP_200_OK)

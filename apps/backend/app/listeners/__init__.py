@@ -1,7 +1,7 @@
 """Application lifecycle listener registration."""
 
-from collections.abc import Awaitable, Callable
-from typing import Literal, TypeAlias
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -9,14 +9,18 @@ from app.listeners.database import close_database, initialize_database
 from app.listeners.litellm import close_litellm_proxy, initialize_litellm_proxy
 from app.listeners.openrouter import close_openrouter_client, initialize_openrouter_client
 
-LifespanHook: TypeAlias = Callable[[FastAPI], Awaitable[None]]
-LifespanRegistration: TypeAlias = tuple[LifespanHook, Literal["startup", "shutdown"]]
 
-LIFESPANS: list[LifespanRegistration] = [
-    (initialize_database, "startup"),
-    (close_database, "shutdown"),
-    (initialize_litellm_proxy, "startup"),
-    (close_litellm_proxy, "shutdown"),
-    (initialize_openrouter_client, "startup"),
-    (close_openrouter_client, "shutdown"),
-]
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Start dependencies in order and close initialized resources in reverse order."""
+    async with AsyncExitStack() as stack:
+        await initialize_database(app)
+        stack.push_async_callback(close_database, app)
+
+        await initialize_litellm_proxy(app)
+        stack.push_async_callback(close_litellm_proxy, app)
+
+        await initialize_openrouter_client(app)
+        stack.push_async_callback(close_openrouter_client, app)
+
+        yield

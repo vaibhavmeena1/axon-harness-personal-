@@ -8,7 +8,7 @@ Monorepo for DeputyDev: the `ddcli` launcher plus the centralized management bac
 apps/
   cli/        ddcli launcher. Bun, compiled darwin-arm64 binary. See apps/cli/README.md.
   frontend/   management console UI. pnpm, Vite, React, TypeScript, Tailwind, shadcn.
-  backend/    centralized management API. Python 3.12, uv, Vortex, Ruff, pytest.
+  backend/    centralized management API. Python 3.12, uv, FastAPI, Ruff, pytest.
 packages/     shared code between apps (for example API contracts). Empty until needed.
 ```
 

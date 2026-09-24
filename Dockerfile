@@ -13,14 +13,11 @@
 # console frontend:
 #
 #   DOCKER_BUILDKIT=1 docker build \
-#     --build-arg SERVICE_NAME=... --ssh default .
+#     --build-arg SERVICE_NAME=... .
 #
 # The console is a static Vite build with nothing to run, so serving it from this
 # service keeps one origin, one deploy, and one version for the API and the UI.
 #
-# --ssh default forwards the agent for the private `vortex` Bitbucket dependency.
-# The key is never written into a layer.
-
 # ---------- console: build the static frontend bundle ----------
 # Alpine/musl is fine here: this stage only emits static JS/CSS/HTML and never
 # reaches the runtime image, so the glibc reasoning above does not apply.
@@ -61,7 +58,7 @@ ARG SERVICE_NAME
 RUN apk add --no-cache \
     python-3.12 python-3.12-dev \
     build-base openssl-dev libffi-dev \
-    curl openssh-client openssh-keyscan git
+    curl
 
 ENV UV_INSTALL_DIR=/usr/local/bin
 RUN curl -LsSf https://astral.sh/uv/0.11.7/install.sh | sh
@@ -75,13 +72,7 @@ COPY apps/backend/pyproject.toml apps/backend/uv.lock apps/backend/README.md ./
 ENV VIRTUAL_ENV=/home/ubuntu/1mg/$SERVICE_NAME/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# The private `vortex` Bitbucket dependency is fetched over SSH using the agent
-# forwarded by --ssh default, so the key itself never enters a layer.
-RUN mkdir -p -m 0700 /root/.ssh && \
-    ssh-keyscan -t ed25519 bitbucket.org > /root/.ssh/known_hosts
-
-RUN --mount=type=ssh \
-    uv sync --frozen --no-dev --python /usr/bin/python3.12 && rm -rf /root/.cache/uv
+RUN uv sync --frozen --no-dev --python /usr/bin/python3.12 && rm -rf /root/.cache/uv
 
 # ---------- runtime: minimal Wolfi base + python-3.12 + the resolved venv ----------
 FROM --platform=linux/amd64 cgr.dev/chainguard/wolfi-base:latest AS runtime

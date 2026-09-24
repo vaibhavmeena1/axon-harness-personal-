@@ -1,9 +1,9 @@
 """Task-based coding-model recommendation endpoint."""
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from vortex import logger
 
 from app.clients.openrouter import OpenRouterError
 from app.services.model_recommendation import (
@@ -14,6 +14,8 @@ from app.services.model_recommendation import (
     get_model_recommendation_service,
 )
 from app.services.model_recommendation.catalog import is_model_recommendation_enabled
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/model-recommendations", tags=["model-recommendations"])
 

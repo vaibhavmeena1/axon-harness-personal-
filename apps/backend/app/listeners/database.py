@@ -1,10 +1,13 @@
 """Database startup and shutdown listeners."""
 
+import logging
+
 from fastapi import FastAPI
 from tortoise import Tortoise
-from vortex import logger
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def initialize_database(app: FastAPI) -> None:

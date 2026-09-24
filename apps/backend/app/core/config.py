@@ -1,12 +1,11 @@
-"""Validated application settings backed by Vortex's loaded config.json."""
+"""Validated application settings backed by the backend's config.json."""
 
+import json
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
-
-from vortex import CONFIG
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -106,6 +105,7 @@ class Settings:
     port: int
     workers: int
     access_log: bool
+    debug: bool
     frontend_dir: Path
     database: DatabaseSettings
     litellm: LiteLLMSettings
@@ -223,8 +223,11 @@ def _url_path(source: dict[str, Any], key: str, path: str) -> str:
 
 @cache
 def get_settings() -> Settings:
-    """Parse and cache the process-global configuration loaded by Vortex."""
-    raw_config = CONFIG.config
+    """Parse and cache the backend configuration from its project directory."""
+    try:
+        raw_config = json.loads((BASE_DIR / "config.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigurationError("config.json must be a readable JSON file") from exc
     if not isinstance(raw_config, dict):
         raise ConfigurationError("config.json must contain a JSON object")
 
@@ -364,6 +367,7 @@ def get_settings() -> Settings:
         port=_integer(raw_config, "PORT", "config", maximum=65535),
         workers=_integer(raw_config, "WORKERS", "config", default=1),
         access_log=_boolean(raw_config, "ACCESS_LOG", "config", default=True),
+        debug=_boolean(raw_config, "DEBUG", "config", default=False),
         frontend_dir=_path(raw_config, "FRONTEND_DIR", "config", default=DEFAULT_FRONTEND_DIR),
         database=database,
         litellm=litellm,
