@@ -1,0 +1,55 @@
+apps/backend/app/listeners/database.py
+  d478f827ea6667cf 3-4,10
+apps/backend/app/main.py
+  d478f827ea6667cf 3,5-6,11-15,19-20,23-24
+apps/backend/app/web/static.py
+  d478f827ea6667cf 63-64,78
+apps/backend/app/listeners/litellm.py
+  d478f827ea6667cf 3-4,11
+package.json
+  d478f827ea6667cf 28
+apps/backend/app/routers/__init__.py
+  d478f827ea6667cf 5,9
+apps/backend/app/core/config.py
+  d478f827ea6667cf 1,3,108,226-230,370
+apps/backend/app/listeners/__init__.py
+  d478f827ea6667cf 3-4,12-26
+README.md
+  d478f827ea6667cf 11
+CLAUDE.md
+  d478f827ea6667cf 125
+Dockerfile
+  d478f827ea6667cf 16
+apps/backend/app/listeners/openrouter.py
+  d478f827ea6667cf 3-4,10
+apps/backend/pyproject.toml
+  d478f827ea6667cf 10,13
+apps/backend/README.md
+  d478f827ea6667cf 20,30-31,36,38,56,61
+apps/backend/tests/test_web_static.py
+  d478f827ea6667cf 103
+apps/backend/app/routers/health.py
+  d478f827ea6667cf 1,7,11-14
+apps/backend/app/routers/model_recommendations.py
+  d478f827ea6667cf 3,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "35f77a525ae3608fe528d4e9ff903983a7ae17a5",
+  "prompts": {
+    "d478f827ea6667cf": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "482975",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 89,
+      "total_deletions": 76,
+      "accepted_lines": 85,
+      "overriden_lines": 0
+    }
+  }
+}
