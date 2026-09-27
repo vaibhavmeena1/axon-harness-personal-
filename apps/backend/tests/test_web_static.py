@@ -100,12 +100,7 @@ def test_an_unregistered_api_path_is_a_real_404(client: TestClient) -> None:
 
 @pytest.mark.parametrize("path", ["assets/main-deadbeef.js", "api/v1/does-not-exist"])
 def test_a_404_is_returned_rather_than_raised(build_dir: Path, path: str) -> None:
-    """Guards the 404 against Vortex's global HTTPException handler.
-
-    Vortex registers a handler whose legacy status mapping rewrites 404 to 400
-    and wraps the body in the API error envelope. Raising here would therefore
-    produce a 400 for a missing static file, so the response must be returned.
-    """
+    """Missing API paths and assets return plain-text 404 responses."""
     app = SinglePageApplication(directory=build_dir)
     scope = {"type": "http", "method": "GET", "headers": []}
 

@@ -60,10 +60,8 @@ class SinglePageApplication(StaticFiles):
         `api/` means an unregistered endpoint. Answering either with `index.html`
         would turn a clear 404 into an HTML page that the caller cannot use.
 
-        The 404 is returned directly rather than raised. Vortex installs a global
-        `HTTPException` handler whose legacy status mapping rewrites 404 to 400
-        and wraps the body in the API error envelope — wrong for a static asset,
-        which browsers and CDNs cache and retry based on a true 404.
+        The 404 is returned directly so missing API paths and assets keep the
+        same plain-text response regardless of application exception handlers.
         """
         if path.startswith(ASSETS_PREFIX) or path.startswith(API_PREFIX):
             return PlainTextResponse("Not Found", status_code=404)
@@ -77,9 +75,9 @@ class SinglePageApplication(StaticFiles):
 def mount_frontend(app: FastAPI) -> None:
     """Mount the built frontend at `/`, if it has been built.
 
-    Mounting at `/` is safe only because this runs after `create_app()` has
-    registered every router: Starlette matches routes in registration order, so
-    the API, docs, and health routes are all matched before this catch-all.
+    Mounting at `/` is safe only after the app has registered every router:
+    Starlette matches routes in registration order, so the API, docs, and health
+    routes are all matched before this catch-all.
 
     A missing build directory is not an error. The backend runs on its own during
     local development, where the console is served by `vite dev` instead.

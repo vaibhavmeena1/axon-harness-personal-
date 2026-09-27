@@ -122,7 +122,7 @@ them with `bun run --filter`: that resolves Bun workspace members only, so it wo
 
 - `apps/cli` is the `ddcli` launcher. Run its scripts from that directory (`cd apps/cli && bun test`), or from the root with `bun run --cwd apps/cli <script>`.
 - `apps/frontend` is the management console: pnpm, Vite, React 19, TypeScript, Tailwind v4, and shadcn. It is **not** a Bun workspace member and is excluded from Biome, so use pnpm from inside that directory and never `bun install` there. It has its own ESLint and Prettier. Its `config.json` is git-ignored; `config_template.json` is the checked-in shape and both change together.
-- `apps/backend` is the centralized management API: a standalone Python 3.12 project managed by uv, with Vortex, Ruff, pytest, and its own `uv.lock`. Run its commands from that directory; it is not a Bun workspace member and is excluded from Biome. Its `config.json` is git-ignored; keep `config_template.json` in sync with its shape.
+- `apps/backend` is the centralized management API: a standalone Python 3.12 project managed by uv, with FastAPI, Ruff, pytest, and its own `uv.lock`. Run its commands from that directory; it is not a Bun workspace member and is excluded from Biome. Its `config.json` is git-ignored; keep `config_template.json` in sync with its shape.
 - `packages/` holds code shared between apps. Create it only when two apps need the same code.
 - `biome.json` and `tsconfig.base.json` at the root apply to every Bun-managed app. App `tsconfig.json` files extend the base and only set `include`/`exclude`.
 - Every Bun-managed app declares every package it imports in its own `package.json`. Bun uses isolated installs, so an undeclared transitive dependency is not resolvable even if another package depends on it.

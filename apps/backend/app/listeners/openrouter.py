@@ -1,10 +1,13 @@
 """OpenRouter client startup and shutdown listeners."""
 
+import logging
+
 from fastapi import FastAPI
-from vortex import logger
 
 from app.clients.openrouter import OPENROUTER_CLIENT_STATE_KEY, OpenRouterClient
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def initialize_openrouter_client(app: FastAPI) -> None:

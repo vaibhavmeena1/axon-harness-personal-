@@ -6,7 +6,6 @@ The centralized management API for DeputyDev CLI installations. It also serves t
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
-- SSH access to the private `tata1mg/vortex` Bitbucket repository
 
 ## Setup
 
@@ -18,7 +17,7 @@ make install
 
 `config.json` is local and git-ignored. Keep `config_template.json` updated whenever the configuration shape changes.
 
-Before adding application code, read [`VORTEX_REFERENCE.md`](VORTEX_REFERENCE.md) for the audited locked Vortex API, reusable components, configuration behavior, and known caveats.
+The backend loads `config.json` from this directory and validates it before serving requests. The Vortex audit in [`VORTEX_REFERENCE.md`](VORTEX_REFERENCE.md) describes the former stack and is not current implementation guidance.
 
 ## Serving the console frontend
 
@@ -28,14 +27,15 @@ Routing, in match order:
 
 | Path | Served by |
 | --- | --- |
-| `/api/v1/*` | Vortex routers |
+| `/api/v1/*` | FastAPI routers |
+| `/ping` | FastAPI liveness route |
 | `/docs`, `/openapi.json` | FastAPI |
 | `/assets/*` | the console build, cached permanently (filenames are content-hashed) |
 | everything else | the console build, falling back to `index.html` so client-side routes resolve |
 
-The mount is registered in `app/main.py` *after* `create_app()`. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every API route has been tried.
+The mount is registered in `app/main.py` *after* the API routers. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every API route has been tried.
 
-A missing asset under `/assets/` and an unknown path under `/api/` both return a real 404 instead of `index.html`. That 404 is returned rather than raised, because Vortex's global `HTTPException` handler applies legacy status mapping and would rewrite it to 400 (see `VORTEX_REFERENCE.md`).
+A missing asset under `/assets/` and an unknown path under `/api/` both return a plain-text 404 instead of `index.html`. FastAPI handles other HTTP exceptions with its normal status codes and response bodies; Vortex's legacy error envelope and status remapping are no longer installed. Vortex's request-context middleware, structured logging, Sentry, and OpenTelemetry integrations are also no longer installed automatically.
 
 `FRONTEND_DIR` in `config.json` points at the build (default `static/`, relative to this directory). When it is absent the service starts normally and serves the API only — which is the usual local setup, where `vite dev` serves the console on port 8010 and proxies `/api` here.
 
@@ -53,12 +53,12 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=deputydev-console-backend --ssh default -t deputydev-console-backend .
+DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=deputydev-console-backend -t deputydev-console-backend .
 ```
 
 Or `bun run build:backend-image` from the repository root.
 
-`--ssh default` forwards your SSH agent for the private `vortex` Bitbucket dependency; the key never enters a layer. That repository is also **IP-allowlisted**, so the build must run from an allowlisted network. Otherwise `uv sync` fails with *"To access this repository, an admin must whitelist your IP."* — note that SSH authentication succeeds either way, so the allowlist failure only shows up in uv's output.
+The Python dependencies resolve from PyPI; no Bitbucket SSH forwarding is required.
 
 The build assumes it can reach npm, PyPI, and GitHub over untampered TLS. On a developer machine behind a TLS-intercepting proxy it will fail with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` or `invalid peer certificate: UnknownIssuer`; build from a network without interception.
 
