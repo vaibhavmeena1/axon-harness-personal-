@@ -106,6 +106,8 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY --from=builder $VIRTUAL_ENV $VIRTUAL_ENV
 COPY --from=builder /usr/local/bin/dbmate /usr/local/bin/dbmate
 COPY apps/backend/ .
+# Keep the same installer that the CLI release publishes, at apps/cli's sibling path.
+COPY apps/cli/install.sh /home/ubuntu/1mg/cli/install.sh
 
 # The console bundle, served by the app at "/" (config.json's FRONTEND_DIR).
 COPY --from=console /build/dist ./static

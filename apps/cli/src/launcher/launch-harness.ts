@@ -43,7 +43,7 @@ export async function launchRegisteredHarness(
     }
 
     throw new LauncherError(
-      `failed to prepare the ${registration.id} profile`,
+      `failed to prepare the ${registration.id} harness`,
       LAUNCHER_EXIT_STATUS.profileFailure,
       { cause: error, remediation: `Run ddcli doctor ${registration.id}.` },
     );

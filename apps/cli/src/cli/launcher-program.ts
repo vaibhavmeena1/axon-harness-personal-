@@ -1,9 +1,11 @@
 import { Command, CommanderError } from "commander";
 
 import { BUILD_INFO } from "../build-info.ts";
+import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { checkForUpdate, installUpdate } from "../updater/update.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
@@ -20,7 +22,7 @@ function createLauncherProgram(): Command {
   const program = new Command();
   program
     .name(PRODUCT_IDENTITY.command)
-    .description(`${PRODUCT_IDENTITY.displayName} managed harness launcher`)
+    .description(`${PRODUCT_IDENTITY.displayName} Pi launcher`)
     .usage("<harness> [harness arguments...] | <command> [options]")
     .helpOption("-h, --help", "display launcher help")
     .version(BUILD_INFO.version, "-V, --version", "display launcher version")
@@ -29,7 +31,7 @@ function createLauncherProgram(): Command {
 
   program
     .command("harnesses")
-    .description("list supported harness IDs and aliases")
+    .description("list supported harness IDs")
     .action(() => {
       printHarnesses();
     });
@@ -44,7 +46,7 @@ function createLauncherProgram(): Command {
   program
     .command("doctor")
     .description("diagnose the launcher and installed harnesses")
-    .argument("[harness]", "stable harness ID or alias")
+    .argument("[harness]", "stable harness ID")
     .action(async (harness: string | undefined) => {
       const environment = process.env;
       const status = await runDoctor(
@@ -68,17 +70,41 @@ function createLauncherProgram(): Command {
     });
 
   program
+    .command("update")
+    .description("download and install the latest verified macOS arm64 release")
+    .option("--check", "report whether a newer release is available without installing")
+    .action(async (options: { check?: boolean }) => {
+      if (options.check) {
+        try {
+          const available = await checkForUpdate();
+          console.log(available ? `ddcli ${available} is available` : "ddcli is up to date");
+        } catch (error) {
+          throw new LauncherError(
+            "could not check for ddcli updates",
+            LAUNCHER_EXIT_STATUS.updateFailure,
+            {
+              cause: error,
+              remediation: "Check network connectivity and retry ddcli update --check.",
+            },
+          );
+        }
+      } else {
+        const installed = await installUpdate();
+        console.log(installed ? `Updated ddcli to ${installed}` : "ddcli is up to date");
+      }
+    });
+
+  program
     .command("uninstall")
     .description("remove the managed binary while preserving user data by default")
     .option("--remove-runtimes", "also remove cached immutable runtimes")
-    .option("--remove-profiles", "also remove profiles, managed auth, and sessions")
     .action(async (options: UninstallOptions) => {
       await runUninstall(resolveDeputyDevPaths(), options);
     });
 
   program.addHelpText(
     "after",
-    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n  ${PRODUCT_IDENTITY.command} opencode [opencode arguments...]\n  ${PRODUCT_IDENTITY.command} opencode2 [opencode arguments...]  (compatibility alias)\n\nEverything after a harness ID is passed to that harness without launcher parsing.`,
+    `\nHarnesses:\n  ${PRODUCT_IDENTITY.command} pi [pi arguments...]\n\nEverything after a harness ID is passed to that harness without launcher parsing.`,
   );
 
   return program;

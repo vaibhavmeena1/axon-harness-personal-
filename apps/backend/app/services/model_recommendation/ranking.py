@@ -31,10 +31,7 @@ def rank_available_models(
     complexity = assessment.normalized_complexity
     reasoning_target = max(assessment.needs_deep_reasoning, complexity * 0.85)
     quality_target = _clamp(
-        0.2
-        + complexity * 0.55
-        + assessment.high_complexity_probability * 0.15
-        + assessment.needs_deep_reasoning * 0.1
+        0.2 + complexity * 0.55 + assessment.high_complexity_probability * 0.15 + assessment.needs_deep_reasoning * 0.1
     )
     speed_target = _clamp((1 - complexity) * 0.7 + assessment.prioritizes_speed * 0.3)
 
@@ -76,9 +73,7 @@ def _reason(model: ConfiguredModel, assessment: JevTaskAssessment) -> str:
     traits: list[str] = []
     if model.reasoning >= 0.5 and assessment.needs_deep_reasoning >= 0.5:
         traits.append("reasoning support")
-    if model.speed >= 0.7 and (
-        assessment.prioritizes_speed >= 0.5 or assessment.normalized_complexity < 0.4
-    ):
+    if model.speed >= 0.7 and (assessment.prioritizes_speed >= 0.5 or assessment.normalized_complexity < 0.4):
         traits.append("fast-model profile")
 
     return f"{task_fit}; {', '.join(traits)}" if traits else task_fit

@@ -1,7 +1,7 @@
 {
   "name": "deputydev-cli",
   "version": "0.1.0",
-  "description": "Native DeputyDev launcher for supported coding harnesses (ddcli)",
+  "description": "Native DeputyDev launcher for Pi (ddcli)",
   "private": true,
   "type": "module",
   "module": "src/index.ts",
@@ -20,6 +20,8 @@
     "telemetry:check": "bun run scripts/build-pi-telemetry.ts --check",
     "release:validate": "bun run scripts/validate-release.ts",
     "release:metadata": "bun run scripts/generate-release-metadata.ts",
+    "release:prepare-s3": "bun run telemetry:check && bun run scripts/prepare-s3-release.ts",
+    "release:publish-s3": "bun run scripts/publish-s3-release.ts",
     "test": "bun test",
     "test:installer": "bun test tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json",

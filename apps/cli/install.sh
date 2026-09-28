@@ -7,7 +7,10 @@ PROGRAM=ddcli
 TARGET=darwin-arm64
 ARCHIVE_NAME=ddcli-darwin-arm64.gz
 BINARY_ASSET_NAME=ddcli-darwin-arm64
-RELEASES_URL=${_DDCLI_RELEASES_URL:-https://github.com/vaibhavmeena1/dd-cli/releases}
+# The backend substitutes this default when serving /install.sh.
+# When running this source file directly, set _DDCLI_RELEASES_URL to your backend's HTTPS release endpoint.
+DEFAULT_RELEASES_URL='https://YOUR_ORIGIN/api/v1/cli/releases'
+RELEASES_URL=${_DDCLI_RELEASES_URL:-$DEFAULT_RELEASES_URL}
 
 VERSION_FILE=
 CHECKSUMS_FILE=
@@ -41,6 +44,42 @@ trap 'exit 1' 1 2 15
 
 require_tool() {
   command -v "$1" >/dev/null 2>&1 || die "required tool is not available: $1"
+}
+
+pi_runtime_ready() {
+  command -v node >/dev/null 2>&1 &&
+    node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 19) ? 0 : 1)' >/dev/null 2>&1 &&
+    command -v npm >/dev/null 2>&1 &&
+    npm --version >/dev/null 2>&1
+}
+
+ensure_pi_runtime() {
+  if pi_runtime_ready; then
+    say "Node.js 22.19+ and npm are available for Pi."
+    return
+  fi
+
+  if ! command -v brew >/dev/null 2>&1; then
+    die "Pi requires Node.js 22.19+ and npm. Install them from https://nodejs.org/ or install Homebrew, then run this installer again"
+  fi
+  if ! [ -r /dev/tty ] || ! [ -w /dev/tty ]; then
+    die "Pi requires Node.js 22.19+ and npm. Run this installer in an interactive terminal to install them with Homebrew, or install them first and retry"
+  fi
+
+  printf 'Pi requires Node.js 22.19+ and npm. Install or upgrade Node.js with Homebrew now? [Y/n] ' > /dev/tty
+  IFS= read -r answer < /dev/tty || die "could not read confirmation for Node.js installation"
+  case "$answer" in
+    ''|y|Y|yes|YES) ;;
+    *) die "Node.js installation declined; install Node.js 22.19+ and npm, then retry" ;;
+  esac
+
+  if brew list node >/dev/null 2>&1; then
+    brew upgrade node || die "Homebrew could not upgrade Node.js"
+  else
+    brew install node || die "Homebrew could not install Node.js"
+  fi
+  pi_runtime_ready || die "Node.js 22.19+ and npm are not on PATH after Homebrew installation; configure Homebrew's shell environment and retry"
+  say "Node.js 22.19+ and npm are available for Pi."
 }
 
 download() {
@@ -92,6 +131,8 @@ for tool in uname curl grep awk shasum gzip codesign chmod mkdir mktemp cp mv rm
   require_tool "$tool"
 done
 
+ensure_pi_runtime
+
 case "$RELEASES_URL" in
   https://*) ;;
   *) die "release URL must use HTTPS" ;;
@@ -120,8 +161,8 @@ CHECKSUMS_FILE=$(mktemp "$BIN_DIR/.ddcli-checksums.XXXXXX")
 ARCHIVE_FILE=$(mktemp "$BIN_DIR/.ddcli-archive.XXXXXX")
 STAGED_BINARY=$(mktemp "$BIN_DIR/.ddcli-install.XXXXXX")
 
-say "Resolving the latest stable ddcli release..."
-download "$RELEASES_URL/latest/download/VERSION" "$VERSION_FILE" || die "could not download the latest VERSION asset"
+say "Resolving the latest ddcli release..."
+download "$RELEASES_URL/latest/VERSION" "$VERSION_FILE" || die "could not download the latest VERSION asset"
 
 VERSION=
 VERSION_LINE_COUNT=0
@@ -135,8 +176,8 @@ done < "$VERSION_FILE"
 SEMVER_PATTERN='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_PATTERN" || die "VERSION is not canonical semantic version syntax: $VERSION"
 
-# CLI releases are tagged cli-<version>; the VERSION asset holds the bare version.
-EXACT_RELEASE_URL=$RELEASES_URL/download/cli-$VERSION
+# Pin all remaining requests to the version resolved above, never to mutable latest.
+EXACT_RELEASE_URL=$RELEASES_URL/$VERSION
 say "Downloading ddcli $VERSION for $TARGET..."
 download "$EXACT_RELEASE_URL/checksums.txt" "$CHECKSUMS_FILE" || die "could not download checksums.txt for $VERSION"
 download "$EXACT_RELEASE_URL/$ARCHIVE_NAME" "$ARCHIVE_FILE" || die "could not download $ARCHIVE_NAME for $VERSION"
@@ -195,10 +236,8 @@ fi
 
 if command -v pi >/dev/null 2>&1; then
   say "Detected Pi: $(command -v pi)"
-elif command -v opencode >/dev/null 2>&1 || command -v opencode2 >/dev/null 2>&1; then
-  say "Detected OpenCode."
 else
-  warn "Pi and OpenCode are not bundled; install at least one supported harness separately"
+  say "Pi is not bundled; ddcli pi will install its pinned Pi release on first use."
 fi
 
 if [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then

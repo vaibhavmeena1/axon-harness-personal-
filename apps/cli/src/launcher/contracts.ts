@@ -1,6 +1,6 @@
 import type { DeputyDevPaths } from "../product/paths.ts";
 
-export type StableHarnessId = "pi" | "opencode";
+export type StableHarnessId = "pi";
 
 export interface LaunchContext {
   readonly cwd: string;
@@ -55,7 +55,6 @@ export interface HarnessAdapter {
 
 export interface HarnessRegistration {
   readonly id: StableHarnessId;
-  readonly aliases: readonly string[];
   readonly executableCandidates: readonly string[];
   readonly executableOverrideVariable: string;
 }

@@ -59,6 +59,7 @@ console.log(JSON.stringify({
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GEMINI_API_KEY",
+      "OPENCODE_API_KEY",
       "LITELLM_API_KEY",
       "LITELLM_BASE_URL",
       "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -129,14 +130,11 @@ function runLauncher(
 }
 
 describe("harness registry", () => {
-  test("resolves stable IDs and the OpenCode compatibility alias", () => {
+  test("registers only Pi", () => {
     expect(resolveHarnessRegistration("pi")?.id).toBe("pi");
-    expect(resolveHarnessRegistration("opencode")?.id).toBe("opencode");
-    expect(resolveHarnessRegistration("opencode2")?.id).toBe("opencode");
-    expect(resolveHarnessRegistration("opencode")?.executableCandidates).toEqual([
-      "opencode2",
-      "opencode",
-    ]);
+    expect(resolveHarnessRegistration("pi")?.executableCandidates).toEqual(["pi"]);
+    expect(resolveHarnessRegistration("opencode")).toBeUndefined();
+    expect(resolveHarnessRegistration("opencode2")).toBeUndefined();
     expect(resolveHarnessRegistration("unknown")).toBeUndefined();
   });
 });
@@ -190,12 +188,25 @@ describe("harness environment", () => {
 });
 
 describe("managed paths", () => {
-  test("resolves dedicated Pi agent and session directories", () => {
+  test("resolves dedicated Pi agent and session directories without creating legacy paths", () => {
     const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: "/managed/deputydev" });
 
     expect(paths.pi).toBe("/managed/deputydev/pi");
     expect(paths.piSessions).toBe("/managed/deputydev/pi/sessions");
+    expect(Object.keys(paths)).not.toContain("profiles");
+    expect(Object.keys(paths)).not.toContain("opencodeStateRoot");
   });
+});
+
+test("rejects a manifest with a removed harness section", () => {
+  expect(() =>
+    normalizeManifestPackages({
+      schemaVersion: 1,
+      revision: "test",
+      pi: { packages: [], resources: [] },
+      opencode: { plugins: [], resources: [] },
+    }),
+  ).toThrow();
 });
 
 describe("launcher dispatch", () => {
@@ -213,6 +224,7 @@ describe("launcher dispatch", () => {
       ANTHROPIC_API_KEY: "anthropic-secret",
       OPENAI_API_KEY: "openai-secret",
       GEMINI_API_KEY: "gemini-secret",
+      OPENCODE_API_KEY: "provider-secret",
       LITELLM_API_KEY: "litellm-token",
       LITELLM_BASE_URL: "https://litellm.example",
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
@@ -338,27 +350,45 @@ describe("launcher dispatch", () => {
     expect(stdout).toContain("Pi required packages ready: 3");
   });
 
-  test("uses the OpenCode alias and passes through the child exit code", async () => {
-    const subprocess = runLauncher(["opencode2", "run", "--standalone", "--prompt", "fix it"], {
-      DEPUTYDEV_OPENCODE_BIN: fakeHarnessPath,
+  test("passes through the Pi child exit code", async () => {
+    const subprocess = runLauncher(["pi", "--help"], {
+      DEPUTYDEV_PI_BIN: fakeHarnessPath,
       FAKE_EXIT_CODE: "42",
-      ANTHROPIC_API_KEY: "anthropic-secret",
-      OPENAI_API_KEY: "openai-secret",
     });
     const [stdout, exitCode] = await Promise.all([
-      new Response(subprocess.stdout).json(),
+      new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
       subprocess.exited,
     ]);
 
     expect(exitCode).toBe(42);
-    expect(stdout).toMatchObject({
-      arguments: ["run", "--standalone", "--prompt", "fix it"],
-      deputyDevEnvironment: {},
-      harnessEnvironment: {
-        ANTHROPIC_API_KEY: "anthropic-secret",
-        OPENAI_API_KEY: "openai-secret",
-      },
+    expect(stdout.arguments).toEqual(["--help"]);
+  });
+
+  test("lists and advertises only Pi, rejecting removed harness commands", async () => {
+    const harnesses = runLauncher(["harnesses"]);
+    const help = runLauncher(["--help"]);
+    const removed = runLauncher(["opencode2"], {
+      DEPUTYDEV_OPENCODE_BIN: fakeHarnessPath,
     });
+    const removedDoctor = runLauncher(["doctor", "opencode"]);
+    const removedOption = runLauncher(["uninstall", "--remove-profiles"]);
+    const [harnessesOutput, helpOutput, removedStatus, doctorStatus, optionStatus] =
+      await Promise.all([
+        new Response(harnesses.stdout).text(),
+        new Response(help.stdout).text(),
+        removed.exited,
+        removedDoctor.exited,
+        removedOption.exited,
+      ]);
+
+    expect(await harnesses.exited).toBe(0);
+    expect(harnessesOutput.trim()).toBe("pi");
+    expect(await help.exited).toBe(0);
+    expect(helpOutput).toContain("ddcli pi [pi arguments...]");
+    expect(helpOutput).not.toContain("opencode");
+    expect(removedStatus).toBe(120);
+    expect(doctorStatus).toBe(120);
+    expect(optionStatus).toBe(120);
   });
 
   test("re-raises a child termination signal", async () => {

@@ -131,76 +131,6 @@ export const piResourceManifestEntrySchema = z.strictObject({
   destination: z.string().trim().min(1),
 });
 
-// OpenCode plugins are enabled through the generated session configuration, so
-// the manifest only needs the identity and version policy; the loader-facing
-// specifier is derived from the policy (see normalizeOpenCodePlugin).
-export const opencodePluginManifestEntrySchema = z
-  .strictObject({
-    id: packageIdSchema,
-    source: z.string().trim().min(1),
-    versionPolicy: piPackageVersionPolicySchema,
-  })
-  .superRefine((entry, context) => {
-    const sourceKind = getSourceKind(entry.source);
-    if (sourceKind === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["source"],
-        message: "source must be a version-free npm or git package source",
-      });
-      return;
-    }
-
-    if (sourceKind === "npm" && !isVersionFreeNpmSource(entry.source)) {
-      context.addIssue({
-        code: "custom",
-        path: ["source"],
-        message: "npm source must omit its version; versionPolicy owns the constraint",
-      });
-    }
-
-    if (sourceKind === "git" && parseGitSource(entry.source) === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["source"],
-        message: "git source must be a supported version-free repository URL or shorthand",
-      });
-    }
-
-    if (sourceKind === "git" && entry.versionPolicy.kind !== "exact") {
-      context.addIssue({
-        code: "custom",
-        path: ["versionPolicy"],
-        message: "OpenCode git plugins require an exact commit",
-      });
-    }
-
-    if (entry.versionPolicy.kind === "exact") {
-      if (sourceKind === "npm" && entry.versionPolicy.version === undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["versionPolicy"],
-          message: "exact npm policy requires version",
-        });
-      }
-      if (sourceKind === "git" && entry.versionPolicy.commit === undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["versionPolicy"],
-          message: "exact git policy requires commit",
-        });
-      }
-    }
-  });
-
-// Bundled OpenCode plugins are embedded files materialized into one plugin
-// directory per plugin id; the directory is the loader-facing server entrypoint.
-export const opencodeResourceManifestEntrySchema = z.strictObject({
-  id: packageIdSchema,
-  plugin: packageIdSchema,
-  destination: z.string().trim().min(1),
-});
-
 export const deputyDevManifestSchema = z
   .strictObject({
     schemaVersion: z.literal(PI_PACKAGE_MANIFEST_SCHEMA_VERSION),
@@ -209,12 +139,6 @@ export const deputyDevManifestSchema = z
       packages: z.array(piPackageManifestEntrySchema),
       resources: z.array(piResourceManifestEntrySchema).default([]),
     }),
-    opencode: z
-      .strictObject({
-        plugins: z.array(opencodePluginManifestEntrySchema).default([]),
-        resources: z.array(opencodeResourceManifestEntrySchema).default([]),
-      })
-      .optional(),
   })
   .superRefine((manifest, context) => {
     const ids = new Set<string>();
@@ -267,64 +191,11 @@ export const deputyDevManifestSchema = z
         // The entry-level source diagnostic is more specific.
       }
     }
-
-    const opencode = manifest.opencode;
-    if (opencode === undefined) return;
-
-    for (const [index, resource] of opencode.resources.entries()) {
-      if (
-        resource.destination.startsWith("/") ||
-        resource.destination
-          .split(/[\\/]/)
-          .some((part) => part === "" || part === "." || part === "..")
-      ) {
-        context.addIssue({
-          code: "custom",
-          path: ["opencode", "resources", index, "destination"],
-          message: "resource destination must be a safe relative path",
-        });
-      }
-      if (ids.has(resource.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["opencode", "resources", index, "id"],
-          message: `duplicate manifest id: ${resource.id}`,
-        });
-      }
-      ids.add(resource.id);
-    }
-
-    for (const [index, entry] of opencode.plugins.entries()) {
-      if (ids.has(entry.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["opencode", "plugins", index, "id"],
-          message: `duplicate manifest id: ${entry.id}`,
-        });
-      }
-      ids.add(entry.id);
-
-      try {
-        const identity = normalizePackageIdentity(entry.source);
-        if (identities.has(identity)) {
-          context.addIssue({
-            code: "custom",
-            path: ["opencode", "plugins", index, "source"],
-            message: `duplicate package identity: ${identity}`,
-          });
-        }
-        identities.add(identity);
-      } catch {
-        // The entry-level source diagnostic is more specific.
-      }
-    }
   });
 
 export type PiPackageVersionPolicy = z.infer<typeof piPackageVersionPolicySchema>;
 export type PiPackageManifestEntry = z.infer<typeof piPackageManifestEntrySchema>;
 export type PiResourceManifestEntry = z.infer<typeof piResourceManifestEntrySchema>;
-export type OpenCodePluginManifestEntry = z.infer<typeof opencodePluginManifestEntrySchema>;
-export type OpenCodeResourceManifestEntry = z.infer<typeof opencodeResourceManifestEntrySchema>;
 export type DeputyDevManifest = z.infer<typeof deputyDevManifestSchema>;
 export type PiPackageSourceKind = "npm" | "git";
 
@@ -490,73 +361,6 @@ export function normalizePiPackage(entry: PiPackageManifestEntry): NormalizedPiP
 
 export function parseDeputyDevManifest(input: unknown): DeputyDevManifest {
   return deputyDevManifestSchema.parse(input);
-}
-
-export interface NormalizedOpenCodePlugin {
-  readonly id: string;
-  readonly sourceKind: PiPackageSourceKind;
-  /** Loader-facing specifier with the policy-pinned version baked in. */
-  readonly specifier: string;
-  readonly identity: string;
-}
-
-function pinnedNpmVersion(entry: OpenCodePluginManifestEntry): string {
-  if (entry.versionPolicy.kind === "floating") {
-    throw new Error(`floating OpenCode plugin policy requires no pin: ${entry.id}`);
-  }
-  if (entry.versionPolicy.kind === "minimum") {
-    return `>=${entry.versionPolicy.version}`;
-  }
-  return (
-    entry.versionPolicy.version ??
-    (() => {
-      throw new Error(`exact OpenCode npm policy requires version: ${entry.id}`);
-    })()
-  );
-}
-
-export function normalizeOpenCodePlugin(
-  entry: OpenCodePluginManifestEntry,
-): NormalizedOpenCodePlugin {
-  const sourceKind = getSourceKind(entry.source);
-  if (sourceKind === undefined) {
-    throw new Error(`unsupported OpenCode plugin source: ${entry.source}`);
-  }
-
-  let specifier: string;
-  if (sourceKind === "npm") {
-    const packageName = npmPackageName(entry.source);
-    if (packageName === undefined) {
-      throw new Error(`invalid OpenCode npm plugin source: ${entry.source}`);
-    }
-    specifier =
-      entry.versionPolicy.kind === "floating"
-        ? packageName
-        : `${packageName}@${pinnedNpmVersion(entry)}`;
-  } else {
-    const git = parseGitSource(entry.source);
-    if (git === undefined) {
-      throw new Error(`invalid OpenCode git plugin source: ${entry.source}`);
-    }
-    const commit = entry.versionPolicy.kind === "exact" ? entry.versionPolicy.commit : undefined;
-    if (commit === undefined) {
-      throw new Error(`exact OpenCode git plugin policy requires commit: ${entry.id}`);
-    }
-    specifier = `${entry.source}#${commit}`;
-  }
-
-  return Object.freeze({
-    id: entry.id,
-    sourceKind,
-    specifier,
-    identity: normalizePackageIdentity(entry.source),
-  });
-}
-
-export function normalizeOpenCodePlugins(
-  manifest: DeputyDevManifest,
-): readonly NormalizedOpenCodePlugin[] {
-  return Object.freeze((manifest.opencode?.plugins ?? []).map(normalizeOpenCodePlugin));
 }
 
 export function normalizeManifestPackages(input: unknown): readonly NormalizedPiPackage[] {

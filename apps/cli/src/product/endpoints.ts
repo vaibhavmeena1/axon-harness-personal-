@@ -35,6 +35,10 @@ export const SERVICE_ENDPOINTS = Object.freeze({
     /** Organization MCP catalog consumed by Pi setup. */
     mcpConfig: defineEndpoint("/v1/cli/pi/mcp.json"),
   }),
+  release: Object.freeze({
+    /** Public CLI release discovery, checksums, and CloudFront download redirect. */
+    base: defineEndpoint("/api/v1/cli/releases"),
+  }),
   // Add future domains here, for example:
   // updater: Object.freeze({
   //   manifest: defineEndpoint("/v1/cli/updates/manifest.json"),
