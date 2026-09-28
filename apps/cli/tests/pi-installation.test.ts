@@ -3,10 +3,10 @@ import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { checkPiVersion } from "../scripts/check-pi-version.ts";
 import {
   managedPiExecutable,
   PI_INSTALL_VERSION,
-  PI_MINIMUM_VERSION,
   PI_PACKAGE_NAME,
   PI_RELEASES_API,
   type PiReleaseArtifacts,
@@ -21,6 +21,7 @@ import type { HarnessRegistration, LaunchContext } from "../src/launcher/contrac
 import { resolveDeputyDevPaths } from "../src/product/paths.ts";
 
 const fixtureRoots: string[] = [];
+const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
 
 async function writePi(path: string, version: string): Promise<void> {
   await Bun.write(path, `#!/bin/sh\necho "${version}"\n`);
@@ -104,7 +105,7 @@ const healthyToolchain: PiToolchain = {
 };
 
 function installerDependencies(fixture: { readonly root: string }, version: string) {
-  const state = { fetched: [] as string[], npmRuns: 0, warnings: [] as string[] };
+  const state = { fetched: [] as string[], npmRuns: 0 };
   const dependencies = {
     fetchArtifact: async (url: string) => {
       state.fetched.push(url);
@@ -137,9 +138,6 @@ function installerDependencies(fixture: { readonly root: string }, version: stri
       await mkdir(join(request.cwd, "node_modules", ".bin"), { recursive: true });
       await writePi(join(request.cwd, "node_modules", ".bin", "pi"), version);
     },
-    warn: (message: string) => {
-      state.warnings.push(message);
-    },
   };
   return { dependencies, state };
 }
@@ -153,16 +151,41 @@ afterEach(async () => {
 });
 
 describe("Pi version policy", () => {
-  test("pins an exact install version at or above the supported minimum", () => {
+  test("checks the default against typecheck dependencies before building", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ddcli-pi-config-"));
+    fixtureRoots.push(directory);
+    await Bun.write(join(directory, "pi-version.json"), JSON.stringify({ version: "0.90.0" }));
+    await Bun.write(
+      join(directory, "package.json"),
+      JSON.stringify({
+        devDependencies: {
+          "@earendil-works/pi-coding-agent": "0.85.0",
+          "@earendil-works/pi-tui": "0.90.0",
+        },
+      }),
+    );
+    await expect(checkPiVersion(directory)).rejects.toThrow("must match pi-version.json");
+    await Bun.write(join(directory, "pi-version.json"), JSON.stringify({ version: "latest" }));
+    await expect(checkPiVersion(directory)).rejects.toThrow();
+  });
+
+  test("allows exact-version overrides in source runs but pins built CLIs", async () => {
+    expect(await checkPiVersion(join(import.meta.dir, ".."))).toBe(PI_INSTALL_VERSION);
     expect(resolveConfiguredPiVersion({})).toBe(PI_INSTALL_VERSION);
-    expect(Bun.semver.order(PI_INSTALL_VERSION, PI_MINIMUM_VERSION)).toBeGreaterThanOrEqual(0);
-    expect(resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: "0.90.0" })).toBe("0.90.0");
-    expect(() => resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: "latest" })).toThrow(
-      "not a valid Pi version",
+    expect(resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION })).toBe(
+      DEVELOPMENT_VERSION,
     );
-    expect(() => resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: "1.2.3; rm -rf" })).toThrow(
-      "not a valid Pi version",
+    expect(resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: PI_INSTALL_VERSION }, false)).toBe(
+      PI_INSTALL_VERSION,
     );
+    expect(() =>
+      resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION }, false),
+    ).toThrow("cannot override pinned Pi");
+    for (const version of ["latest", "1.2.3; rm -rf", " "]) {
+      expect(() => resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: version })).toThrow(
+        "is not a valid Pi version",
+      );
+    }
   });
 
   test("validates release artifacts the way Pi's managed installer does", () => {
@@ -240,10 +263,10 @@ describe("Pi version probe cache", () => {
 });
 
 describe("Pi executable resolution", () => {
-  test("uses a compatible PATH pi without fetching anything", async () => {
+  test("ignores even an exact-version PATH pi and installs an isolated copy", async () => {
     const fixture = await createFixture("compatible");
     const executable = join(fixture.bin, "pi");
-    await writePi(executable, PI_MINIMUM_VERSION);
+    await writePi(executable, PI_INSTALL_VERSION);
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
 
     const resolved = await resolvePiExecutable(
@@ -253,12 +276,12 @@ describe("Pi executable resolution", () => {
       dependencies,
     );
 
-    expect(resolved).toBe(executable);
-    expect(state.fetched).toEqual([]);
-    expect(state.npmRuns).toBe(0);
+    expect(resolved).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
+    expect(state.npmRuns).toBe(1);
+    expect(await Bun.file(executable).text()).toContain(PI_INSTALL_VERSION);
   });
 
-  test("installs the pinned release when PATH pi is too old and reuses it afterwards", async () => {
+  test("ignores an older PATH pi and reuses the pinned release afterwards", async () => {
     const fixture = await createFixture("too-old");
     await writePi(join(fixture.bin, "pi"), "0.80.0");
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
@@ -278,7 +301,6 @@ describe("Pi executable resolution", () => {
       `${PI_RELEASES_API}/${PI_INSTALL_VERSION}/package.json`,
     ]);
     expect(state.npmRuns).toBe(1);
-    expect(state.warnings.join("\n")).toContain("older than the supported minimum");
     expect(await Bun.file(resolved).exists()).toBe(true);
 
     const again = await resolvePiExecutable(
@@ -292,60 +314,78 @@ describe("Pi executable resolution", () => {
     expect(state.npmRuns).toBe(1);
   });
 
-  test("installs when pi is missing entirely and honors the configured version", async () => {
-    const fixture = await createFixture("missing");
-    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_VERSION", "0.90.0");
-    const { dependencies, state } = installerDependencies(fixture, "0.90.0");
-
+  test("ignores a newer PATH pi", async () => {
+    const fixture = await createFixture("newer");
+    await writePi(join(fixture.bin, "pi"), "0.90.0");
+    const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
     const resolved = await resolvePiExecutable(
       fixture.context,
       piRegistration(),
       launchOptions,
       dependencies,
     );
-
-    expect(resolved).toBe(managedPiExecutable(fixture.context.paths, "0.90.0"));
-    expect(state.fetched).toHaveLength(3);
-    for (const url of state.fetched) {
-      expect(url).toContain(`${PI_RELEASES_API}/0.90.0`);
-    }
+    expect(resolved).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
+    expect(state.npmRuns).toBe(1);
   });
 
-  test("keeps forwarded Pi administration on the user's pi even when it is old", async () => {
+  test("routes Pi administration through the managed version too", async () => {
     const fixture = await createFixture("administrative");
-    const executable = join(fixture.bin, "pi");
-    await writePi(executable, "0.80.0");
+    await writePi(join(fixture.bin, "pi"), "0.80.0");
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
-
     const resolved = await resolvePiExecutable(
       fixture.context,
       piRegistration(),
-      { userArguments: ["update", "--extensions"], allowInstall: true },
+      { userArguments: ["install", "npm:example"], allowInstall: true },
       dependencies,
     );
+    expect(resolved).toBe(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION));
+    expect(state.npmRuns).toBe(1);
+  });
 
-    expect(resolved).toBe(executable);
+  test("rejects executable overrides before installing", async () => {
+    const fixture = await createFixture("override");
+    const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
+    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_BIN", join(fixture.root, "custom pi"));
+    await expect(
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, dependencies),
+    ).rejects.toThrow("cannot override pinned Pi");
     expect(state.npmRuns).toBe(0);
   });
 
-  test("treats an explicit override as authoritative and only warns", async () => {
-    const fixture = await createFixture("override");
-    const executable = join(fixture.root, "custom pi");
-    await writePi(executable, "0.80.0");
-    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_BIN", executable);
-    const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
-
+  test("installs an exact development override into its own directory", async () => {
+    const fixture = await createFixture("dev-version");
+    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_VERSION", DEVELOPMENT_VERSION);
+    const { dependencies, state } = installerDependencies(fixture, DEVELOPMENT_VERSION);
     const resolved = await resolvePiExecutable(
       fixture.context,
       piRegistration(),
       launchOptions,
       dependencies,
     );
+    expect(resolved).toBe(managedPiExecutable(fixture.context.paths, DEVELOPMENT_VERSION));
+    expect(state.fetched).toContain(`${PI_RELEASES_API}/${DEVELOPMENT_VERSION}`);
+  });
 
-    expect(resolved).toBe(executable);
-    expect(state.npmRuns).toBe(0);
-    expect(state.warnings).toHaveLength(1);
-    expect(state.warnings[0]).toContain("DEPUTYDEV_PI_BIN");
+  test("refuses a managed install whose executable reports another version", async () => {
+    const fixture = await createFixture("mismatch");
+    const directory = join(fixture.context.paths.piRuntime, PI_INSTALL_VERSION);
+    const binary = managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION);
+    await mkdir(join(directory, "node_modules", PI_PACKAGE_NAME), { recursive: true });
+    await mkdir(join(directory, "node_modules", ".bin"), { recursive: true });
+    await Bun.write(
+      join(directory, "node_modules", PI_PACKAGE_NAME, "package.json"),
+      JSON.stringify({ name: PI_PACKAGE_NAME, version: PI_INSTALL_VERSION }),
+    );
+    await writePi(binary, DEVELOPMENT_VERSION);
+    const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
+    await expect(
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, dependencies),
+    ).rejects.toMatchObject({
+      exitStatus: 121,
+      message: expect.stringContaining("does not match pinned version"),
+    });
+    expect(state.fetched).toEqual([]);
+    expect(await Bun.file(binary).text()).toContain(DEVELOPMENT_VERSION);
   });
 
   test("never installs for diagnostics or offline launches", async () => {
@@ -387,6 +427,23 @@ describe("Pi executable resolution", () => {
       remediation: expect.stringContaining("https://pi.dev/install.sh"),
     });
     expect(state.fetched).toEqual([]);
+  });
+
+  test("rejects a staged executable reporting a different version", async () => {
+    const fixture = await createFixture("bad-executable");
+    const { dependencies } = installerDependencies(fixture, PI_INSTALL_VERSION);
+    await expect(
+      resolvePiExecutable(fixture.context, piRegistration(), launchOptions, {
+        ...dependencies,
+        probeVersion: async () => DEVELOPMENT_VERSION,
+      }),
+    ).rejects.toMatchObject({
+      exitStatus: 123,
+      message: `failed to install Pi ${PI_INSTALL_VERSION}`,
+    });
+    expect(
+      await Bun.file(managedPiExecutable(fixture.context.paths, PI_INSTALL_VERSION)).exists(),
+    ).toBe(false);
   });
 
   test("fails clearly when the installed tree does not match the pinned version", async () => {

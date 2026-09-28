@@ -64,13 +64,13 @@ export const DEPUTYDEV_ENVIRONMENT_REGISTRY = Object.freeze({
   },
   DEPUTYDEV_PI_BIN: {
     owner: "public-launcher",
-    consumers: ["Pi adapter"],
+    consumers: ["Pi pin validation (rejected)"],
     mayReachHarness: false,
     safeToPrint: true,
   },
   DEPUTYDEV_PI_VERSION: {
     owner: "public-launcher",
-    consumers: ["Pi installer"],
+    consumers: ["Pi source development override; built CLI pin validation"],
     mayReachHarness: false,
     safeToPrint: true,
   },

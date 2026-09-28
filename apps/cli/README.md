@@ -15,11 +15,11 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 - Pre-Commander dispatch for `pi`
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${DEPUTYDEV_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Pi version gate: an existing Pi at or above the supported minimum is used; otherwise DeputyDev installs the exact pinned Pi release under `${DEPUTYDEV_HOME}/pi-runtime` from Pi's release API with `npm ci`, with the probed version cached per executable
+- Exact Pi 0.85.0 pin: DeputyDev uses only its isolated executable under `${DEPUTYDEV_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified DeputyDev Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
-- Executable overrides and PATH resolution without shell evaluation
+- Exact Pi executable selection independent of PATH; override attempts are rejected
 - Preserved user harness arguments and inherited stdio/cwd; adapters may add required generated resource or local-service options
 - DeputyDev control-variable stripping and redacted debug launch previews
 - Child exit-code and signal-status propagation
@@ -37,7 +37,7 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 
 ## Installation
 
-The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` uses an existing Pi at or above the supported minimum version and otherwise installs the pinned Pi release itself on first use.
+The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` installs and uses its own exact Pi 0.85.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -87,19 +87,27 @@ ddcli uninstall [--remove-runtimes]
 
 `uninstall` only mutates an installation when the running executable is the managed binary at `~/.deputydev/bin/ddcli`. It preserves Pi settings, authentication, and sessions under `${DEPUTYDEV_HOME}/pi`; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
 
-Set `DEPUTYDEV_DEBUG=1` for a redacted launch preview on stderr. The Pi executable override is `DEPUTYDEV_PI_BIN`.
+Set `DEPUTYDEV_DEBUG=1` for a redacted launch preview on stderr. `DEPUTYDEV_PI_BIN` is rejected. A different `DEPUTYDEV_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
 
 ### Pi installation bootstrap
 
-`ddcli pi` resolves the Pi executable in this order:
-
-1. `DEPUTYDEV_PI_BIN`, which is authoritative. A version below the supported minimum only produces a warning.
-2. `pi` on `PATH` when its version is at least `PI_MINIMUM_VERSION` (or cannot be determined). Forwarded Pi administration such as `ddcli pi update` always uses this executable.
-3. The DeputyDev-managed install at `${DEPUTYDEV_HOME}/pi-runtime/<version>/node_modules/.bin/pi`, created on demand when Pi is missing or too old.
+`ddcli pi` uses **only** the DeputyDev-managed executable at `${DEPUTYDEV_HOME}/pi-runtime/0.85.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `ddcli pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. DeputyDev's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so DeputyDev does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
-Installation requires Node.js 22.19.0 or newer and npm on `PATH`; otherwise the launch fails with a remediation that names Homebrew and the official installer. Offline launches (`--offline` or `PI_OFFLINE=1`) and `ddcli doctor` never install. The pinned versions live in [`src/harnesses/pi/installation.ts`](src/harnesses/pi/installation.ts) as `PI_MINIMUM_VERSION` and `PI_INSTALL_VERSION`; `DEPUTYDEV_PI_VERSION` is an operational exact-version override consumed only by the installer and stripped before Pi starts. `pi --version` results are cached per executable path, size, and mtime in `${DEPUTYDEV_HOME}/pi-executable.json`, so warm launches do not spawn Pi twice. `ddcli uninstall --remove-runtimes` also removes `pi-runtime`.
+Installation requires Node.js 22.19.0 or newer and npm on `PATH`; otherwise the launch fails with a remediation that names Homebrew and the official installer. Offline launches (`--offline` or `PI_OFFLINE=1`) and `ddcli doctor` never install. The built CLI's exact pin comes from [`pi-version.json`](pi-version.json) and is embedded when compiling. `DEPUTYDEV_PI_BIN` fails with a clear error. A different `DEPUTYDEV_PI_VERSION` is accepted only in source development runs; compiled local and release binaries reject it. `pi --version` results are cached per executable path, size, and mtime in `${DEPUTYDEV_HOME}/pi-executable.json`, so warm launches do not spawn Pi twice. `ddcli uninstall --remove-runtimes` also removes `pi-runtime`.
+
+### Pi version during development
+
+Change [`pi-version.json`](pi-version.json) to change the default and future built CLI pin. Keep the exact `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` development dependencies in `package.json` aligned, run `bun install` from the workspace root to update `bun.lock`, and run `bun run --cwd apps/cli pi-version:check`. The CLI check and release build reject mismatches.
+
+To try a different *exact* Pi version temporarily without changing the checked-in default, run from `apps/cli`:
+
+```bash
+DEPUTYDEV_PI_VERSION=0.87.1 bun run src/index.ts pi --version
+```
+
+This works **only for source runs**: the selected version is installed into its own `${DEPUTYDEV_HOME}/pi-runtime/<version>` directory and does not touch the global Pi or the default managed version. Test the bundled extensions and packages against the selected version. A compiled CLI (including `bun run build`) always uses its build-time `pi-version.json` value, even if `DEPUTYDEV_PI_VERSION` is set at runtime. `ddcli pi update` remains blocked in both modes.
 
 ### Pi data isolation
 
@@ -128,7 +136,7 @@ The embedded manifest in `src/product/manifest.ts` declares required community p
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded
 - `floating`: no DeputyDev version constraint; Pi or the user may update it at any time
 
-Minimum and floating entries remain eligible for native `ddcli pi update --extensions`. DeputyDev does not query registries or schedule updates for healthy minimum/floating packages. It only installs a missing package, repairs a below-minimum package, or restores the required unfiltered settings entry. Exact versions change only with a new embedded DeputyDev manifest.
+Minimum and floating entries can still be updated explicitly with `ddcli pi install <source>` inside DeputyDev's isolated Pi directory, but `ddcli pi update` is disabled to protect the executable pin. A direct `pi update` affects the user's separate global Pi and packages, not DeputyDev's Pi packages. DeputyDev does not query registries or schedule updates for healthy minimum/floating packages. It only installs a missing package, repairs a below-minimum package, or restores the required unfiltered settings entry. Exact versions change only with a new embedded DeputyDev manifest.
 
 A first ordinary interactive launch installs missing required packages with visible progress. Print, JSON/RPC, piped, CI, offline (`--offline` or `PI_OFFLINE=1`), and other non-interactive launches perform no package installation network work and instead direct the user to:
 

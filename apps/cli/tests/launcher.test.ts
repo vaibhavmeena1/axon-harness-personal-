@@ -7,6 +7,7 @@ import {
   normalizeManifestPackages,
   resolveInstalledPackagePath,
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
+import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { DEPUTYDEV_MANIFEST } from "../src/product/manifest.ts";
@@ -15,6 +16,7 @@ import { resolveDeputyDevPaths } from "../src/product/paths.ts";
 const projectRoot = resolve(import.meta.dir, "..");
 let fixtureDirectory: string;
 let fakeHarnessPath: string;
+const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
 
 beforeAll(async () => {
   fixtureDirectory = await mkdtemp(join(tmpdir(), "deputydev launcher "));
@@ -25,6 +27,10 @@ beforeAll(async () => {
 import { mkdir } from "node:fs/promises";
 
 const argumentsVector = process.argv.slice(2);
+if (argumentsVector[0] === "--version") {
+  console.log(process.env.FAKE_PI_VERSION ?? "${PI_INSTALL_VERSION}");
+  process.exit(0);
+}
 const [action, source] = argumentsVector;
 const managedInstallTargets = new Set([
   "npm:pi-mcp-adapter@2.34.0",
@@ -77,6 +83,27 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
 `,
   );
   await chmod(fakeHarnessPath, 0o755);
+  for (const [home, version] of [
+    [join(fixtureDirectory, ".deputydev"), PI_INSTALL_VERSION],
+    ...["managed home", "resource home", "print home", "setup home", "signal home"].map((name) => [
+      join(fixtureDirectory, name),
+      PI_INSTALL_VERSION,
+    ]),
+    [join(fixtureDirectory, "dev home"), DEVELOPMENT_VERSION],
+  ]) {
+    if (home === undefined || version === undefined) throw new Error("invalid Pi test fixture");
+    const directory = join(home, "pi-runtime", version, "node_modules");
+    const packageDirectory = join(directory, PI_PACKAGE_NAME);
+    const binaryDirectory = join(directory, ".bin");
+    await mkdir(packageDirectory, { recursive: true });
+    await mkdir(binaryDirectory, { recursive: true });
+    await Bun.write(
+      join(packageDirectory, "package.json"),
+      JSON.stringify({ name: PI_PACKAGE_NAME, version }),
+    );
+    await Bun.write(join(binaryDirectory, "pi"), Bun.file(fakeHarnessPath));
+    await chmod(join(binaryDirectory, "pi"), 0o755);
+  }
 });
 
 afterAll(async () => {
@@ -215,7 +242,6 @@ describe("launcher dispatch", () => {
     const deputyDevHome = join(fixtureDirectory, "managed home");
     const subprocess = runLauncher(["pi", ...userArguments], {
       DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
       DEPUTYDEV_DEBUG: "0",
       DEPUTYDEV_PIN: "1.2.3",
       PI_CODING_AGENT_DIR: "/inherited/pi",
@@ -261,7 +287,6 @@ describe("launcher dispatch", () => {
     await installEmbeddedPiPackages(deputyDevHome);
     const subprocess = runLauncher(["pi", "hello"], {
       DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
     });
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
@@ -288,9 +313,7 @@ describe("launcher dispatch", () => {
   });
 
   test("forwards Pi auth commands without setup arguments", async () => {
-    const subprocess = runLauncher(["pi", "auth", "print-api-key", "--provider", "openai"], {
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
-    });
+    const subprocess = runLauncher(["pi", "auth", "print-api-key", "--provider", "openai"]);
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
       subprocess.exited,
@@ -305,7 +328,6 @@ describe("launcher dispatch", () => {
     await installEmbeddedPiPackages(deputyDevHome);
     const subprocess = runLauncher(["pi", "-p", "hello"], {
       DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
     });
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
@@ -318,9 +340,7 @@ describe("launcher dispatch", () => {
   });
 
   test("keeps forwarded Pi package commands free of setup arguments", async () => {
-    const subprocess = runLauncher(["pi", "install", "npm:user-package"], {
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
-    });
+    const subprocess = runLauncher(["pi", "install", "npm:user-package"]);
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
       subprocess.exited,
@@ -330,11 +350,74 @@ describe("launcher dispatch", () => {
     expect(stdout.arguments).toEqual(["install", "npm:user-package"]);
   });
 
+  test("source runs use the developer's exact Pi version without touching global Pi", async () => {
+    const home = join(fixtureDirectory, "dev home");
+    const subprocess = runLauncher(["pi", "--help"], {
+      DEPUTYDEV_HOME: home,
+      DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION,
+      FAKE_PI_VERSION: DEVELOPMENT_VERSION,
+    });
+    const [stdout, status] = await Promise.all([
+      new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
+      subprocess.exited,
+    ]);
+    expect(status).toBe(0);
+    expect(stdout.arguments).toEqual(["--help"]);
+    expect(
+      await Bun.file(
+        join(home, "pi-runtime", DEVELOPMENT_VERSION, "node_modules", ".bin", "pi"),
+      ).exists(),
+    ).toBe(true);
+  });
+
+  test("doctor reports the isolated exact Pi executable without installing", async () => {
+    await chmod(join(fixtureDirectory, ".deputydev"), 0o700);
+    await installEmbeddedPiPackages(join(fixtureDirectory, ".deputydev"));
+    const installed = runLauncher(["doctor", "pi"]);
+    const [output, status] = await Promise.all([
+      new Response(installed.stdout).text(),
+      installed.exited,
+    ]);
+    expect(status).toBe(0);
+    expect(output).toContain(`pi-runtime/${PI_INSTALL_VERSION}/node_modules/.bin/pi`);
+    expect(output).toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
+
+    const absentHome = join(fixtureDirectory, "doctor missing home");
+    const absent = runLauncher(["doctor", "pi"], { DEPUTYDEV_HOME: absentHome });
+    const [missingOutput, missingStatus] = await Promise.all([
+      new Response(absent.stdout).text(),
+      absent.exited,
+    ]);
+    expect(missingStatus).toBe(121);
+    expect(missingOutput).toContain(`managed Pi ${PI_INSTALL_VERSION} is unavailable`);
+    expect(await Bun.file(join(absentHome, "pi-runtime", PI_INSTALL_VERSION)).exists()).toBe(false);
+  });
+
+  test("blocks every forwarded Pi update before resolving or installing Pi", async () => {
+    for (const argumentsVector of [
+      ["pi", "update"],
+      ["pi", "update", "--self"],
+      ["pi", "update", "--all"],
+      ["pi", "update", "--extensions"],
+      ["pi", "update", "--models"],
+      ["pi", "update", "npm:example"],
+    ]) {
+      const subprocess = runLauncher(argumentsVector, {
+        DEPUTYDEV_HOME: join(fixtureDirectory, "no installed Pi"),
+      });
+      const [stderr, status] = await Promise.all([
+        new Response(subprocess.stderr).text(),
+        subprocess.exited,
+      ]);
+      expect(status).toBe(120);
+      expect(stderr).toContain("ddcli pi update is disabled");
+    }
+  });
+
   test("runs explicit Pi setup", async () => {
     const deputyDevHome = join(fixtureDirectory, "setup home");
     const subprocess = runLauncher(["setup", "pi", "--sync-packages"], {
       DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
     });
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(subprocess.stdout).text(),
@@ -352,7 +435,6 @@ describe("launcher dispatch", () => {
 
   test("passes through the Pi child exit code", async () => {
     const subprocess = runLauncher(["pi", "--help"], {
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
       FAKE_EXIT_CODE: "42",
     });
     const [stdout, exitCode] = await Promise.all([
@@ -396,7 +478,6 @@ describe("launcher dispatch", () => {
     await installEmbeddedPiPackages(deputyDevHome);
     const subprocess = runLauncher(["pi"], {
       DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_PI_BIN: fakeHarnessPath,
       FAKE_SIGNAL: "SIGTERM",
     });
 
@@ -418,6 +499,6 @@ describe("launcher dispatch", () => {
     ]);
 
     expect(unknownStatus).toBe(120);
-    expect(missingStatus).toBe(121);
+    expect(missingStatus).toBe(123);
   });
 });

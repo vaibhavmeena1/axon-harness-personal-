@@ -3,7 +3,11 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import { createPiEnvironment } from "./environment.ts";
-import { inspectPiRuntime, PI_MINIMUM_VERSION, resolvePiExecutable } from "./installation.ts";
+import {
+  inspectPiRuntime,
+  resolveConfiguredPiVersion,
+  resolvePiExecutable,
+} from "./installation.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { resolvePiVersion } from "./version.ts";
@@ -13,7 +17,7 @@ export function createPiAdapter(): HarnessAdapter {
 
   const adapter: HarnessAdapter = {
     id: "pi",
-    minimumVersion: PI_MINIMUM_VERSION,
+    exactVersion: (context) => resolveConfiguredPiVersion(context.environment),
     resolveExecutable: (context, registration, options) =>
       resolvePiExecutable(context, registration, options),
     probeVersion: (context, executable) => resolvePiVersion(executable, context),

@@ -202,12 +202,22 @@ function versionFinding(
   registration: HarnessRegistration,
   version: string | undefined,
   minimumVersion: string | undefined,
+  exactVersion?: string,
 ): DoctorFinding {
   if (version === undefined) {
     return {
       level: "warning",
       message: `${registration.id}: executable version could not be determined`,
     };
+  }
+  if (exactVersion !== undefined) {
+    return version === exactVersion
+      ? { level: "info", message: `${registration.id}: version ${version} (pinned)` }
+      : {
+          level: "error",
+          message: `${registration.id}: version ${version} does not match pinned ${exactVersion}`,
+          remediation: `Run ${PRODUCT_IDENTITY.command} setup ${registration.id} --sync-packages while online.`,
+        };
   }
   if (minimumVersion === undefined) {
     return {
@@ -242,6 +252,7 @@ async function inspectHarness(
             userArguments: [],
             allowInstall: false,
           });
+    const exactVersion = adapter.exactVersion?.(context);
     const version =
       adapter.probeVersion === undefined
         ? await probeVersion(executable, context.environment)
@@ -254,13 +265,14 @@ async function inspectHarness(
           level: "info",
           message: `${registration.id}: executable ${executable} (${describeExecutableSource(registration, context, executable)})`,
         },
-        versionFinding(registration, version, adapter.minimumVersion),
+        versionFinding(registration, version, adapter.minimumVersion, exactVersion),
         ...adapterFindings,
       ],
       exitStatus:
-        version !== undefined &&
-        adapter.minimumVersion !== undefined &&
-        compareSemVer(version, adapter.minimumVersion) < 0
+        (exactVersion !== undefined && version !== exactVersion) ||
+        (version !== undefined &&
+          adapter.minimumVersion !== undefined &&
+          compareSemVer(version, adapter.minimumVersion) < 0)
           ? LAUNCHER_EXIT_STATUS.profileFailure
           : 0,
     };

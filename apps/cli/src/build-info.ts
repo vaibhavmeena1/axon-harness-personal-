@@ -18,6 +18,9 @@ const configuredServiceOrigin =
 export const BUILD_INFO = Object.freeze({
   version: typeof BUILD_VERSION === "undefined" ? "0.1.0-dev" : BUILD_VERSION,
   kind: buildKind,
+  // A compiled binary (including local `bun run build`) has BUILD_VERSION injected.
+  // Only source runs may accept a developer-selected Pi version.
+  isSourceRun: typeof BUILD_VERSION === "undefined" && buildKind === "dev",
   target:
     typeof BUILD_TARGET === "undefined" ? `${process.platform}-${process.arch}` : BUILD_TARGET,
   commit: typeof BUILD_COMMIT === "undefined" ? "local" : BUILD_COMMIT,

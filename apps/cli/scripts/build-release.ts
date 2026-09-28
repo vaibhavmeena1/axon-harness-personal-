@@ -2,6 +2,7 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
+import { checkPiVersion } from "./check-pi-version.ts";
 import {
   assertCanonicalSemVer,
   assertReleaseCommit,
@@ -32,6 +33,7 @@ export async function buildRelease(): Promise<void> {
   const serviceOrigin = requireEnvironmentVariable("DEPUTYDEV_SERVICE_ORIGIN");
   const target = optionalEnvironmentVariable("BUILD_TARGET") || RELEASE_TARGET;
   const packageVersion = await readPackageVersion(join(repositoryRoot, "package.json"));
+  await checkPiVersion(repositoryRoot);
 
   assertCanonicalSemVer(version, "release version");
   assertReleaseCommit(commit);
