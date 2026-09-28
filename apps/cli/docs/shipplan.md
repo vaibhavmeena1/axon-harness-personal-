@@ -2,7 +2,7 @@
 
 ## Implementation status — 2026-09-04
 
-**Current shipping milestone: foundation complete; launcher Phase 1 is implemented, while shipping Phase 0 has not started.**
+**Status note:** The sections below describe a future independently signed distribution policy, mandatory-update gates, and rollback command. The currently implemented path is manual S3 publication, backend-configured latest release, verified `install.sh` / explicit `ddcli update`, and a silent throttled post-session background worker. See [the current release procedure](../README.md#releasing).
 
 ### Completed foundation
 
@@ -24,7 +24,7 @@
 - [ ] Foreground updates, cached gates, detached staging, swap-on-exit, rollback, and hold behavior.
 - [ ] Updater, concurrency, tampering, local-server, filesystem, and PTY tests.
 
-The current build is a development validation target only. It is not a release pipeline or updater implementation.
+The historical checklists below predate the current S3 installer and updater. They track the larger signed-manifest/gate/rollout design, not the implemented manual publishing path.
 
 ---
 
@@ -78,7 +78,7 @@ Docker/containers, Linux, Intel macOS, and Windows are out of scope for the init
 
 Harness children use an explicit DeputyDev-variable allowlist. Strip all updater controls (`DEPUTYDEV_INTERNAL_NO_UPDATE`, `DEPUTYDEV_SWAPPED`, `DEPUTYDEV_NO_UPDATE`, `DEPUTYDEV_PIN`, `DEPUTYDEV_ALLOW_CI_UPDATE`) and `DEPUTYDEV_DEBUG` before launching a harness or anything in its subprocess tree. Pass a `DEPUTYDEV_*` variable through only when the shared registry marks it as harness-facing.
 
-Harness-specific environment values are applied after sanitization through the ordered, reusable overlay mechanism defined in `launcher-plan.md`; adapters must not mutate `process.env` or duplicate environment-copy logic. The Pi adapter uses that mechanism to override `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`, set `PI_SKIP_VERSION_CHECK=1`, and remove inherited `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` values on every Pi invocation, including forwarded package commands.
+Harness-specific environment values are applied after sanitization through the ordered, reusable overlay mechanism defined in `launcher-plan.md`; adapters must not mutate `process.env` or duplicate environment-copy logic. The Pi adapter uses that mechanism to override `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`, set `PI_SKIP_VERSION_CHECK=1`, and remove every Pi-documented provider API key on every Pi invocation, including forwarded package commands.
 
 DeputyDev-owned Pi resources are embedded, checksum-verified, and activated through `runtime/current`. Required community package policy is embedded in the CLI with typed Pi install actions: exact versions follow DeputyDev releases, minimum versions enforce a floor, and floating versions remain updateable by Pi or the user. Package reconciliation uses local metadata on warm launches, never parses `pi list`, and preserves unrelated package settings. Full behavior is recorded in `plans/pi-package-provisioning.md`.
 
@@ -112,7 +112,7 @@ No DeputyDev-owned failure uses a code below 64:
 | `120` | launcher usage/unknown harness |
 | `121` | harness executable unavailable |
 | `122` | materialization failure |
-| `123` | profile/provisioning failure |
+| `123` | harness preparation/provisioning failure |
 | `124` | gate/update failure |
 | `125` | unsupported platform/environment |
 
@@ -122,7 +122,7 @@ Once a harness starts, pass its exit code or signal through unchanged, even when
 
 | File | Sole writer/purpose |
 |---|---|
-| `state.json` | launcher/profile/runtime state |
+| `state.json` | launcher/runtime state |
 | `update.json` | updater manifest cache, per-URL ETags, highest sequence, check timestamps |
 | `hold.json` | temporary rollback hold |
 | `staged/meta.json` | verified staged artifact metadata |
@@ -144,7 +144,7 @@ Properties:
 - no Bun/Node requirement on user machines
 - no `sudo`
 - updater owns the managed binary path
-- immutable GitHub Release assets
+- immutable S3 release keys served through signed CloudFront URLs
 - manual stable-manifest publication
 
 An npm/Homebrew channel may be added later, but it must be compiled/packaged with a non-self-mutating build kind and delegate upgrades to its package manager.
@@ -201,7 +201,7 @@ The decoded payload contains:
   "publishedAt": "2026-09-04T10:00:00Z",
   "artifacts": {
     "darwin-arm64": {
-      "url": "https://github.com/example/deputydev/releases/download/1.4.2/ddcli-darwin-arm64.gz",
+      "url": "https://YOUR_ORIGIN/api/v1/cli/releases/1.4.2/ddcli-darwin-arm64.gz",
       "sha256": "<compressed sha256>",
       "size": 16000000,
       "sha256Binary": "<decompressed binary sha256>",
@@ -346,7 +346,6 @@ TypeScript harness resources imported with `with { type: "file" }` are read via 
 │   ├── git/
 │   └── sessions/             # PI_CODING_AGENT_SESSION_DIR
 ├── pi-packages.json          # verified package provenance and fallback state
-├── profiles/...              # OpenCode and future profile-based harnesses
 ├── state.json
 ├── update.json
 └── hold.json
@@ -614,51 +613,11 @@ Use plain stderr output in recovery paths. `performBlockingUpdate` shows a simpl
 
 ---
 
-## 13. GitHub Actions and release assets
+## 13. Manual S3 release assets
 
-The implemented workflows use:
+Bitbucket runs quality checks. Manual `bun run release:prepare-s3` on native macOS arm64 builds and ad-hoc signs the binary, creates a reproducible gzip archive and dual hashes, and writes the versioned S3 key/config snippet. `bun run release:publish-s3` uploads the archive with the secret-protected presigned PUT and verifies a CloudFront download. The maintainer promotes `CLI_RELEASES.LATEST_VERSION` only after verification. Existing GitHub Actions files are left untouched but are not part of this release path. Full instructions are in [Releasing](../README.md#releasing).
 
-- `actions/checkout@v7`
-- `actions/attest-build-provenance@v3`
-- `oven-sh/setup-bun@v2`
-
-Re-verify action majors periodically and pin full commit SHAs if repository policy requires stronger workflow supply-chain controls.
-
-Both CI and release jobs use `macos-15` and assert `Darwin-arm64`. The release job uses the `production` GitHub Environment and reads the non-secret `DEPUTYDEV_SERVICE_ORIGIN` environment variable from `vars`. The value must be an HTTPS origin only; there is intentionally no secret fallback.
-
-### Release workflow
-
-`.github/workflows/release.yml` is triggered by publishing a manually created GitHub pre-release and also provides a controlled `workflow_dispatch` recovery path:
-
-1. Check out the exact release tag with full history.
-2. Require canonical SemVer without a `v` prefix and exact equality between package version, tag, and release title.
-3. Require the release to begin as a pre-release and verify its commit is an ancestor of `main`.
-4. Validate the production service origin before dependency installation or compilation.
-5. Run frozen install, typechecking, Biome, launcher tests, installer tests, and shell syntax checks.
-6. Compile the production `darwin-arm64` executable through `scripts/build-release.ts`.
-7. Verify architecture, ad-hoc sign, verify the signature, and smoke-test the exact version and harness list.
-8. Gzip reproducibly and generate dual hashes, sizes, and release metadata.
-9. Refuse existing assets by default, upload all assets, and create GitHub provenance for the executable archive.
-10. Promote stable SemVer versions to normal/latest only after every preceding step succeeds. SemVer prereleases remain pre-releases.
-
-A manual recovery run may explicitly enable `replace_assets`; normal release runs never clobber assets.
-
-### Release assets and metadata
-
-Every release contains:
-
-```text
-ddcli-darwin-arm64.gz
-ddcli-darwin-arm64.map
-checksums.txt
-release-metadata.json
-VERSION
-install.sh
-```
-
-`checksums.txt` identifies both the compressed archive and decompressed `ddcli-darwin-arm64` executable. `release-metadata.json` records the version, target, full commit, production environment identifier, archive URL, and both hashes and sizes. It does not expose credentials or other secret environment values.
-
-The future updater's signed distribution manifest remains separate. Its offline signing flow can consume the verified release metadata after all release URLs resolve.
+Local `release/` output includes `ddcli-darwin-arm64.gz`, `ddcli-darwin-arm64.map`, `checksums.txt`, `release-metadata.json`, `cli-release-config.json`, and `VERSION`. The archive alone is uploaded to the private bucket. The backend serves exact-version checksums and fresh signed CloudFront downloads using the configured key. The future independently signed distribution manifest can reference the stable backend **exact-version URL**, not an expiring CloudFront URL.
 
 ---
 
@@ -679,7 +638,7 @@ The manual installer:
 11. explains how to add `~/.deputydev/bin` to PATH
 12. warns if `command -v ddcli` resolves elsewhere
 
-A checksum file fetched from the same origin as the artifact detects corruption but not origin compromise. Document `gh attestation verify` as the stronger provenance path for users who require it, and keep manifest signature verification as the updater's independent trust anchor.
+A checksum file fetched from the same backend as the artifact selector detects corruption but not backend compromise. The implemented manual and background updater follows that trust model; an independently signed manifest remains future work.
 
 The installer never uses `sudo` and never writes `/usr/local/bin`.
 
@@ -776,10 +735,10 @@ Use `Bun.serve` on a random local port and a temporary `DEPUTYDEV_HOME`. Cover:
 ### Week 1 — binary distribution only
 
 1. Build/sign/notarize policy for `darwin-arm64`.
-2. Release-please and same-workflow release upload.
-3. Publish `.gz`, source map, hashes, provenance, and copy-ready metadata.
-4. Host installer.
-5. Ship `--version`; no updater yet.
+2. Prepare the native release on a trusted Apple Silicon Mac.
+3. Upload the versioned `.gz` to private S3, then promote the backend's latest pointer.
+4. Host `/install.sh` and exact-version downloads on the backend.
+5. Ship `--version`, `update --check`, `update`, and the throttled post-session worker.
 
 ### Week 1 — manual foreground update
 
@@ -796,13 +755,11 @@ Use `Bun.serve` on a random local port and a temporary `DEPUTYDEV_HOME`. Cover:
 4. Add rollback with 24-hour hold.
 5. Keep `minSupported` safely below current during rollout.
 
-### After launcher Phase 3 — optional auto-update
+### After Pi provisioning — optional auto-update
 
-1. Add detached refresh/staging only after Pi and OpenCode provisioning are stable.
+1. Add detached refresh/staging only after Pi provisioning is stable.
 2. Add optional swap-on-exit and staged re-verification.
 3. Add rollout percentages and notices.
-
-Do not debug background auto-update and OpenCode profile provisioning in the same week.
 
 ---
 

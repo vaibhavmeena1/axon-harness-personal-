@@ -11,8 +11,6 @@ export function printPaths(paths: DeputyDevPaths): void {
     ["Pi session directory", paths.piSessions],
     ["Pi package state", paths.piPackageState],
     ["Pi package lock", paths.piPackageLock],
-    ["profiles", paths.profiles],
-    ["default profile", paths.defaultProfile],
     ["staged binary", paths.stagedBinary],
     ["staged metadata", paths.stagedMetadata],
     ["locks", paths.locks],

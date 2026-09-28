@@ -7,7 +7,6 @@ import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 export interface UninstallOptions {
-  readonly removeProfiles?: boolean;
   readonly removeRuntimes?: boolean;
 }
 
@@ -60,10 +59,5 @@ export async function runUninstall(
     console.log(`preserved cached runtimes: ${paths.runtime}, ${paths.piRuntime}`);
   }
 
-  if (options.removeProfiles === true) {
-    await rm(paths.profiles, { force: true, recursive: true });
-    console.log(`removed profiles (including managed auth and sessions): ${paths.profiles}`);
-  } else {
-    console.log(`preserved profiles and managed auth: ${paths.profiles}`);
-  }
+  console.log(`preserved Pi settings, auth, and sessions: ${paths.pi}`);
 }

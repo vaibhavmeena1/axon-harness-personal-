@@ -10,17 +10,16 @@
 - [x] Added Biome formatting/linting and a single `bun run check` quality gate.
 - [x] Moved the executable entrypoint to `src/index.ts` with top-level await and Commander-owned launcher commands.
 - [x] Added product identity, validated service-origin, managed-path, launcher exit-status, adapter-contract, environment-registry, and harness-registry modules.
-- [x] Registered stable harness IDs `pi` and `opencode`, including the `opencode2` alias and executable override metadata.
-- [x] Added a locked OpenCode first-use bootstrap through the official install script, with an explicit DeputyDev-controlled version and `--no-modify-path`.
+- [x] Registered the `pi` harness and its executable override metadata.
 - [x] Dispatches harness IDs before Commander and preserves every subsequent argument token.
 - [x] Resolves validated overrides/PATH candidates and launches allowlisted executables directly with inherited cwd and stdio.
 - [x] Strips DeputyDev control variables, emits only redacted opt-in debug previews, and propagates child exit/signal status.
 - [x] Added an isolated Pi setup-check pipeline with append-only, disabled-by-default organization MCP synchronization.
-- [x] Added dedicated Pi agent/session paths and ordered environment overrides, including disabled Pi version checks and Pi-only removal of inherited Anthropic/OpenAI API keys.
+- [x] Added dedicated Pi agent/session paths and ordered environment overrides, including disabled Pi version checks and removal of Pi-documented provider API keys.
 - [x] Added content-addressed Pi resource materialization, an independently typechecked core extension, and explicit resource arguments.
 - [x] Added embedded required-package policy with exact/minimum/floating versions, locked reconciliation, and last-known-good fallback.
 - [x] Added `harnesses`, `paths`, package-aware `doctor`, explicit Pi setup, and guarded `uninstall` commands.
-- [x] Added launcher-core tests for registry aliases, environment stripping, argv passthrough, child exits, and reserved pre-launch statuses.
+- [x] Added launcher-core tests for registry behavior, environment stripping, argv passthrough, child exits, and reserved pre-launch statuses.
 - [x] Added a native `darwin-arm64` development compile using ESM bytecode, external source maps, and disabled compiled dotenv/bunfig autoload.
 - [x] Added Apple Silicon CI for frozen install, quality checks, launcher tests, compilation, and compiled smoke execution.
 
@@ -29,38 +28,24 @@
 - [ ] All Phase 0 compatibility, auth, resource-loader, provisioning, and native-dependency evidence spikes.
 - [ ] Complete Phase 0.5 golden argv coverage, PTY signal tests, and mechanical import-boundary enforcement.
 - [x] Pi executable compatibility gate with cached version probing and a pinned, lock-protected managed Pi installation from Pi's release API.
-- [ ] OpenCode profiles/materialization and remaining runtime state writers.
-- [ ] Remaining Phase 2 Pi auth behavior and Phase 3 OpenCode isolation/provisioning behavior.
+- [ ] Remaining Phase 2 Pi auth behavior and runtime state writers.
 - [ ] Installer, release, updater, rollback, interactive auth setup, and runtime garbage collection.
 
-The adapters preserve forwarded harness argument tokens. Pi has an additive MCP bootstrap check, dedicated `~/.deputydev/pi` agent/session paths, explicit DeputyDev resource injection, and required-package reconciliation; auth onboarding remains for its dedicated phase.
+The Pi adapter preserves forwarded argument tokens. Pi has an additive MCP bootstrap check, dedicated `~/.deputydev/pi` agent/session paths, explicit DeputyDev resource injection, and required-package reconciliation; auth onboarding remains for its dedicated phase.
 
 ---
 
 ## 1. Goal
 
-Build a native CLI launcher named **`ddcli`** that starts supported coding harnesses with DeputyDev-managed configuration, environment variables, extensions, plugins, skills, prompts, themes, and future harness-specific resources.
+Build a native CLI launcher named **`ddcli`** that starts Pi with DeputyDev-managed configuration, environment variables, extensions, skills, prompts, and themes.
 
-The core user experience is:
-
-```text
-ddcli pi
-ddcli opencode
-```
-
-`opencode2` remains a compatibility alias, not the stable harness ID:
-
-```text
-ddcli opencode2 run --prompt "Fix the failing build"
-```
+The core user experience is `ddcli pi`; Pi is the only supported harness.
 
 Everything after the harness token is forwarded to that harness. The launcher owns preparation and process execution; the selected harness owns its UI, command behavior, sessions, and termination status.
 
 ```text
 ddcli pi --model openai/gpt-4o "Review this repository"
 ddcli pi -p -- "- Summarize these points"
-ddcli opencode run --prompt "Fix the failing build"
-ddcli opencode --continue
 ```
 
 ---
@@ -83,9 +68,8 @@ This document and `shipplan.md` must use one set of product-level contracts. If 
 | Debug switch | `DEPUTYDEV_DEBUG=1` |
 | Build service origin | validated `DEPUTYDEV_SERVICE_ORIGIN` compiled as `BUILD_SERVICE_ORIGIN` |
 | Binary override for Pi | `DEPUTYDEV_PI_BIN` |
-| Binary override for OpenCode | `DEPUTYDEV_OPENCODE_BIN` |
 
-The temporary `2` suffix is executable packaging, not persistent identity. Runtime, state, and harness directory names use stable IDs. Pi uses one fixed DeputyDev-owned data directory rather than a named profile; the `profiles/` tree remains available for harnesses such as OpenCode that require profile-style isolation.
+Pi uses one fixed DeputyDev-owned data directory rather than a named profile.
 
 ### State ownership
 
@@ -93,7 +77,7 @@ Never let unrelated components atomically rewrite the same JSON object.
 
 | File | Sole writer |
 |---|---|
-| `state.json` | launcher/profile/runtime state |
+| `state.json` | launcher/runtime state |
 | `update.json` | manifest cache, ETags, sequence, update checks |
 | `hold.json` | rollback/update hold lifecycle |
 | `staged/meta.json` | updater staging worker |
@@ -131,7 +115,7 @@ No launcher- or updater-owned failure uses a code below 64. Child exit codes are
 | `120` | launcher usage or unknown harness |
 | `121` | harness executable unavailable |
 | `122` | resource materialization failure |
-| `123` | profile/provisioning failure |
+| `123` | harness preparation/provisioning failure |
 | `124` | required update or updater failure |
 | `125` | unsupported platform/environment |
 
@@ -152,10 +136,7 @@ The shared launcher startup path performs local checks only. The updater may enf
 
 ## 3. Current harness capabilities and required spikes
 
-This plan began from locally inspected interfaces:
-
-- Pi `0.84.4`
-- OpenCode 2 `v0.0.0-beta-19086`
+This plan began from a locally inspected Pi `0.84.4` interface.
 
 Treat those observations as evidence, not permanent API contracts.
 
@@ -172,25 +153,15 @@ Pi exposes repeatable resource flags suitable for per-invocation activation:
 
 It also exposes `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`. Every `ddcli pi` invocation, including Pi package commands, overrides inherited values with `${DEPUTYDEV_HOME}/pi` and `${DEPUTYDEV_HOME}/pi/sessions`. DeputyDev should use explicit flags for DeputyDev-owned resources and must not mutate the user's normal `~/.pi/agent` settings.
 
-### OpenCode
-
-The inspected OpenCode build exposes plugin management, debug paths/config, `--standalone`, `--server`, and subcommands such as `run`, `mini`, `mcp`, `auth`, and `models`. It does not expose a confirmed repeatable local plugin-path flag.
-
-OpenCode's adapter therefore owns a profile/provisioning model rather than pretending plugins are Pi extensions. Because the interface is beta and changes quickly, all config keys, profile variables, auth locations, subcommand flag positions, and plugin behavior are Phase 0 evidence requirements.
-
 ### Blocking unknowns
 
 Do not implement an assumption until the spike records a command, version, observed paths, and expected behavior for it:
 
-1. Whether the targeted OpenCode build supports dedicated config/data/cache/state variables such as `OPENCODE_CONFIG_DIR`; prefer them over XDG.
-2. Where each harness stores auth and whether the location can be overridden independently of config/state.
-3. Whether an isolated OpenCode profile can reuse or import existing auth without broad XDG overrides.
-4. Whether OpenCode global flags are valid before or after each known subcommand.
-5. Whether local plugins/config can be provisioned without startup network I/O.
-6. Whether Pi loads materialized TypeScript source from the installed compiled-binary layout.
-7. Whether every native dependency, if introduced, embeds and executes in a compiled Bun binary.
-8. Whether `--compile --bytecode --format=esm` builds and runs the real entrypoint with top-level await.
-9. Whether file-type imported assets can be read from Bun's virtual filesystem and materialized byte-for-byte.
+1. Where Pi stores auth and whether it can be imported separately from settings and sessions.
+2. Whether Pi loads materialized TypeScript source from the installed compiled-binary layout.
+3. Whether every native dependency, if introduced, embeds and executes in a compiled Bun binary.
+4. Whether `--compile --bytecode --format=esm` builds and runs the real entrypoint with top-level await.
+5. Whether file-type imported assets can be read from Bun's virtual filesystem and materialized byte-for-byte.
 
 ---
 
@@ -200,18 +171,15 @@ Do not implement an assumption until the spike records a command, version, obser
 
 ```text
 ddcli pi [pi arguments...]
-ddcli opencode [opencode arguments...]
-ddcli opencode2 [opencode arguments...]  # alias
 ```
 
 Rules:
 
 1. `ddcli --help` and `ddcli --version` belong to DeputyDev.
 2. `ddcli pi --help` launches `pi --help`.
-3. `ddcli opencode --help` launches `opencode --help`.
-4. Every token after the harness token is preserved exactly, including order, empty strings, newlines, leading dashes, and a literal `--`.
-5. Harness options are never declared as Commander options.
-6. Unknown first positional tokens are launcher errors; arbitrary executable passthrough is forbidden.
+3. Every token after the harness token is preserved exactly, including order, empty strings, newlines, leading dashes, and a literal `--`.
+4. Harness options are never declared as Commander options.
+5. Unknown first positional tokens are launcher errors; arbitrary executable passthrough is forbidden.
 
 ### Dispatch before Commander
 
@@ -249,8 +217,6 @@ ddcli uninstall
 Argument insertion is adapter-owned, not universally “before user args.”
 
 - Pi resource flags precede exact user arguments where Pi's repeatable/last-value behavior is verified.
-- OpenCode uses a subcommand table. If the first relevant positional token is a known subcommand, inject flags in the position verified for that subcommand.
-- The OpenCode table defines handling for top-level mode, every supported subcommand, `--server`, an existing `--standalone`, and user-supplied plugin/extension equivalents.
 - Collision behavior must be explicit: append both, skip DeputyDev's value, or reject. Never rely on accidental parser precedence.
 
 Golden tests are the executable specification of these rules.
@@ -263,8 +229,8 @@ Use four layers:
 
 1. **CLI** — dispatches launcher-owned commands and selects a harness before Commander parsing.
 2. **Launcher** — materializes resources and executes a prepared launch specification.
-3. **Registry** — maps stable harness IDs and aliases to isolated adapters.
-4. **Adapters** — own harness-specific arguments, environment, mutable data directories or profiles, resources, compatibility, and diagnostics.
+3. **Registry** — maps the Pi harness ID to its adapter.
+4. **Adapter** — owns Pi arguments, environment, mutable data directory, resources, compatibility, and diagnostics.
 
 The shared contract stays small:
 
@@ -308,34 +274,17 @@ src/
 │   └── spawn-harness.ts
 └── harnesses/
     ├── registry.ts
-    ├── pi/
-    │   ├── adapter.ts
-    │   ├── command.ts
-    │   ├── environment.ts
-    │   ├── paths.ts
-    │   ├── doctor.ts
-    │   ├── setup/
-    │   │   ├── index.ts
-    │   │   ├── contracts.ts
-    │   │   ├── paths.ts
-    │   │   ├── mcp-catalog.ts
-    │   │   └── mcp-config.ts
-    │   └── resources/
-    │       ├── extensions/<resource-id>/...
-    │       ├── skills/<resource-id>/...
-    │       ├── prompt-templates/<resource-id>/...
-    │       └── themes/<resource-id>/...
-    └── opencode/
+    └── pi/
         ├── adapter.ts
-        ├── command.ts
         ├── environment.ts
-        ├── profile.ts
-        ├── doctor.ts
+        ├── installation.ts
+        ├── setup/
+        │   ├── index.ts
+        │   ├── mcp-catalog.ts
+        │   ├── packages/
+        │   └── resources.ts
         └── resources/
-            ├── plugins/<resource-id>/...
-            ├── agents/<resource-id>/...
-            ├── commands/<resource-id>/...
-            └── config-fragments/<resource-id>/...
+            └── extensions/<resource-id>/...
 ```
 
 Resource categories keep their depth because each resource earns an identity, manifest, source files, and compatibility metadata.
@@ -364,9 +313,7 @@ Use an architecture test or a dependency graph tool. If dependency-cruiser is se
 │   ├── current -> 1.4.2-a3f9c1
 │   └── 1.4.2-a3f9c1/
 │       ├── materialization.json
-│       └── harnesses/
-│           ├── pi/...
-│           └── opencode/...
+│       └── pi/...
 ├── pi/                              # PI_CODING_AGENT_DIR
 │   ├── settings.json
 │   ├── auth.json
@@ -374,15 +321,6 @@ Use an architecture test or a dependency graph tool. If dependency-cruiser is se
 │   ├── git/
 │   ├── tmp/
 │   └── sessions/                    # PI_CODING_AGENT_SESSION_DIR
-├── profiles/
-│   └── default/
-│       └── harnesses/
-│           └── opencode/
-│               ├── config/
-│               ├── data/
-│               ├── cache/
-│               ├── state/
-│               └── provisioning.json
 ├── staged/
 │   ├── ddcli
 │   └── meta.json
@@ -394,7 +332,7 @@ Use an architecture test or a dependency graph tool. If dependency-cruiser is se
 
 The runtime key is `<version>-<short-asset-manifest-hash>`, not version alone. This makes repeated `0.1.0-dev` builds and republished development builds rematerialize when resource bytes change.
 
-Materialization creates the immutable versioned directory, then atomically replaces a temporary `runtime/current` symlink. Harness arguments always use `runtime/current/...`, not a versioned path, so persisted session metadata does not point permanently at an obsolete release.
+Materialization creates the immutable versioned directory, then atomically replaces a temporary `runtime/current` symlink. Pi arguments use the immutable versioned path so a running process cannot change resources underneath it; `runtime/current` is for inspection only.
 
 Keep old versioned directories because a running harness can still have one open. Runtime collection is explicit (`ddcli gc`), age-based (default retention: 30 days), and never runs on the launch path. It must not delete the current target or a directory known to be active.
 
@@ -455,9 +393,9 @@ PI_CODING_AGENT_SESSION_DIR=${DEPUTYDEV_HOME}/pi/sessions
 
 The defaults are `~/.deputydev/pi` and `~/.deputydev/pi/sessions`. Both variables also apply when the forwarded Pi command is `install`, `remove`, `update`, `list`, or `config`, so package lifecycle operations target DeputyDev's Pi directory rather than `~/.pi/agent`.
 
-DeputyDev-owned resources are content-addressed under `runtime/<version>-<hash>` and activated through explicit Pi flags using `runtime/current` paths. Required community packages are declared in the embedded manifest and reconciled only inside the dedicated Pi directory. Exact versions change with the embedded manifest; minimum versions enforce a hard floor; floating versions remain under Pi/user update control. Healthy warm launches run local checks only, and unrelated package settings are preserved. See `plans/pi-package-provisioning.md` for the complete policy.
+DeputyDev-owned resources are content-addressed under `runtime/<version>-<hash>` and activated through explicit Pi flags using immutable versioned paths. Required community packages are declared in the embedded manifest and reconciled only inside the dedicated Pi directory. Exact versions change with the embedded manifest; minimum versions enforce a hard floor; floating versions remain under Pi/user update control. Healthy warm launches run local checks only, and unrelated package settings are preserved. See `plans/pi-package-provisioning.md` for the complete policy.
 
-Directory isolation hides the user's normal Pi settings, auth, installed packages, temporary package cache, and sessions. It is not a security sandbox: project resources, other inherited credentials, and user-global paths may still be visible. The adapter sets `PI_SKIP_VERSION_CHECK=1` and, as a narrow Pi-only exception, removes inherited `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`. The Pi MCP adapter reads the standard user-global `~/.config/mcp/mcp.json` independently of `PI_CODING_AGENT_DIR`.
+Directory isolation hides the user's normal Pi settings, auth, installed packages, temporary package cache, and sessions. It is not a security sandbox: project resources, other inherited credentials, and user-global paths may still be visible. The adapter sets `PI_SKIP_VERSION_CHECK=1` and removes every Pi-documented provider API key (listed in `PI_STRIPPED_PROVIDER_VARIABLES`), while retaining the organization LiteLLM variables. The Pi MCP adapter reads the standard user-global `~/.config/mcp/mcp.json` independently of `PI_CODING_AGENT_DIR`.
 
 ### Organization MCP bootstrap
 
@@ -476,58 +414,18 @@ Ship explicit, consented first-run import:
 - `doctor pi` reports whether the dedicated Pi directory has usable credentials without printing providers, tokens, or file contents.
 - Users may instead run the harness's login flow inside the dedicated Pi directory.
 
-The Phase 0 spike must identify exact source/destination paths and confirm whether auth can be separated from non-auth settings. Environment credentials are never copied; inherited Anthropic and OpenAI API keys are explicitly unavailable to Pi, while other inherited provider variables remain supported unless policy expands the removal list.
+The Phase 0 spike must identify exact source/destination paths and confirm whether auth can be separated from non-auth settings. Environment credentials are never copied; ambient personal provider keys are unavailable to Pi, while organization LiteLLM variables remain available.
 
 ---
 
-## 9. OpenCode adapter, XDG containment, and auth
-
-Use `opencode` as the stable registry/profile/runtime ID and retain `opencode2` as an alias. The adapter may resolve multiple executable candidates plus `DEPUTYDEV_OPENCODE_BIN`; the compatibility table, not the ID, carries the supported major/beta range.
-
-### Profile variable priority
-
-1. Dedicated, documented OpenCode config/data/cache/state/auth variables verified for the pinned build.
-2. Narrow config-file/path overrides verified by `opencode debug paths` and `debug config`.
-3. Broad XDG overrides only as a last resort.
-
-Using XDG is a Phase 0 blocker because OpenCode subprocesses inherit it. `gh`, Docker, kubectl, npm/Bun tooling, MCP servers, and language servers may then lose their normal config or credentials.
-
-If XDG is unavoidable:
-
-- pre-seed a reviewed allowlist of links/copies for required tool config (`gh`, `git`, `docker`, `kube`, `npm`) into the managed XDG tree
-- verify each tool's actual path behavior; do not assume every tool follows XDG
-- prefer directory links over auth-file links when tools atomically replace files
-- show every shadowed config root in `doctor opencode`
-- document the inheritance prominently
-
-This mitigation is a compatibility bridge, not a permanent abstraction. Prefer removing XDG overrides as soon as dedicated OpenCode variables are available.
-
-### Auth onboarding
-
-Apply the same explicit import policy as Pi, using OpenCode-specific validated paths. A managed `opencode auth login` remains the clean fallback. Never claim inherited `ANTHROPIC_API_KEY`-style variables cover users who authenticated through the harness's on-disk login flow.
-
-### Standalone and subcommand policy
-
-- Inject `--standalone` for ordinary private-profile launches.
-- Omit it when the user supplied `--standalone` or `--server`.
-- Use a versioned table of known subcommands and verified injection positions.
-- Define collision behavior for user-supplied plugin/resource options.
-- Never connect a managed profile accidentally to the user's unrelated service.
-
-### Provisioning
-
-Reconcile only when a content-keyed provisioning stamp changes. Lock, preserve the previous valid config, provision through a mechanism verified for the pinned OpenCode build, validate with debug/plugin commands, and commit the new stamp last. Ordinary launch must not perform plugin network installation.
-
----
-
-## 10. Environment policy
+## 9. Environment policy
 
 Build child environments in deterministic layers:
 
 1. inherited process environment
 2. removal of DeputyDev control variables not explicitly allowlisted for harnesses
 3. DeputyDev public/shared variables that are explicitly harness-facing
-4. harness-specific data-directory or profile variables
+4. Pi data-directory variables
 5. other harness-specific variables
 6. invocation-specific overrides, if introduced later
 
@@ -563,7 +461,7 @@ Future Pi features can add independent layers for package setup, invocation poli
 
 Rules:
 
-- Inherit provider credentials by default, with explicit adapter-owned exceptions. Pi sets `PI_SKIP_VERSION_CHECK=1` and removes inherited `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`; persist auth only through the explicit import/login policy.
+- Pi sets `PI_SKIP_VERSION_CHECK=1` and removes inherited Pi-documented provider API keys while retaining organization LiteLLM variables; persist auth only through the explicit import/login policy.
 - Never print the complete child environment.
 - Redact names containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `CREDENTIAL`, or `AUTH`.
 - Redacted debug launch previews go to stderr only when `DEPUTYDEV_DEBUG=1`.
@@ -586,7 +484,7 @@ The boundary is strict:
 
 ---
 
-## 11. Process execution and termination
+## 10. Process execution and termination
 
 Execute allowlisted harnesses directly with a command array. Never use `Bun.$`, `sh -c`, or a shell string.
 
@@ -620,12 +518,11 @@ With inherited stdio and parent/child in the same foreground process group, the 
 
 ---
 
-## 12. Registry, executable resolution, and version cache
+## 11. Registry, executable resolution, and version cache
 
-| Stable ID | Aliases | Candidate names | Override |
-|---|---|---|---|
-| `pi` | none | `pi` plus verified packaging names | `DEPUTYDEV_PI_BIN` |
-| `opencode` | `opencode2` | `opencode2`, `opencode` | `DEPUTYDEV_OPENCODE_BIN` |
+| Stable ID | Candidate name | Override |
+|---|---|---|
+| `pi` | `pi` | `DEPUTYDEV_PI_BIN` |
 
 An override is still validated as an executable path and never evaluated through a shell.
 
@@ -635,7 +532,7 @@ Adding a harness requires its directory and one registry entry; it must not modi
 
 ---
 
-## 13. Startup lifecycle
+## 12. Startup lifecycle
 
 For a harness launch:
 
@@ -646,7 +543,7 @@ For a harness launch:
 5. Build context and strip internal environment variables.
 6. Resolve the executable using override/candidates.
 7. Verify/materialize the content-addressed runtime.
-8. Prepare/auth-check the selected harness data directory or profile.
+8. Prepare/auth-check the Pi data directory.
 9. Build the adapter-owned final launch spec.
 10. Emit a redacted stderr preview only under `DEPUTYDEV_DEBUG=1`.
 11. Spawn with inherited stdio and wait.
@@ -658,35 +555,34 @@ Optional updates never add a re-exec hop around the harness. Mandatory foregroun
 
 ---
 
-## 14. Diagnostics, uninstall, and unsupported environments
+## 13. Diagnostics, uninstall, and unsupported environments
 
 `doctor` reports:
 
 - executable path, override/candidates, version, and compatibility status
 - version-cache key
-- dedicated Pi directory, OpenCode profile, and active runtime paths
+- dedicated Pi directory and active runtime paths
 - effective Pi agent/session directory environment values
 - auth readiness without secrets
 - resource/provisioning status
-- OpenCode-specific profile variables and XDG-shadowed tool configs
 - DeputyDev home permissions/ownership
 - whether `~/.deputydev/bin` is on PATH
 - whether `command -v ddcli` resolves to the managed binary rather than a shadowing package-manager copy
 - platform/container status and remediation
 
-`uninstall` removes the managed binary and offers separate, explicit choices for the mutable Pi directory, OpenCode profiles, and cached runtimes. It never silently destroys auth/session data.
+`uninstall` removes the managed binary and can optionally remove cached runtimes. It always preserves Pi settings, auth, and sessions; it never silently destroys user data.
 
 Both installer and CLI detect unsupported OS/architecture/container execution. The native macOS arm64 MVP may refuse containers; the message must acknowledge devcontainers as unsupported and tell users where to run the native launcher. Expect support demand and revisit this decision with usage evidence.
 
 ---
 
-## 15. Security boundaries
+## 14. Security boundaries
 
 - Harness IDs and executable candidates are compiled allowlists.
 - No harness launch uses a shell.
 - Manifest destinations reject traversal and absolute paths.
 - Materialized bytes are checksum-verified.
-- Runtime directories are immutable and separate from the mutable Pi directory and OpenCode profiles.
+- Runtime directories are immutable and separate from the mutable Pi directory.
 - External plugins are pinned to versions or immutable revisions.
 - Auth import requires consent, validates format, and preserves restrictive modes.
 - `~/.deputydev` is same-user private; the local threat model trusts same-UID processes, as other user-space toolchain managers do.
@@ -695,11 +591,11 @@ Both installer and CLI detect unsupported OS/architecture/container execution. T
 
 ---
 
-## 16. Test strategy
+## 15. Test strategy
 
 ### Fake harness
 
-Create a tiny hermetic fixture that emits JSON for argv, cwd, selected env, and TTY state, and can exit with a requested code or signal. Point adapters at it through the executable override variables. CI must not require Pi or OpenCode for core launcher tests.
+Create a tiny hermetic fixture that emits JSON for argv, cwd, selected env, and TTY state, and can exit with a requested code or signal. Point the Pi adapter at it through `DEPUTYDEV_PI_BIN`. CI must not require Pi for core launcher tests.
 
 ### Golden argument table
 
@@ -709,10 +605,7 @@ Store `(harness, userArgs) -> expected executable argv` cases for:
 - bare `--`
 - prompts with spaces/newlines/leading dashes
 - Pi `-p -- ...`
-- OpenCode top-level mode and `run`
-- existing `--server`/`--standalone`
-- user-supplied resource/plugin options
-- `opencode2` alias behavior
+- user-supplied resource options
 
 ### PTY and signal tests
 
@@ -737,19 +630,16 @@ Fail CI on cross-harness imports and on launcher/CLI imports that bypass the reg
 
 ---
 
-## 17. Implementation order
+## 16. Implementation order
 
 ### Phase 0 — blocking compatibility/build spikes
 
-1. Resolve OpenCode-specific profile variables versus XDG and measure subprocess blast radius.
-2. Decide and prove exact auth import/login behavior for both harnesses.
-3. Verify standalone/server and subcommand flag positions.
-4. Verify OpenCode plugin/config provisioning without launch-path network I/O.
-5. Verify Pi source assets materialize and load from a compiled installation.
-6. Compile and run top-level await with `--compile --bytecode --format=esm`.
-7. Verify file-loader asset paths and the separate resource typecheck project.
-8. Verify native dependencies, if any, in the compiled target.
-9. Record supported harness ranges and evidence.
+1. Decide and prove exact Pi auth import/login behavior.
+2. Verify Pi source assets materialize and load from a compiled installation.
+3. Compile and run top-level await with `--compile --bytecode --format=esm`.
+4. Verify file-loader asset paths and the separate resource typecheck project.
+5. Verify native dependencies, if any, in the compiled target.
+6. Record supported Pi versions and evidence.
 
 ### Phase 0.5 — executable contracts
 
@@ -765,7 +655,7 @@ Complete this before Phase 1; it de-risks the exact passthrough claim.
 
 1. Add product identity and shared paths/state ownership.
 2. Dispatch harnesses before Commander.
-3. Add registry, aliases, overrides, and small adapter contracts.
+3. Add the Pi registry entry, override, and small adapter contract.
 4. Implement direct inherited-stdio spawning and signal-correct termination.
 5. Add `harnesses`, `paths`, basic `doctor`, `uninstall`, and debug preview.
 
@@ -780,75 +670,56 @@ Complete this before Phase 1; it de-risks the exact passthrough claim.
 7. [ ] Add consented auth import/setup and doctor checks.
 8. [ ] Complete interactive, print, piped, session, help, `--`, exit, and signal validation.
 
-### Phase 3 — OpenCode
-
-1. [x] Add a first-use installation fallback through `https://opencode.ai/v2/install`, always supplying an exact DeputyDev-controlled version and preserving explicit override failures.
-2. Implement the Phase 0 profile-variable decision.
-3. Add managed auth onboarding.
-4. Add subcommand-aware standalone/server policy.
-5. Add one real plugin/config resource.
-6. Add content-keyed provisioning and locking if needed.
-7. Validate spawned tools such as `gh` under the final environment.
-
-The implemented installation-only boundary and deferred work are recorded in `plans/opencode2-integration.md`.
-
-### Phase 4 — packaging/release integration
+### Phase 3 — packaging/release integration
 
 1. Generate and embed the resource manifest.
 2. Build with explicit ESM bytecode format and external source maps.
 3. Compress release artifacts and publish maps separately.
 4. Run compiled fake-harness and PTY smoke tests on native arm64 macOS.
-5. Launch both locally installed harnesses from paths containing spaces.
+5. Launch a locally installed Pi executable from a path containing spaces.
 6. Integrate the updater from `shipplan.md`.
 
-Delay optional background auto-staging until the OpenCode adapter is stable. Do not debug auto-update and OpenCode provisioning in the same phase.
+Delay optional background auto-staging until Pi provisioning is stable.
 
-### Phase 5 — later
+### Phase 4 — later
 
-- additional OpenCode profiles; Pi remains on its fixed `${DEPUTYDEV_HOME}/pi` directory unless this decision is explicitly revisited
 - user-selectable resources
-- additional harnesses
 - expanded platform/container support
 - post-auth user-facing client configuration
 - telemetry controls
 
 ---
 
-## 18. MVP acceptance criteria
+## 17. MVP acceptance criteria
 
-- Pi and OpenCode launch through stable registry IDs; `opencode2` works as an alias.
+- Pi launches through the stable `pi` registry ID.
 - Harness argv is preserved byte-for-byte at the token level, including `--`, whitespace, and newlines.
 - Commander cannot consume harness `--help`/`--version`.
-- OpenCode flag injection is subcommand-aware and golden-tested.
 - Every `ddcli pi` invocation uses `${DEPUTYDEV_HOME}/pi` for `PI_CODING_AGENT_DIR` and `${DEPUTYDEV_HOME}/pi/sessions` for `PI_CODING_AGENT_SESSION_DIR` without modifying `~/.pi/agent`.
-- Both harnesses have an explicit first-run auth path for users with on-disk credentials.
-- OpenCode isolation does not silently hide known subprocess tool credentials/config, or `doctor` reports the verified fallback clearly.
+- Pi has an explicit first-run auth path for users with on-disk credentials.
 - Warm print/piped launches perform no network request.
 - Post-auth client config may be user-specific but is never required for startup, updates, recovery, or reaching that phase.
 - Runtime materialization is content-addressed, checksum-verified, atomic, and invisible on warm launches.
-- Harnesses receive stable `runtime/current` paths; GC never runs during launch.
+- Pi receives immutable versioned runtime paths; GC never runs during launch.
 - Exit codes and child signal deaths are preserved, including Ctrl+C under a PTY.
 - Internal DeputyDev variables do not leak into harness subprocess trees.
 - Ordered environment overlays preserve inherited credentials, override harness values deterministically, support explicit removal, and never mutate `process.env`.
 - Home ownership/modes and staged-binary hashes are verified.
 - CI enforces adapter import isolation.
-- A third harness requires a new adapter and registry entry without edits to existing adapters.
 
 ---
 
-## 19. Decisions to keep explicit
+## 18. Decisions to keep explicit
 
 1. DeputyDev is a launcher, not a replacement harness.
-2. Stable IDs do not carry temporary version suffixes; aliases handle migration.
-3. Harness adapters are semantically isolated and mechanically enforced.
-4. Resource categories remain harness-specific.
-5. Adapter files start shallow; resource identity earns directory depth.
-6. Harness arguments bypass Commander entirely.
-7. Process execution is direct and signal-correct.
-8. Cached update enforcement is local; ordinary refresh/staging is background work.
-9. Pi uses one fixed DeputyDev-owned data directory at `${DEPUTYDEV_HOME}/pi`; it is not modeled as a named profile, and isolation includes an explicit auth and package onboarding contract.
-10. Harness environment customization uses one ordered, immutable overlay mechanism; adapters add focused layers instead of duplicating environment construction.
-11. Broad XDG overrides are a last resort and a blocking compatibility concern.
-12. Runtime identity is based on resource content, and harnesses receive a stable `current` path.
-13. Optional updates swap after command exit; mandatory updates alone may re-exec before launch.
-14. User-facing post-auth configuration is a separate client lifecycle; launch-critical controls stay in distribution policy or compiled defaults.
+2. The only supported harness ID is `pi`.
+3. Pi resources remain separate from launcher code.
+4. Adapter files start shallow; resource identity earns directory depth.
+5. Harness arguments bypass Commander entirely.
+6. Process execution is direct and signal-correct.
+7. Cached update enforcement is local; ordinary refresh/staging is background work.
+8. Pi uses one fixed DeputyDev-owned data directory at `${DEPUTYDEV_HOME}/pi`; it is not modeled as a named profile, and isolation includes an explicit auth and package onboarding contract.
+9. Harness environment customization uses one ordered, immutable overlay mechanism; the Pi adapter adds focused layers instead of duplicating environment construction.
+10. Runtime identity is based on resource content, and Pi receives an immutable versioned path.
+11. Optional updates swap after command exit; mandatory updates alone may re-exec before launch.
+12. User-facing post-auth configuration is a separate client lifecycle; launch-critical controls stay in distribution policy or compiled defaults.

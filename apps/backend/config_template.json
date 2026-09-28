@@ -7,6 +7,31 @@
   "DEBUG": true,
   "LOG_LEVEL": "INFO",
   "FRONTEND_DIR": "static",
+  "CLI_INSTALL": {
+    "RELEASES_URL": "https://YOUR_ORIGIN/api/v1/cli/releases"
+  },
+  "CLI_RELEASES": {
+    "ENABLED": false,
+    "BUCKET": "",
+    "REGION": "",
+    "KEY_PREFIX": "cli/releases/",
+    "UPLOAD_AUTH_KEY": "",
+    "PUT_URL_EXPIRY_SECONDS": 900,
+    "GET_URL_EXPIRY_SECONDS": 1800,
+    "CLOUDFRONT": {
+      "DISTRIBUTION_URL": "",
+      "KEY_PAIR_ID": "",
+      "PRIVATE_KEY": ""
+    },
+    "LATEST_VERSION": "",
+    "VERSIONS": {
+      "0.2.0": {
+        "s3_key": "cli/releases/0.2.0/ddcli-darwin-arm64.gz",
+        "archive_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "binary_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  },
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
   "LITELLM": {

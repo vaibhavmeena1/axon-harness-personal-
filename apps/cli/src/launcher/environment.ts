@@ -68,21 +68,9 @@ export const DEPUTYDEV_ENVIRONMENT_REGISTRY = Object.freeze({
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_OPENCODE_BIN: {
-    owner: "public-launcher",
-    consumers: ["OpenCode adapter"],
-    mayReachHarness: false,
-    safeToPrint: true,
-  },
   DEPUTYDEV_PI_VERSION: {
     owner: "public-launcher",
     consumers: ["Pi installer"],
-    mayReachHarness: false,
-    safeToPrint: true,
-  },
-  DEPUTYDEV_OPENCODE_VERSION: {
-    owner: "public-launcher",
-    consumers: ["OpenCode installer"],
     mayReachHarness: false,
     safeToPrint: true,
   },

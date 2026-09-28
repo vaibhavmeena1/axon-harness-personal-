@@ -9,10 +9,10 @@ import {
 } from "../src/product/endpoints.ts";
 
 describe("service endpoints registry", () => {
-  test("every endpoint is a rooted path below /v1/", () => {
+  test("every endpoint is a rooted versioned API path", () => {
     for (const { path } of listServiceEndpoints()) {
       expect(path.startsWith("/")).toBe(true);
-      expect(path.startsWith("/v1/")).toBe(true);
+      expect(path.startsWith("/v1/") || path.startsWith("/api/v1/")).toBe(true);
     }
   });
 
@@ -21,8 +21,9 @@ describe("service endpoints registry", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  test("pi MCP catalog keeps its pinned path", () => {
+  test("pi MCP catalog and release paths stay pinned", () => {
     expect(SERVICE_ENDPOINTS.pi.mcpConfig).toBe("/v1/cli/pi/mcp.json");
+    expect(SERVICE_ENDPOINTS.release.base).toBe("/api/v1/cli/releases");
   });
 });
 

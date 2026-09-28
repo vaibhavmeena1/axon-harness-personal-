@@ -47,17 +47,13 @@ make check
 
 To work inside one app, `cd` into it and use its own scripts, for example `cd apps/cli && bun test`.
 
+## CI
+
+[`bitbucket-pipelines.yml`](bitbucket-pipelines.yml) runs workspace, CLI, frontend, and backend checks. Its Linux container validates shell syntax but does not build a native macOS arm64 binary or run macOS installer/update integration tests. Publishing is a manual Apple Silicon operation; passing CI does not publish a release. The old `.github/workflows/` files are left untouched for deprecation and are not used by the current release path.
+
 ## Releases
 
-GitHub Releases are repository-wide, so every component namespaces its tags:
-
-| Component | Tag format      | Workflow                             |
-| --------- | --------------- | ------------------------------------ |
-| CLI       | `cli-<semver>`  | `.github/workflows/release.yml`      |
-| Backend   | to be decided   | none yet                             |
-| Frontend  | to be decided   | none yet                             |
-
-The CLI release workflow ignores any tag that does not start with `cli-`. The installer resolves the newest release marked **latest** and expects it to carry the CLI assets, so only CLI releases may be marked latest. Details are in [apps/cli/README.md](apps/cli/README.md#releasing).
+CLI releases (`cli-<semver>` git tags, if used) are built and ad-hoc signed manually on Apple Silicon and uploaded to a private S3 bucket using a secret-protected backend presigned PUT. Backend `config.json` maps versions to immutable S3 keys and checksums and selects `LATEST_VERSION`. The public installer and `ddcli update` fetch through CloudFront signed URLs issued by the backend, not GitHub Releases. See [the CLI release procedure](apps/cli/README.md#releasing) and [backend settings](apps/backend/README.md#cli-releases-macos-arm64-only).
 
 ## Security
 

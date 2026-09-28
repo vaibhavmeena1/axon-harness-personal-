@@ -80,6 +80,11 @@ async function createFixture(options: FixtureOptions = {}): Promise<InstallerFix
     ),
     writeExecutable(join(mockBin, "codesign"), "#!/bin/sh\nexit 0\n"),
     writeExecutable(
+      join(mockBin, "node"),
+      `#!/bin/sh\n[ "\${MOCK_NODE_OLD:-0}" != 1 ] || exit 1\nexit 0\n`,
+    ),
+    writeExecutable(join(mockBin, "npm"), "#!/bin/sh\nprintf '10.0.0\\n'\n"),
+    writeExecutable(
       join(mockBin, "curl"),
       `#!/bin/sh
 output=
@@ -101,8 +106,8 @@ if [ "\${MOCK_CURL_FAIL_ASSET:-}" = "$asset" ]; then
   exit 22
 fi
 case "$url" in
-  "$MOCK_RELEASES_URL/latest/download/VERSION") source_file="$MOCK_RELEASE_DIR/VERSION" ;;
-  "$MOCK_RELEASES_URL/download/cli-$MOCK_RELEASE_VERSION/"*) source_file="$MOCK_RELEASE_DIR/$MOCK_RELEASE_VERSION/$asset" ;;
+  "$MOCK_RELEASES_URL/latest/VERSION") source_file="$MOCK_RELEASE_DIR/VERSION" ;;
+  "$MOCK_RELEASES_URL/$MOCK_RELEASE_VERSION/"*) source_file="$MOCK_RELEASE_DIR/$MOCK_RELEASE_VERSION/$asset" ;;
   *) exit 22 ;;
 esac
 cp "$source_file" "$output"
@@ -125,7 +130,7 @@ async function runInstaller(
   fixture: InstallerFixture,
   environment: Record<string, string> = {},
 ): Promise<InstallerResult> {
-  const releasesUrl = "https://fixtures.invalid/vaibhavmeena1/dd-cli/releases";
+  const releasesUrl = "https://fixtures.invalid/api/v1/cli/releases";
   const subprocess = Bun.spawn(["/bin/sh", installerPath], {
     cwd: repositoryRoot,
     env: {
@@ -180,6 +185,33 @@ describe("install.sh platform and prerequisites", () => {
     expect(result.stderr).toContain("Apple Silicon arm64 is required");
   });
 
+  test("accepts Node.js and npm before downloading", async () => {
+    const fixture = await createFixture();
+    const result = await runInstaller(fixture);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Node.js 22.19+ and npm are available for Pi.");
+  });
+
+  test("stops before downloading when Node.js is too old and the installer is non-interactive", async () => {
+    const fixture = await createFixture();
+    const result = await runInstaller(fixture, { MOCK_NODE_OLD: "1" });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Pi requires Node.js 22.19+ and npm");
+    expect(await Bun.file(fixture.requestLog).text()).toBe("");
+  });
+
+  test("stops before downloading when npm is missing", async () => {
+    const fixture = await createFixture();
+    await rm(join(fixture.mockBin, "npm"));
+    const result = await runInstaller(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Pi requires Node.js 22.19+ and npm");
+    expect(await Bun.file(fixture.requestLog).text()).toBe("");
+  });
+
   test("reports a missing required tool", async () => {
     const fixture = await createFixture();
     await rm(join(fixture.mockBin, "curl"));
@@ -200,10 +232,10 @@ describe("install.sh verified installation", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain(`Installed ddcli 0.1.0 at ${installedPath}`);
     expect(await Bun.file(installedPath).text()).toContain("0.1.0");
-    expect(requests).toContain("/latest/download/VERSION");
-    expect(requests).toContain("/download/cli-0.1.0/checksums.txt");
-    expect(requests).toContain("/download/cli-0.1.0/ddcli-darwin-arm64.gz");
-    expect(requests).not.toContain("/latest/download/checksums.txt");
+    expect(requests).toContain("/latest/VERSION");
+    expect(requests).toContain("/0.1.0/checksums.txt");
+    expect(requests).toContain("/0.1.0/ddcli-darwin-arm64.gz");
+    expect(requests).not.toContain("/latest/checksums.txt");
   });
 
   test("fails when an exact-release download fails", async () => {
