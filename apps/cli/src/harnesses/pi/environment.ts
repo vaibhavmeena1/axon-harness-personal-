@@ -38,6 +38,7 @@ export const PI_STRIPPED_PROVIDER_VARIABLES: readonly string[] = Object.freeze([
   "MISTRAL_API_KEY",
   "NVIDIA_API_KEY",
   "OPENAI_API_KEY",
+  // Pi recognizes this provider key; keep stripping it even without an OpenCode harness.
   "OPENCODE_API_KEY",
   "OPENROUTER_API_KEY",
   "QWEN_TOKEN_PLAN_API_KEY",

@@ -41,7 +41,7 @@ export async function runSetup(
     paths: resolveDeputyDevPaths(environment),
   });
   const adapter = await loadHarnessAdapter(registration.id);
-  // Explicit setup may install the pinned Pi runtime when pi is missing or too old.
+  // Explicit setup installs the isolated exact-version Pi runtime when absent.
   const executable =
     adapter.resolveExecutable === undefined
       ? (await resolveExecutablePath(registration, environment, cwd)).path

@@ -1,6 +1,8 @@
-import { chmod, lstat, mkdir, rename, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
+import { isAbsolute, join, relative } from "node:path";
 
+import piVersion from "../../../pi-version.json";
+import { BUILD_INFO } from "../../build-info.ts";
 import type {
   DoctorFinding,
   ExecutableResolutionOptions,
@@ -9,23 +11,18 @@ import type {
 } from "../../launcher/contracts.ts";
 import { createHarnessEnvironment } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
-import {
-  isExecutableFile,
-  resolveCommandOnPath,
-  resolveExecutablePath,
-} from "../../launcher/executable.ts";
+import { isExecutableFile, resolveCommandOnPath } from "../../launcher/executable.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { withFileLock } from "../../launcher/file-lock.ts";
 import { compareSemVer, isSemVer, parseFirstSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
-import { classifyPiInvocation, isPiOffline } from "./setup/packages/invocation.ts";
-import { type PiVersionProber, resolvePiVersion } from "./version.ts";
+import { createPiEnvironment } from "./environment.ts";
+import { isPiOffline } from "./setup/packages/invocation.ts";
+import { type PiVersionProber, probePiVersion, resolvePiVersion } from "./version.ts";
 
-/** Oldest Pi whose extension API the embedded DeputyDev resources target. */
-export const PI_MINIMUM_VERSION = "0.85.0";
-/** Exact Pi version DeputyDev installs when Pi is missing or too old. */
-export const PI_INSTALL_VERSION = "0.85.1";
+/** Only Pi release that DeputyDev installs and executes. Independent of the user's PATH Pi. */
+export const PI_INSTALL_VERSION: string = piVersion.version;
 export const PI_VERSION_ENVIRONMENT_VARIABLE = "DEPUTYDEV_PI_VERSION";
 export const PI_RELEASES_API = "https://pi.dev/api/installer/releases";
 export const PI_PACKAGE_NAME = "@earendil-works/pi-coding-agent";
@@ -53,7 +50,6 @@ export interface PiInstallationDependencies {
   readonly probeToolchain?: (context: LaunchContext) => Promise<PiToolchain>;
   readonly probeVersion?: PiVersionProber;
   readonly runNpmCi?: (request: PiNpmCiRequest) => Promise<void>;
-  readonly warn?: (message: string) => void;
 }
 
 export interface PiReleaseArtifacts {
@@ -63,30 +59,40 @@ export interface PiReleaseArtifacts {
   readonly packageLock: string;
 }
 
-function isMissingExecutableError(error: unknown): error is LauncherError {
-  return (
-    error instanceof LauncherError &&
-    error.exitStatus === LAUNCHER_EXIT_STATUS.executableUnavailable
-  );
-}
-
 function setupRemediation(): string {
   return `Run ${PRODUCT_IDENTITY.command} setup pi --sync-packages.`;
 }
 
-export function resolveConfiguredPiVersion(environment: NodeJS.ProcessEnv): string {
-  const configured = (
-    Reflect.get(environment, PI_VERSION_ENVIRONMENT_VARIABLE) as string | undefined
-  )?.trim();
-  const version = configured || PI_INSTALL_VERSION;
-  if (!isSemVer(version)) {
+export function resolveConfiguredPiVersion(
+  environment: NodeJS.ProcessEnv,
+  sourceRun: boolean = BUILD_INFO.isSourceRun,
+): string {
+  if (!isSemVer(PI_INSTALL_VERSION)) {
     throw new LauncherError(
-      `${PI_VERSION_ENVIRONMENT_VARIABLE} is not a valid Pi version: ${JSON.stringify(version)}`,
+      "pi-version.json must contain an exact Pi release version",
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { remediation: `Set ${PI_VERSION_ENVIRONMENT_VARIABLE} to an exact Pi release version.` },
     );
   }
-  return version;
+  const configured = environment[PI_VERSION_ENVIRONMENT_VARIABLE]?.trim();
+  if (configured !== undefined && !isSemVer(configured)) {
+    throw new LauncherError(
+      `${PI_VERSION_ENVIRONMENT_VARIABLE} is not a valid Pi version: ${JSON.stringify(configured)}`,
+      LAUNCHER_EXIT_STATUS.profileFailure,
+      {
+        remediation: `Set ${PI_VERSION_ENVIRONMENT_VARIABLE} to an exact Pi release version or unset it.`,
+      },
+    );
+  }
+  if (configured !== undefined && configured !== PI_INSTALL_VERSION && !sourceRun) {
+    throw new LauncherError(
+      `${PI_VERSION_ENVIRONMENT_VARIABLE} cannot override pinned Pi ${PI_INSTALL_VERSION} in a built CLI`,
+      LAUNCHER_EXIT_STATUS.profileFailure,
+      {
+        remediation: `Unset ${PI_VERSION_ENVIRONMENT_VARIABLE}; Pi changes in built CLIs require a new release.`,
+      },
+    );
+  }
+  return configured ?? PI_INSTALL_VERSION;
 }
 
 export function managedPiDirectory(paths: DeputyDevPaths, version: string): string {
@@ -334,9 +340,33 @@ async function runNpmCi(request: PiNpmCiRequest): Promise<void> {
   }
 }
 
+async function managedDirectoryExists(directory: string): Promise<boolean> {
+  try {
+    await lstat(directory);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 async function verifyManagedInstall(directory: string, version: string): Promise<boolean> {
   try {
+    const directoryStatus = await lstat(directory);
+    if (!directoryStatus.isDirectory() || directoryStatus.isSymbolicLink()) return false;
     const packageJsonPath = join(directory, "node_modules", PI_PACKAGE_NAME, "package.json");
+    const launcher = join(directory, "node_modules", ".bin", "pi");
+    const root = await realpath(directory);
+    const insideInstall = (path: string): boolean => {
+      const offset = relative(root, path);
+      return offset !== ".." && !offset.startsWith("../") && !isAbsolute(offset);
+    };
+    if (
+      !insideInstall(await realpath(packageJsonPath)) ||
+      !insideInstall(await realpath(launcher))
+    ) {
+      return false;
+    }
     const status = await lstat(packageJsonPath);
     if (!status.isFile() || status.isSymbolicLink()) {
       return false;
@@ -348,13 +378,13 @@ async function verifyManagedInstall(directory: string, version: string): Promise
     if (parsed.name !== PI_PACKAGE_NAME || parsed.version !== version) {
       return false;
     }
-    return await isExecutableFile(join(directory, "node_modules", ".bin", "pi"));
+    return await isExecutableFile(launcher);
   } catch {
     return false;
   }
 }
 
-function toolchainFailure(toolchain: PiToolchain): LauncherError {
+function toolchainFailure(toolchain: PiToolchain, version: string): LauncherError {
   const problem =
     toolchain.nodePath === undefined
       ? "Node.js is not installed"
@@ -364,7 +394,7 @@ function toolchainFailure(toolchain: PiToolchain): LauncherError {
           ? `Node.js ${toolchain.nodeVersion} is older than ${PI_MINIMUM_NODE_VERSION}`
           : "npm is not installed";
   return new LauncherError(
-    `cannot install Pi ${PI_INSTALL_VERSION}: ${problem}`,
+    `cannot install Pi ${version}: ${problem}`,
     LAUNCHER_EXIT_STATUS.unsupportedEnvironment,
     {
       remediation:
@@ -386,7 +416,7 @@ async function installManagedPi(
     toolchain.npmPath === undefined ||
     compareSemVer(toolchain.nodeVersion, PI_MINIMUM_NODE_VERSION) < 0
   ) {
-    throw toolchainFailure(toolchain);
+    throw toolchainFailure(toolchain, version);
   }
 
   console.error(`${PRODUCT_IDENTITY.command}: installing Pi ${version}...`);
@@ -428,6 +458,14 @@ async function installManagedPi(
     if (!(await verifyManagedInstall(stageDirectory, version))) {
       throw new Error(`installed tree does not contain ${PI_PACKAGE_NAME}@${version}`);
     }
+    if (
+      (await (dependencies.probeVersion ?? probePiVersion)(
+        launcher,
+        createPiEnvironment(context.environment, context.paths, { PI_OFFLINE: "1" }),
+      )) !== version
+    ) {
+      throw new Error(`installed Pi executable does not report ${version}`);
+    }
 
     try {
       await rename(stageDirectory, targetDirectory);
@@ -463,92 +501,59 @@ async function installManagedPi(
   return managedPiExecutable(context.paths, version);
 }
 
-async function locateOnPath(
-  context: LaunchContext,
-  registration: HarnessRegistration,
-): Promise<string | undefined> {
-  try {
-    return (await resolveExecutablePath(registration, context.environment, context.cwd)).path;
-  } catch (error) {
-    if (isMissingExecutableError(error)) {
-      return undefined;
-    }
-    throw error;
-  }
-}
-
-function isBelowMinimum(version: string | undefined): boolean {
-  return version !== undefined && compareSemVer(version, PI_MINIMUM_VERSION) < 0;
-}
-
-/**
- * Executable precedence:
- * 1. `DEPUTYDEV_PI_BIN` is authoritative (warn when below the minimum).
- * 2. A PATH `pi` whose version is at least the minimum, or whose version is
- *    unknown, or when the user forwards Pi administration such as `pi update`.
- * 3. The DeputyDev-managed exact install under `${DEPUTYDEV_HOME}/pi-runtime`,
- *    created on demand with Pi's release API and `npm ci` (never `install.sh`,
- *    which cannot pin a version and needs an interactive terminal).
- */
+/** Resolve only the isolated exact-version Pi; never use or modify the user's PATH Pi. */
 export async function resolvePiExecutable(
   context: LaunchContext,
   registration: HarnessRegistration,
   options: ExecutableResolutionOptions,
   dependencies: PiInstallationDependencies = {},
 ): Promise<string> {
-  const warn = dependencies.warn ?? ((message: string) => console.error(message));
-  const versionOptions =
-    dependencies.probeVersion === undefined ? {} : { probe: dependencies.probeVersion };
-  const resolveVersion = (executable: string) =>
-    resolvePiVersion(executable, context, versionOptions);
-
-  if (context.environment[registration.executableOverrideVariable] !== undefined) {
-    const overridePath = (
-      await resolveExecutablePath(registration, context.environment, context.cwd)
-    ).path;
-    const version = await resolveVersion(overridePath);
-    if (isBelowMinimum(version)) {
-      warn(
-        `${PRODUCT_IDENTITY.command}: ${registration.executableOverrideVariable} points at Pi ${version}, older than the supported minimum ${PI_MINIMUM_VERSION}; continuing`,
-      );
-    }
-    return overridePath;
-  }
-
   const installVersion = resolveConfiguredPiVersion(context.environment);
-  const onPath = await locateOnPath(context, registration);
-  if (onPath !== undefined) {
-    const administrative = classifyPiInvocation(options.userArguments) === "administrative";
-    const version = administrative ? undefined : await resolveVersion(onPath);
-    if (!isBelowMinimum(version)) {
-      return onPath;
-    }
+  if (context.environment[registration.executableOverrideVariable] !== undefined) {
+    throw new LauncherError(
+      `${registration.executableOverrideVariable} cannot override pinned Pi ${installVersion}`,
+      LAUNCHER_EXIT_STATUS.profileFailure,
+      {
+        remediation: `Unset ${registration.executableOverrideVariable}; ddcli uses its own Pi runtime.`,
+      },
+    );
   }
 
   const managed = managedPiExecutable(context.paths, installVersion);
-  if (
-    await verifyManagedInstall(managedPiDirectory(context.paths, installVersion), installVersion)
-  ) {
-    return managed;
-  }
+  const directory = managedPiDirectory(context.paths, installVersion);
+  const versionOptions =
+    dependencies.probeVersion === undefined ? {} : { probe: dependencies.probeVersion };
+  const verifyVersion = async (): Promise<boolean> =>
+    (await verifyManagedInstall(directory, installVersion)) &&
+    (await resolvePiVersion(managed, context, versionOptions)) === installVersion;
+  if (await verifyVersion()) return managed;
 
-  const reason =
-    onPath === undefined
-      ? "pi executable is unavailable"
-      : `pi at ${onPath} is older than the supported minimum ${PI_MINIMUM_VERSION}`;
+  if (await managedDirectoryExists(directory)) {
+    throw new LauncherError(
+      `managed Pi at ${directory} does not match pinned version ${installVersion}`,
+      LAUNCHER_EXIT_STATUS.executableUnavailable,
+      { remediation: `Remove ${directory} and rerun ${PRODUCT_IDENTITY.command} pi while online.` },
+    );
+  }
   if (!options.allowInstall || isPiOffline(context.environment, options.userArguments)) {
-    throw new LauncherError(reason, LAUNCHER_EXIT_STATUS.executableUnavailable, {
-      remediation: `Install Pi ${PI_MINIMUM_VERSION} or newer, or run ${PRODUCT_IDENTITY.command} setup pi --sync-packages while online.`,
-    });
+    throw new LauncherError(
+      `managed Pi ${installVersion} is unavailable`,
+      LAUNCHER_EXIT_STATUS.executableUnavailable,
+      { remediation: `Run ${PRODUCT_IDENTITY.command} setup pi --sync-packages while online.` },
+    );
   }
 
   return withFileLock(context.paths.piInstallLock, async () => {
-    if (
-      await verifyManagedInstall(managedPiDirectory(context.paths, installVersion), installVersion)
-    ) {
-      return managed;
+    if (await verifyVersion()) return managed;
+    if (await managedDirectoryExists(directory)) {
+      throw new LauncherError(
+        `managed Pi at ${directory} does not match pinned version ${installVersion}`,
+        LAUNCHER_EXIT_STATUS.executableUnavailable,
+        {
+          remediation: `Remove ${directory} and rerun ${PRODUCT_IDENTITY.command} pi while online.`,
+        },
+      );
     }
-    warn(`${PRODUCT_IDENTITY.command}: ${reason}`);
     return installManagedPi(context, installVersion, dependencies);
   });
 }
@@ -558,12 +563,21 @@ export async function inspectPiRuntime(context: LaunchContext): Promise<readonly
   const version = resolveConfiguredPiVersion(context.environment);
   const directory = managedPiDirectory(context.paths, version);
   if (await verifyManagedInstall(directory, version)) {
-    return [{ level: "info", message: `pi: managed install ${version} at ${directory}` }];
+    const executable = managedPiExecutable(context.paths, version);
+    const actual = await resolvePiVersion(executable, context);
+    return actual === version
+      ? [{ level: "info", message: `pi: pinned install ${version} at ${directory}` }]
+      : [
+          {
+            level: "error",
+            message: `pi: managed executable reports ${actual ?? "unknown"}, expected ${version}`,
+          },
+        ];
   }
   return [
     {
       level: "info",
-      message: `pi: no managed install; DeputyDev installs Pi ${version} only when pi is missing or older than ${PI_MINIMUM_VERSION}`,
+      message: `pi: no managed install; DeputyDev installs pinned Pi ${version} on an online launch`,
     },
   ];
 }

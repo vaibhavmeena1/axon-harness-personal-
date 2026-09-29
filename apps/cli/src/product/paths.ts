@@ -18,13 +18,7 @@ export interface DeputyDevPaths {
   readonly piRuntime: string;
   readonly piExecutableState: string;
   readonly piMcpSyncState: string;
-  /** XDG state root used only by OpenCode processes launched through DeputyDev. */
-  readonly opencodeStateRoot: string;
-  readonly opencodeServiceState: string;
-  readonly opencodeServiceLock: string;
   readonly materializationLock: string;
-  readonly profiles: string;
-  readonly defaultProfile: string;
   readonly staged: string;
   readonly stagedBinary: string;
   readonly stagedMetadata: string;
@@ -44,7 +38,6 @@ export function resolveDeputyDevPaths(
   const runtime = join(home, "runtime");
   const pi = join(home, "pi");
   const locks = join(home, "locks");
-  const profiles = join(home, "profiles");
   const staged = join(home, "staged");
 
   return Object.freeze({
@@ -62,12 +55,7 @@ export function resolveDeputyDevPaths(
     piRuntime: join(home, "pi-runtime"),
     piExecutableState: join(home, "pi-executable.json"),
     piMcpSyncState: join(home, "pi-mcp-sync.json"),
-    opencodeStateRoot: join(home, "opencode-state"),
-    opencodeServiceState: join(home, "opencode-service.json"),
-    opencodeServiceLock: join(locks, "opencode-service.lock"),
     materializationLock: join(locks, "materialization.lock"),
-    profiles,
-    defaultProfile: join(profiles, "default"),
     staged,
     stagedBinary: join(staged, PRODUCT_IDENTITY.command),
     stagedMetadata: join(staged, "meta.json"),

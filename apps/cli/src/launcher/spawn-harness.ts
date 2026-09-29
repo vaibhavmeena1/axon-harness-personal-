@@ -1,3 +1,4 @@
+import { scheduleBackgroundUpdate } from "../updater/update.ts";
 import type { LaunchSpec } from "./contracts.ts";
 import { LauncherError } from "./errors.ts";
 import { exitLikeChild, LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
@@ -62,6 +63,9 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     );
   }
 
+  // A detached best-effort worker checks for updates after the interactive session.
+  // It cannot delay startup or change the harness's exit status.
+  scheduleBackgroundUpdate();
   return exitLikeChild({
     exitCode: subprocess.exitCode,
     signalCode: subprocess.signalCode,

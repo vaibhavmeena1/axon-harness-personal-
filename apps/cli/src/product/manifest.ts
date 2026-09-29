@@ -1,6 +1,3 @@
-import deputyDevOpenCodePluginAsset from "../harnesses/opencode/resources/plugins/deputydev-core/index.mjs" with {
-  type: "file",
-};
 import deputyDevExtensionAsset from "../harnesses/pi/resources/extensions/deputydev.ts" with {
   type: "file",
 };
@@ -12,7 +9,6 @@ import piOrgTelemetryExtensionAsset from "../harnesses/pi/resources/extensions/p
 };
 
 import {
-  type OpenCodeResourceManifestEntry,
   type PiResourceManifestEntry,
   parseDeputyDevManifest,
 } from "../harnesses/pi/setup/packages/manifest.ts";
@@ -34,12 +30,6 @@ const MODEL_RECOMMENDER_RESOURCE = Object.freeze({
   type: "extension",
   destination: "pi/extensions/model-recommender.ts",
 }) satisfies PiResourceManifestEntry;
-
-const DEPUTYDEV_OPENCODE_CORE_RESOURCE = Object.freeze({
-  id: "deputydev-opencode-core",
-  plugin: "deputydev-core",
-  destination: "index.js",
-}) satisfies OpenCodeResourceManifestEntry;
 
 export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
   schemaVersion: 1,
@@ -71,13 +61,6 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
     ],
     resources: [DEPUTYDEV_CORE_RESOURCE, PI_ORG_TELEMETRY_RESOURCE, MODEL_RECOMMENDER_RESOURCE],
   },
-  opencode: {
-    // Public npm plugins enabled for OpenCode sessions. Entries are added as
-    // packages are vetted; the pipeline (pinned specifiers generated from the
-    // version policy) is exercised by the extension tests.
-    plugins: [],
-    resources: [DEPUTYDEV_OPENCODE_CORE_RESOURCE],
-  },
 });
 
 export interface EmbeddedPiResource extends PiResourceManifestEntry {
@@ -99,14 +82,3 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
     sourcePath: modelRecommenderExtensionAsset as unknown as string,
   }),
 ] as const satisfies readonly EmbeddedPiResource[]);
-
-export interface EmbeddedOpenCodeResource extends OpenCodeResourceManifestEntry {
-  readonly sourcePath: string;
-}
-
-export const EMBEDDED_OPENCODE_RESOURCES = Object.freeze([
-  Object.freeze({
-    ...DEPUTYDEV_OPENCODE_CORE_RESOURCE,
-    sourcePath: deputyDevOpenCodePluginAsset as unknown as string,
-  }),
-] as const satisfies readonly EmbeddedOpenCodeResource[]);

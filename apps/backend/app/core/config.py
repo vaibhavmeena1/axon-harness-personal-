@@ -1,11 +1,15 @@
 """Validated application settings backed by the backend's config.json."""
 
 import json
+import re
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -107,6 +111,35 @@ class AuthServiceSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class CliInstallSettings:
+    """Public CLI release distribution settings; never include secrets here."""
+
+    releases_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class CliReleaseAsset:
+    s3_key: str
+    archive_sha256: str
+    binary_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class CliReleaseSettings:
+    bucket: str
+    region: str
+    key_prefix: str
+    upload_auth_key: str
+    put_url_expiry_seconds: int
+    get_url_expiry_seconds: int
+    distribution_url: str
+    key_pair_id: str
+    private_key: str
+    latest_version: str
+    versions: dict[str, CliReleaseAsset]
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Settings used directly by the backend application and deployment scripts."""
 
@@ -117,6 +150,8 @@ class Settings:
     access_log: bool
     debug: bool
     frontend_dir: Path
+    cli_install: CliInstallSettings
+    cli_releases: CliReleaseSettings | None
     database: DatabaseSettings
     litellm: LiteLLMSettings
     openrouter: OpenRouterSettings
@@ -188,6 +223,124 @@ def _http_origin(source: dict[str, Any], key: str, path: str) -> str:
     return value
 
 
+def _https_releases_url(source: dict[str, Any], key: str, path: str) -> str:
+    """Validate the public release base used by the POSIX shell installer."""
+    value = _string(source, key, path)
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise ConfigurationError(f"{path}.{key} must be an HTTPS release URL without a trailing slash") from exc
+    if (
+        not value.startswith("https://")
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or "?" in value
+        or "#" in value
+        or "\\" in value
+        or value.endswith("/")
+        or any(ord(char) < 33 or ord(char) > 126 for char in value)
+        or (port is not None and port == 0)
+    ):
+        raise ConfigurationError(f"{path}.{key} must be an HTTPS release URL without a trailing slash")
+    return value
+
+
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+S3_KEY_PATTERN = re.compile(r"^[A-Za-z0-9!_./+~=()\-]+$")
+
+
+def _release_assets(config: dict[str, Any], prefix: str) -> dict[str, CliReleaseAsset]:
+    versions_config = _mapping(config, "VERSIONS", "config.CLI_RELEASES")
+    versions: dict[str, CliReleaseAsset] = {}
+    for version, value in versions_config.items():
+        if not isinstance(version, str) or not SEMVER_PATTERN.fullmatch(version) or not isinstance(value, dict):
+            raise ConfigurationError("config.CLI_RELEASES.VERSIONS requires semantic-version objects")
+        path = f"config.CLI_RELEASES.VERSIONS.{version}"
+        key = _string(value, "s3_key", path)
+        if (
+            not key.startswith(f"{prefix}{version}/")
+            or not key.endswith("/ddcli-darwin-arm64.gz")
+            or not S3_KEY_PATTERN.fullmatch(key)
+            or any(segment in {"", ".", ".."} for segment in key.split("/"))
+        ):
+            raise ConfigurationError(f"{path}.s3_key must be a safe versioned key under {prefix}")
+        archive_hash = _string(value, "archive_sha256", path)
+        binary_hash = _string(value, "binary_sha256", path)
+        if not SHA256_PATTERN.fullmatch(archive_hash) or not SHA256_PATTERN.fullmatch(binary_hash):
+            raise ConfigurationError(f"{path} requires lowercase 64-character SHA-256 hashes")
+        versions[version] = CliReleaseAsset(key, archive_hash, binary_hash)
+    return versions
+
+
+def _cloudfront_credentials(config: dict[str, Any]) -> tuple[str, str, str]:
+    cloudfront = _mapping(config, "CLOUDFRONT", "config.CLI_RELEASES")
+    distribution_url = _https_releases_url(cloudfront, "DISTRIBUTION_URL", "config.CLI_RELEASES.CLOUDFRONT")
+    if urlsplit(distribution_url).path:
+        raise ConfigurationError("config.CLI_RELEASES.CLOUDFRONT.DISTRIBUTION_URL must be an HTTPS origin")
+    private_key = _string(cloudfront, "PRIVATE_KEY", "config.CLI_RELEASES.CLOUDFRONT")
+    try:
+        parsed_key = serialization.load_pem_private_key(private_key.encode("utf-8"), password=None)
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError("config.CLI_RELEASES.CLOUDFRONT.PRIVATE_KEY must be an RSA PEM private key") from exc
+    if not isinstance(parsed_key, rsa.RSAPrivateKey):
+        raise ConfigurationError("config.CLI_RELEASES.CLOUDFRONT.PRIVATE_KEY must be an RSA PEM private key")
+    key_pair_id = _string(cloudfront, "KEY_PAIR_ID", "config.CLI_RELEASES.CLOUDFRONT")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", key_pair_id):
+        raise ConfigurationError("config.CLI_RELEASES.CLOUDFRONT.KEY_PAIR_ID contains invalid characters")
+    return distribution_url, key_pair_id, private_key
+
+
+def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
+    # Older local config.json files continue to start with distribution disabled.
+    if "CLI_RELEASES" not in raw:
+        return None
+    config = _mapping(raw, "CLI_RELEASES", "config")
+    if not _boolean(config, "ENABLED", "config.CLI_RELEASES", default=False):
+        return None
+    prefix = _string(config, "KEY_PREFIX", "config.CLI_RELEASES")
+    if not prefix.endswith("/") or prefix.startswith("/") or not S3_KEY_PATTERN.fullmatch(prefix):
+        raise ConfigurationError("config.CLI_RELEASES.KEY_PREFIX must be a safe relative S3 prefix ending in /")
+    if any(segment in {"", ".", ".."} for segment in prefix[:-1].split("/")):
+        raise ConfigurationError("config.CLI_RELEASES.KEY_PREFIX contains an unsafe path segment")
+    versions = _release_assets(config, prefix)
+    latest = _string(config, "LATEST_VERSION", "config.CLI_RELEASES", allow_empty=True)
+    if latest and latest not in versions:
+        raise ConfigurationError("config.CLI_RELEASES.LATEST_VERSION must reference a configured version")
+    distribution_url, key_pair_id, private_key = _cloudfront_credentials(config)
+    upload_auth_key = _string(config, "UPLOAD_AUTH_KEY", "config.CLI_RELEASES")
+    if len(upload_auth_key) < 32:
+        raise ConfigurationError("config.CLI_RELEASES.UPLOAD_AUTH_KEY must have at least 32 characters")
+    bucket = _string(config, "BUCKET", "config.CLI_RELEASES")
+    region = _string(config, "REGION", "config.CLI_RELEASES")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket):
+        raise ConfigurationError("config.CLI_RELEASES.BUCKET must be a valid S3 bucket name")
+    if not re.fullmatch(r"[a-z0-9-]+", region):
+        raise ConfigurationError("config.CLI_RELEASES.REGION must be an AWS region")
+    return CliReleaseSettings(
+        bucket=bucket,
+        region=region,
+        key_prefix=prefix,
+        upload_auth_key=upload_auth_key,
+        put_url_expiry_seconds=_integer(config, "PUT_URL_EXPIRY_SECONDS", "config.CLI_RELEASES", maximum=3600),
+        get_url_expiry_seconds=_integer(config, "GET_URL_EXPIRY_SECONDS", "config.CLI_RELEASES", maximum=3600),
+        distribution_url=distribution_url,
+        key_pair_id=key_pair_id,
+        private_key=private_key,
+        latest_version=latest,
+        versions=versions,
+    )
+
+
 def _http_base_url(source: dict[str, Any], key: str, path: str) -> str:
     """Validate an HTTP(S) base URL and normalize it for relative endpoints."""
     value = _string(source, key, path).rstrip("/") + "/"
@@ -246,6 +399,7 @@ def get_settings() -> Settings:
     database_config = _mapping(database_configs, DATABASE_CONFIG_NAME, "config.DATABASE")
     litellm_config = _mapping(raw_config, "LITELLM", "config")
     openrouter_config = _mapping(raw_config, "OPENROUTER", "config")
+    cli_install_config = _mapping(raw_config, "CLI_INSTALL", "config")
     auth_service_config = raw_config.get("AUTH_SERVICE")
     if auth_service_config is not None and not isinstance(auth_service_config, dict):
         raise ConfigurationError("config.AUTH_SERVICE must be an object")
@@ -413,6 +567,10 @@ def get_settings() -> Settings:
         access_log=_boolean(raw_config, "ACCESS_LOG", "config", default=True),
         debug=_boolean(raw_config, "DEBUG", "config", default=False),
         frontend_dir=_path(raw_config, "FRONTEND_DIR", "config", default=DEFAULT_FRONTEND_DIR),
+        cli_install=CliInstallSettings(
+            releases_url=_https_releases_url(cli_install_config, "RELEASES_URL", "config.CLI_INSTALL"),
+        ),
+        cli_releases=_cli_releases(raw_config),
         database=database,
         litellm=litellm,
         openrouter=openrouter,

@@ -7,7 +7,6 @@ import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 export interface UninstallOptions {
-  readonly removeProfiles?: boolean;
   readonly removeRuntimes?: boolean;
 }
 

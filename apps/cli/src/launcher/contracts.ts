@@ -1,6 +1,6 @@
 import type { DeputyDevPaths } from "../product/paths.ts";
 
-export type StableHarnessId = "pi" | "opencode";
+export type StableHarnessId = "pi";
 
 export interface LaunchContext {
   readonly cwd: string;
@@ -43,6 +43,8 @@ export interface HarnessAdapter {
   ): Promise<string>;
   /** Optional harness-specific version probe used by doctor. */
   probeVersion?(context: LaunchContext, executable: string): Promise<string | undefined>;
+  /** Exact harness version for this launch; source development may override the embedded pin. */
+  exactVersion?(context: LaunchContext): string;
   /** Oldest harness version the embedded resources are known to work with. */
   readonly minimumVersion?: string;
   prepare(context: HarnessLaunchContext, userArguments: readonly string[]): Promise<void>;
@@ -55,7 +57,6 @@ export interface HarnessAdapter {
 
 export interface HarnessRegistration {
   readonly id: StableHarnessId;
-  readonly aliases: readonly string[];
   readonly executableCandidates: readonly string[];
   readonly executableOverrideVariable: string;
 }
