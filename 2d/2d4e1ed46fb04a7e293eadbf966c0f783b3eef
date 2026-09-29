@@ -1,0 +1,285 @@
+apps/backend/app/core/config.py
+  s_d9461f865ff4d0::t_4a5d6d9cfa8808 104-110,143,215-237,391,526-528
+  s_85f9b51c054c05::t_5aa6598787cb60 251,271-273,292-304
+  s_85f9b51c054c05::t_c28ab162c5a8e9 305-306
+  s_85f9b51c054c05::t_5180bce19b47fa 4,103,111-131,144,239-250,252-259,261-270,307,318,321,323-325,327-330,529
+  s_85f9b51c054c05::t_7172b96fb8021a 11-13,309-311,322
+  s_85f9b51c054c05::t_91655f9e7f50ca 312-317,319-320,326
+  s_85f9b51c054c05::t_38cec560469546 260
+  s_85f9b51c054c05::t_8f3ee69b31982f 274-291,308
+  s_85f9b51c054c05::t_cf1067b69eb746 331-332
+  s_85f9b51c054c05::t_149316f45df40a 238
+apps/cli/src/product/endpoints.ts
+  s_85f9b51c054c05::t_f9353abb0f37a2 38-41
+apps/backend/app/routers/cli_releases.py
+  s_85f9b51c054c05::t_374fbe6093f676 1-6,8-42,44-52,54-57,59,63-67,70-92
+  s_85f9b51c054c05::t_1c4be4ef1fd433 7,43,53,58,62
+  s_85f9b51c054c05::t_34eb8ba08ae28a 60-61,68-69
+apps/cli/src/launcher/contracts.ts
+  s_3a34f2839b8506::t_3226ae6f9467e2 3
+apps/cli/tests/installer/install.test.ts
+  s_41c5935bd67803::t_7d8a6e6cffd1f9 83,85-86,188-213
+  s_85f9b51c054c05::t_06021c2f06fe69 84
+  s_85f9b51c054c05::t_0ce2ee26d45cb3 109-110,133,235-238
+  s_41c5935bd67803::t_621504b5f164ee 82
+  s_41c5935bd67803::t_39ef5077452331 214
+apps/cli/src/launcher/launch-harness.ts
+  s_3a34f2839b8506::t_7bc808337bdbec 46
+apps/cli/scripts/prepare-s3-release.ts
+  s_85f9b51c054c05::t_58a52cc21266e8 45
+  s_85f9b51c054c05::t_79d15a78b5a88a 1-3,5-9,11-41,43-44,46-58,60-62,64-77,79-102,112-114,116-126
+  s_85f9b51c054c05::t_d9376e1a5e5414 10
+  s_85f9b51c054c05::t_a742f93eee5cb9 4,103
+  s_85f9b51c054c05::t_1ba97021be5bf0 42
+  s_85f9b51c054c05::t_39973e59282fc7 59
+  s_85f9b51c054c05::t_1c3e35eb2fcf40 63
+  s_85f9b51c054c05::t_d9edf9c98afa75 78
+  s_85f9b51c054c05::t_2738bd56eb33c3 104-106,109-111
+  s_85f9b51c054c05::t_93bf9fcd26e54d 115
+  s_85f9b51c054c05::t_1bb68ec6d47dc2 107-108
+apps/backend/config_template.json
+  s_85f9b51c054c05::t_65f4a17612e2c9 26
+  s_85f9b51c054c05::t_d746fd9c2d19a9 11-25
+  s_d9461f865ff4d0::t_83dfad2180b9d3 10,34
+  s_85f9b51c054c05::t_5caaa34bee2a7d 27-33
+apps/cli/tests/launcher.test.ts
+  s_3a34f2839b8506::t_2c7c0e5dbc8f8a 133,135-137,353-355,359,364-369,371,383-389
+  s_3a34f2839b8506::t_a85516388ff7af 191,196-197,201-209
+  s_3a34f2839b8506::t_adbc8954c74954 62,227
+  s_3a34f2839b8506::t_c3f1d84b30c0a1 370
+  s_3a34f2839b8506::t_c7036586e49163 373-382,390-391
+  s_3a34f2839b8506::t_47e322c8d110b4 210-211
+apps/cli/src/cli/commands/uninstall.ts
+  s_3a34f2839b8506::t_328de096f69399 62
+bitbucket-pipelines.yml
+  s_1d4ee47e9f1079::t_c120393dd09f8b 1-39
+apps/backend/pyproject.toml
+  s_85f9b51c054c05::t_3640e310e3c717 10-11
+apps/cli/docs/pi-dynamic-workflows.md
+  s_ca4b1248d247b7::t_6c4bb7888b65c5 31
+  s_ca4b1248d247b7::t_911effe7f56370 25
+  s_3a34f2839b8506::t_623da758d836ca 20,45-46,64
+  s_ca4b1248d247b7::t_cbd1a8a40df46f 295,335
+  s_ca4b1248d247b7::t_39803eb62b579e 23
+  s_ca4b1248d247b7::t_b58433ae49802c 3,5-19,21-22,24,26-30,32,110
+  s_ca4b1248d247b7::t_80e0640f6c50de 116,119-121,124-125,209
+  s_ca4b1248d247b7::t_18a9023ea445c5 1-2,4,33-44,47-63,65-109,111,392-400
+  s_ca4b1248d247b7::t_b7d750d55e086c 112-115,117-118,122-123,126-208,210-294,296-334,336-345
+  s_ca4b1248d247b7::t_62f134498414f1 346-391
+apps/cli/tests/update.test.ts
+  s_85f9b51c054c05::t_915d112149c93e 1-12,14-46,48-49,51-55,57-110,112-118,120-125,127-130,141-143,145-154,158-165,167-169
+  s_85f9b51c054c05::t_985b3d04e8fe9d 131-140
+  s_85f9b51c054c05::t_4f6b44764cde31 47,50,155-157,166
+  s_85f9b51c054c05::t_68bacadd322e9d 13
+  s_85f9b51c054c05::t_6f272c0c17a1d2 56
+  s_85f9b51c054c05::t_295d9433aa4c72 111
+  s_85f9b51c054c05::t_f348db00657331 119
+  s_85f9b51c054c05::t_b9f0c8de67c3ba 126
+  s_85f9b51c054c05::t_e7732f3055c090 144
+apps/cli/src/launcher/spawn-harness.ts
+  s_85f9b51c054c05::t_0968d3097fd774 1
+  s_85f9b51c054c05::t_b595806a8be856 66-68
+apps/backend/app/routers/install.py
+  s_d9461f865ff4d0::t_7636b3bd21e0e7 2-13,15,17-33
+  s_85f9b51c054c05::t_178b6a740050fc 1,14,16
+apps/cli/README.md
+  s_d9461f865ff4d0::t_6b26dc27d70b8c 42
+  s_3a34f2839b8506::t_903006c79de83c 5,9,15,27,40,76,83,85,88,90,115
+  s_85f9b51c054c05::t_ecf67a41270e6a 202
+  s_85f9b51c054c05::t_7ea8244c9c576e 29,36,64,66,72-73
+  s_41c5935bd67803::t_f634b71bd53883 56
+  s_85f9b51c054c05::t_96521a967bd0bd 197,199-201,203,205
+apps/cli/src/harnesses/registry.ts
+  s_3a34f2839b8506::t_200a6f28cdbeb2 20
+  s_3a34f2839b8506::t_43d25f9a1507e7 16
+apps/cli/src/updater/release.ts
+  s_85f9b51c054c05::t_73a74425d7f3ee 69-89
+  s_85f9b51c054c05::t_dcb7584f124d80 116-117
+  s_85f9b51c054c05::t_f546ee6ab4e0a1 1-3,6-22,28-40,43,52-68,90-107,112-115,118-123,129-166,172-196
+  s_85f9b51c054c05::t_0968d3097fd774 4-5,23-27,41-42,44-51,108-111,124-128,167-171
+apps/cli/scripts/publish-s3-release.ts
+  s_85f9b51c054c05::t_3abab1825f8240 37,42-43,45-47,49-50
+  s_85f9b51c054c05::t_a0475bae1220f7 1-2,4-9,11-15,55-61,63-64,66-70,72-83,85,88,90-123,125-127,129,131-136,142-144
+  s_85f9b51c054c05::t_ed48aa327798a0 3,62
+  s_85f9b51c054c05::t_0166511b793a1c 24
+  s_85f9b51c054c05::t_d9376e1a5e5414 139-141
+  s_85f9b51c054c05::t_9733ec329e9f59 10,33-36,38,40-41,48,51-54,128
+  s_85f9b51c054c05::t_2ab80f7a30ae92 16,22-23,25,31-32,39
+  s_85f9b51c054c05::t_c14e25a077dadd 86-87,89
+  s_85f9b51c054c05::t_8ec37458b84b7a 17-21,26-30,44
+  s_85f9b51c054c05::t_8ac96ca2c20c4b 71,138
+  s_85f9b51c054c05::t_f2cf94cf94d629 137
+  s_85f9b51c054c05::t_7fa25d465ecbed 65
+  s_85f9b51c054c05::t_8d362dd689cf4e 84
+  s_85f9b51c054c05::t_1ccb942e34aa97 124
+  s_85f9b51c054c05::t_0cf48c6fe54b2d 130
+README.md
+  s_85f9b51c054c05::t_70788054fb690a 52,54,56
+  s_1d4ee47e9f1079::t_4177c6347d013b 50
+apps/backend/app/routers/__init__.py
+  s_85f9b51c054c05::t_1c58458a412818 5,11
+  s_d9461f865ff4d0::t_b1aed79dfcc370 8
+  s_85f9b51c054c05::t_244373afe14061 12-17
+apps/cli/src/updater/update.ts
+  s_85f9b51c054c05::t_ff9711fab50b7e 13-16,27-29,32-45,49-52,59-66,71,89-92,98-102,107,110-111,116-127,131-149,152,159-164,168-170,174-184,192-193,197-202,206-212,215-217,231-233,242-243,248-250,254
+  s_85f9b51c054c05::t_09710c79100356 30-31
+  s_85f9b51c054c05::t_843b25f503e4af 46-48
+  s_85f9b51c054c05::t_557592c99ad467 150-151,153-158
+  s_85f9b51c054c05::t_102cfa9e2adc3b 19
+  s_85f9b51c054c05::t_0968d3097fd774 1-12,17-18,20-26,53-58,67-70,72-88,93-97,103-106,108-109,112-115,128-130,165-167,171-173,185-191,194-196,203-205,213-214,218-230,234-241,244-247,251-253
+apps/cli/docs/shipplan.md
+  s_3a34f2839b8506::t_553b9e76317633 115,125
+  s_3a34f2839b8506::t_f8ea296ab8dd0c 81
+  s_85f9b51c054c05::t_e75bd33e83c803 5,27,204,616,618,620,641
+  s_85f9b51c054c05::t_61d9365169c843 147,738-741
+  s_3a34f2839b8506::t_180152ff2b34c9 758,760
+apps/cli/src/cli/commands/harnesses.ts
+  s_3a34f2839b8506::t_a62260e6ff9128 5
+apps/cli/.env.example
+  s_85f9b51c054c05::t_194ac23b9ac8b7 49-50
+  s_3a34f2839b8506::t_493b2b069bc076 53
+Dockerfile
+  s_d9461f865ff4d0::t_d974fa24ed9fdc 109-110
+apps/backend/tests/test_install.py
+  s_d9461f865ff4d0::t_367d9292e8752f 1-65,67-93
+  s_85f9b51c054c05::t_bd7570fac0e937 66
+apps/backend/app/services/cli_releases.py
+  s_85f9b51c054c05::t_620ab314a68794 1-8,10-25,27-84
+  s_85f9b51c054c05::t_52aae46a32e17b 9,26
+apps/cli/src/cli/launcher-program.ts
+  s_85f9b51c054c05::t_6cae68ece7ae3f 82-89
+  s_3a34f2839b8506::t_4d17dc29f7ea69 34,49
+  s_3a34f2839b8506::t_569d05869c964d 107
+  s_85f9b51c054c05::t_07b849859d87d5 4,78-81,90
+  s_85f9b51c054c05::t_58cb053b6bb022 8,72-77,91-94
+  s_3a34f2839b8506::t_9f27392a1d60c9 25
+  s_85f9b51c054c05::t_3be79a365c530d 95-96
+apps/cli/src/cli/dispatch.ts
+  s_85f9b51c054c05::t_8de7ca97b92727 3,8-11
+apps/backend/tests/test_cli_releases.py
+  s_85f9b51c054c05::t_aac805ca6a067e 143-170,176-179
+  s_85f9b51c054c05::t_8de684174e8f68 7,127-140
+  s_85f9b51c054c05::t_94ccafee97ff6c 171-175
+  s_85f9b51c054c05::t_705e5fb58f1007 70,93-97,99-101,184-192,198-212
+  s_85f9b51c054c05::t_90c63a72ea9d4e 1-3,5-6,8-37,39-69,71-78,86-92,102-111,115-126,141-142,180-183,193-197,213-221
+  s_85f9b51c054c05::t_d33ac529c6e57b 4,79-85
+  s_85f9b51c054c05::t_d0d1441ee28668 38,98,112-114
+apps/backend/README.md
+  s_85f9b51c054c05::t_d005cdfbaa1f2c 32,40-43,45-50
+  s_85f9b51c054c05::t_d738f1d1440e57 44
+  s_d9461f865ff4d0::t_3d99ade1101db2 31,38-39
+apps/cli/docs/launcher-plan.md
+  s_3a34f2839b8506::t_a43a790b613abd 277,280-285,287,316,335,396,523-525,703,715-716
+  s_3a34f2839b8506::t_7aac1d750a4f67 13,22,31,42,72,139,160-164,180-182
+  s_3a34f2839b8506::t_76e628c5105d1d 34,398,417,464
+  s_3a34f2839b8506::t_ad507bd525c833 40,80,546
+  s_3a34f2839b8506::t_36627100df1412 232-233,428,564,573,585
+  s_3a34f2839b8506::t_fd8bf15abe494a 598,608,637-642,658,679,682,695,699
+  s_3a34f2839b8506::t_af30a7b0ad9e2e 717-725
+  s_3a34f2839b8506::t_bef2f5d57cd012 18
+  s_3a34f2839b8506::t_3ed10152b2d80c 118
+  s_3a34f2839b8506::t_0600d627408ae5 421,487,521,535,558,579,594,633,673,684,693,712
+apps/cli/install.sh
+  s_85f9b51c054c05::t_d0f50f9d4baaf2 164
+  s_41c5935bd67803::t_c0cd3c13bec7d5 49-75,77-84,134,240
+  s_d9461f865ff4d0::t_878d7d1ceb07d6 13
+  s_41c5935bd67803::t_e8705f50ed817e 76
+  s_85f9b51c054c05::t_fc323dfd4787d0 10-12,165,179-180
+  s_41c5935bd67803::t_798ba046073a7c 135
+apps/cli/src/harnesses/pi/environment.ts
+  s_3a34f2839b8506::t_bac8af8f76da83 41
+apps/cli/tests/endpoints.test.ts
+  s_85f9b51c054c05::t_68ded01cb1ced2 12,15,24,26
+apps/cli/package.json
+  s_3a34f2839b8506::t_c50ee944894acc 4
+  s_85f9b51c054c05::t_a3b81fda37fbda 23-24
+apps/cli/docs/ux-orchestrator-os-feasibility.md
+  s_ca4b1248d247b7::t_43ef3370cdb1f1 97,99-100,116,118-119
+  s_ca4b1248d247b7::t_7679122905c0b3 104
+  s_d86db743f2a1e4::t_9fb4ce4cf546e9 160-164,192-202
+  s_ca4b1248d247b7::t_6a8cb124d5d91b 76,95,98,102,278,286,288,295,304
+  s_ca4b1248d247b7::t_bcd06b4a430214 101,129
+  s_ca4b1248d247b7::t_53359c8313165a 185-186,273-277,279
+  s_ca4b1248d247b7::t_27fa1811bbc669 1-2,4-14,18-20,22-38,40-42,44-52,54,56,58,73-75,81-94,96,103,105,107-115,117,120-128,130-134,136-159,165-184,187-188,190-191,203-204,212-214,216-218,220-232,235-240,252,254,256,258,260,262,264-272,281-285,287,290-294,296-303
+  s_ca4b1248d247b7::t_856b7c1fd5a40a 21,67,257,280
+  s_ca4b1248d247b7::t_9b9445e08194c2 15-17,43,53,78,106
+  s_ca4b1248d247b7::t_30305e362f387a 3,55,57,59-66,68-72,135
+  s_ca4b1248d247b7::t_8d234ac6ef829f 77,79-80
+  s_ca4b1248d247b7::t_95a9c51183fc70 215,289
+  s_ca4b1248d247b7::t_3cd397ac4d5793 39,189,205-211,219,233-234,241-251,253,255,259,261,263
+apps/backend/app/services/model_recommendation/catalog.py
+  s_85f9b51c054c05::t_ed83ff2adcef4c 32
+apps/backend/app/services/model_recommendation/ranking.py
+  s_85f9b51c054c05::t_133d10cadf74b1 34,76
+apps/backend/uv.lock
+  s_85f9b51c054c05::t_88c60d6c800c4f 61-88,99-100,102-105,107-118,122-123,125,127,148-184,191-192,209-210,347-348,350,352,408-409,411,413,495-506,573-574,577,579,581,585-586,588,590
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "2d2d4e1ed46fb04a7e293eadbf966c0f783b3eef",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_1d4ee47e9f1079": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e7e1-b866-7590-8969-292ab34402d6",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_3a34f2839b8506": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e78c-37de-7590-8969-2926e4ec49fd",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_41c5935bd67803": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e71b-af77-7590-8969-2925c4622940",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_85f9b51c054c05": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e7f1-107c-7355-9064-14d7e552d917",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_ca4b1248d247b7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0cded-7d1e-707d-a97f-fc3c0c0ed2e1",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d86db743f2a1e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a6278d3-8f9d-48af-a8d8-025ce3092596",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d9461f865ff4d0": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0e7aa-668c-7590-8969-29298d373b0a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
