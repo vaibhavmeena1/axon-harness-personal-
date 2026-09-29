@@ -48,6 +48,12 @@
     "EVENT_LOOP_MONITORING": true,
     "SAMPLING_RATE": 0.1
   },
+  "AUTH_SERVICE": {
+    "BASE_URL": "http://localhost:9355",
+    "BROWSER_LOGIN_URL": "http://localhost:5173/external-auth",
+    "CONNECT_TIMEOUT_SECONDS": 5,
+    "REQUEST_TIMEOUT_SECONDS": 10
+  },
   "OPENROUTER": {
     "API_KEY": "<OPENROUTER_API_KEY>",
     "BASE_URL": "https://openrouter.ai/api",

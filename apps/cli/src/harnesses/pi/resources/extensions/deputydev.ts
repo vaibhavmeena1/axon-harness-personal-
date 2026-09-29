@@ -13,7 +13,9 @@ export default function deputyDevExtension(pi: ExtensionAPI): void {
   pi.registerCommand("deputydev-status", {
     description: "Show the active DeputyDev integration status",
     handler: async () => {
-      pi.appendEntry(ENTRY_TYPE, { message: "DeputyDev-managed Pi resources are active" });
+      pi.appendEntry(ENTRY_TYPE, {
+        message: "DeputyDev-managed Pi resources are active",
+      });
     },
   });
 }

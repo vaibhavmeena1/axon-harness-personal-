@@ -1,5 +1,5 @@
 import { rm, stat } from "node:fs/promises";
-import { dirname, parse, resolve } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
@@ -62,8 +62,10 @@ export async function runUninstall(
 
   if (options.removeProfiles === true) {
     await rm(paths.profiles, { force: true, recursive: true });
-    console.log(`removed profiles (including managed auth and sessions): ${paths.profiles}`);
+    console.log(`removed launcher profiles: ${paths.profiles}`);
   } else {
-    console.log(`preserved profiles and managed auth: ${paths.profiles}`);
+    console.log(`preserved launcher profiles: ${paths.profiles}`);
   }
+  // uuid.json may also be used by the VS Code extension; uninstall never removes it.
+  console.log(`preserved shared authentication file: ${join(paths.home, "uuid.json")}`);
 }

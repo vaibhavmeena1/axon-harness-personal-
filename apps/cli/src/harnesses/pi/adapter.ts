@@ -1,3 +1,5 @@
+import { BUILD_INFO } from "../../build-info.ts";
+import { loadEncryptedSession } from "../../cli/auth/session.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
@@ -20,27 +22,42 @@ export function createPiAdapter(): HarnessAdapter {
     prepare: async (context, userArguments) => {
       setup = await preparePiSetup(context, userArguments);
     },
-    buildLaunchSpec: (context, userArguments) => {
+    buildLaunchSpec: async (context, userArguments) => {
       if (setup === undefined) {
-        return Promise.reject(
-          new LauncherError(
-            "pi launch was built before setup ran",
-            LAUNCHER_EXIT_STATUS.materializationFailure,
-            { remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
-          ),
+        throw new LauncherError(
+          "pi launch was built before setup ran",
+          LAUNCHER_EXIT_STATUS.materializationFailure,
+          { remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
         );
       }
       // Ordinary sessions reference the immutable, verified runtime directory
       // that setup materialized. Administration is forwarded untouched.
       const resourceArguments = setup.materialization?.arguments ?? [];
-      return Promise.resolve(
-        Object.freeze({
-          executable: context.executable,
-          arguments: [...resourceArguments, ...userArguments],
-          environment: createPiEnvironment(context.environment, context.paths),
-          cwd: context.cwd,
-        }),
-      );
+      let litellmOverrides = {};
+      if (setup.invocationKind !== "administrative") {
+        let encryptedSession: string | undefined;
+        try {
+          encryptedSession = await loadEncryptedSession(context.paths);
+        } catch {
+          throw new LauncherError(
+            "Saved DeputyDev session could not be read safely",
+            LAUNCHER_EXIT_STATUS.profileFailure,
+            { remediation: `Run ${PRODUCT_IDENTITY.command} auth login --browser.` },
+          );
+        }
+        // Never pass an ambient LiteLLM credential or endpoint to managed Pi.
+        litellmOverrides = {
+          LITELLM_API_KEY: encryptedSession,
+          LITELLM_BASE_URL: new URL("/litellm", BUILD_INFO.serviceOrigin).toString(),
+          PI_MODEL_RECOMMENDER_API_KEY: encryptedSession,
+        };
+      }
+      return Object.freeze({
+        executable: context.executable,
+        arguments: [...resourceArguments, ...userArguments],
+        environment: createPiEnvironment(context.environment, context.paths, litellmOverrides),
+        cwd: context.cwd,
+      });
     },
     doctor: async (context) => [
       ...(await inspectPiRuntime(context)),

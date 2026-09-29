@@ -5,6 +5,8 @@ from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.clients.auth_service import AUTH_SERVICE_CLIENT_STATE_KEY, AuthServiceClient
+from app.core.config import get_settings
 from app.listeners.database import close_database, initialize_database
 from app.listeners.litellm import close_litellm_proxy, initialize_litellm_proxy
 from app.listeners.openrouter import close_openrouter_client, initialize_openrouter_client
@@ -22,5 +24,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         await initialize_openrouter_client(app)
         stack.push_async_callback(close_openrouter_client, app)
+
+        auth_settings = get_settings().auth_service
+        if auth_settings is not None:
+            auth_client = AuthServiceClient(auth_settings)
+            setattr(app.state, AUTH_SERVICE_CLIENT_STATE_KEY, auth_client)
+            stack.push_async_callback(auth_client.close)
 
         yield

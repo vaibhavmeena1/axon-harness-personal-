@@ -1,20 +1,28 @@
-"""Transparent HTTP proxy for the privately hosted LiteLLM service."""
+"""Authenticated HTTP proxy for the privately hosted LiteLLM service."""
 
+import base64
+import hashlib
+import hmac
+import json
 import logging
+import os
+import re
+import time
 from collections.abc import AsyncIterator, Iterable
 from urllib.parse import quote
+from uuid import uuid4
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.types import Message, Receive, Scope, Send
 
+from app.authentication import authenticate_request
+from app.clients.auth_service import AuthenticatedUser, AuthServiceError
 from app.core.config import LiteLLMSettings, get_settings
 
 LITELLM_MOUNT_PATH = "/litellm"
 LITELLM_CLIENT_STATE_KEY = "litellm_proxy_client"
 
-# These headers describe one transport connection and must not cross the
-# downstream-to-upstream proxy boundary.
 _HOP_BY_HOP_HEADERS = {
     b"connection",
     b"keep-alive",
@@ -25,8 +33,48 @@ _HOP_BY_HOP_HEADERS = {
     b"transfer-encoding",
     b"upgrade",
 }
+_PROTECTED_REQUEST_HEADERS = {
+    b"authorization",
+    b"content-length",
+    b"host",
+    b"x-auth-context",
+    b"x-forwarded-for",
+    b"x-forwarded-host",
+    b"x-forwarded-proto",
+    b"x-litellm-customer-id",
+    b"x-litellm-end-user-id",
+    b"x-litellm-spend-logs-metadata",
+    b"x-request-id",
+    b"x-team-id",
+    b"x-user-id",
+}
+_POST_PATHS = {
+    b"/v1/audio/speech",
+    b"/v1/audio/transcriptions",
+    b"/v1/audio/translations",
+    b"/v1/chat/completions",
+    b"/v1/completions",
+    b"/v1/embeddings",
+    b"/v1/images/edits",
+    b"/v1/images/generations",
+    b"/v1/messages",
+    b"/v1/moderations",
+    b"/v1/rerank",
+    b"/v1/responses",
+    b"/anthropic/v1/messages",
+}
+_GET_PATHS = {b"/v1/models", b"/model/info", b"/health"}
+_MULTIPART_PATHS = {b"/v1/audio/transcriptions", b"/v1/audio/translations", b"/v1/images/edits"}
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
+_MAX_JSON_BODY_BYTES = 10 * 1024 * 1024
 _BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
 _SERVICE_UNAVAILABLE_BODY = b'{"detail":"LiteLLM proxy is not ready"}'
+_AUTH_UNAVAILABLE_BODY = b'{"detail":"Auth service is unavailable"}'
+_UNAUTHORIZED_BODY = b'{"detail":"Authentication required"}'
+_FORBIDDEN_BODY = b'{"detail":"Access denied"}'
+_INVALID_BODY = b'{"detail":"Invalid JSON request body"}'
+_TOO_LARGE_BODY = b'{"detail":"Request body is too large"}'
+_NOT_FOUND_BODY = b'{"detail":"LiteLLM endpoint is not available"}'
 logger = logging.getLogger(__name__)
 
 
@@ -40,9 +88,7 @@ def _connection_tokens(headers: Iterable[tuple[bytes, bytes]]) -> set[bytes]:
     return tokens
 
 
-def _end_to_end_headers(
-    headers: Iterable[tuple[bytes, bytes]],
-) -> list[tuple[bytes, bytes]]:
+def _end_to_end_headers(headers: Iterable[tuple[bytes, bytes]]) -> list[tuple[bytes, bytes]]:
     """Preserve header order and duplicates while removing hop-by-hop fields."""
     raw_headers = list(headers)
     excluded_headers = _HOP_BY_HOP_HEADERS | _connection_tokens(raw_headers)
@@ -79,12 +125,7 @@ def _relative_raw_path(scope: Scope, *, strip_mount_path: bool) -> bytes:
     return relative_path
 
 
-def _upstream_url(
-    scope: Scope,
-    settings: LiteLLMSettings,
-    *,
-    strip_mount_path: bool,
-) -> httpx.URL:
+def _upstream_url(scope: Scope, settings: LiteLLMSettings, *, strip_mount_path: bool) -> httpx.URL:
     """Build the fixed-origin upstream URL while preserving path encoding and query order."""
     relative_path = _relative_raw_path(scope, strip_mount_path=strip_mount_path)
     upstream_root_path = settings.upstream_root_path.encode("ascii")
@@ -103,10 +144,7 @@ def _upstream_url(
     return httpx.URL(settings.upstream_url).copy_with(raw_path=raw_path)
 
 
-async def _request_body(
-    first_message: Message,
-    receive: Receive,
-) -> AsyncIterator[bytes]:
+async def _request_body(first_message: Message, receive: Receive) -> AsyncIterator[bytes]:
     """Stream the downstream request body without buffering it in memory."""
     message = first_message
     while message["type"] == "http.request":
@@ -126,6 +164,7 @@ async def _send_error(send: Send, status_code: int, body: bytes) -> None:
             "headers": [
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode("ascii")),
+                (b"cache-control", b"no-store"),
             ],
         }
     )
@@ -135,59 +174,181 @@ async def _send_error(send: Send, status_code: int, body: bytes) -> None:
 async def _send_upstream_response(
     upstream_response: httpx.Response,
     send: Send,
+    request_id: str,
+    session_refresh_token: str | None,
 ) -> None:
     """Stream an upstream response and always release its pooled connection."""
     try:
+        response_headers = [
+            (name, value)
+            for name, value in _end_to_end_headers(upstream_response.headers.raw)
+            if name.lower() not in {b"x-request-id", b"x-session-refresh-token"}
+        ]
+        response_headers.append((b"x-request-id", request_id.encode("ascii")))
+        if session_refresh_token:
+            response_headers.append((b"x-session-refresh-token", session_refresh_token.encode("utf-8")))
         await send(
             {
                 "type": "http.response.start",
                 "status": upstream_response.status_code,
-                "headers": _end_to_end_headers(upstream_response.headers.raw),
+                "headers": response_headers,
             }
         )
         if upstream_response.is_stream_consumed:
             if upstream_response.content:
                 await send(
-                    {
-                        "type": "http.response.body",
-                        "body": upstream_response.content,
-                        "more_body": True,
-                    }
+                    {"type": "http.response.body", "body": upstream_response.content, "more_body": True}
                 )
         else:
             async for chunk in upstream_response.aiter_raw():
                 if chunk:
-                    await send(
-                        {
-                            "type": "http.response.body",
-                            "body": chunk,
-                            "more_body": True,
-                        }
-                    )
-        await send(
-            {
-                "type": "http.response.body",
-                "body": b"",
-                "more_body": False,
-            }
-        )
+                    await send({"type": "http.response.body", "body": chunk, "more_body": True})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
     except OSError:
-        # Closing the response releases the upstream connection when the
-        # downstream client disconnects during a streamed completion.
         return
     finally:
         await upstream_response.aclose()
 
 
-class LiteLLMProxy:
-    """Forward arbitrary HTTP traffic to LiteLLM without response buffering."""
+def _safe_identifier(value: str | None, fallback: str) -> str:
+    if value and _SAFE_IDENTIFIER.fullmatch(value):
+        return value
+    return fallback
 
-    def __init__(
-        self,
-        settings: LiteLLMSettings,
-        *,
-        strip_mount_path: bool = False,
-    ) -> None:
+
+def _identity_context(user: AuthenticatedUser, request_id: str, harness_id: str, secret: str) -> str:
+    """Bind the validated identity to this request with a short-lived HMAC assertion."""
+    issued_at = int(time.time())
+    claims = {
+        "iss": "meta-harness",
+        "aud": "litellm",
+        "sub": str(user.user_id),
+        "user_id": str(user.user_id),
+        "user_team_id": str(user.user_team_id),
+        "team_id": str(user.team_id),
+        "user_email": user.user_email,
+        "user_name": user.user_name,
+        "organization_name": user.organization_name,
+        "role": user.role,
+        "request_id": request_id,
+        "harness_id": harness_id,
+        "jti": str(uuid4()),
+        "iat": issued_at,
+        "exp": issued_at + 60,
+    }
+    payload = base64.urlsafe_b64encode(json.dumps(claims, separators=(",", ":")).encode()).rstrip(b"=")
+    signature = hmac.new(secret.encode(), payload, hashlib.sha256).digest()
+    return f"{payload.decode('ascii')}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode('ascii')}"
+
+
+async def _json_body(first_message: Message, receive: Receive, user: AuthenticatedUser, request_id: str, harness_id: str) -> bytes:
+    """Bound JSON memory use and overwrite all caller-controlled spend attribution."""
+    body = bytearray()
+    async for chunk in _request_body(first_message, receive):
+        body.extend(chunk)
+        if len(body) > _MAX_JSON_BODY_BYTES:
+            raise OverflowError("JSON body exceeds limit")
+    try:
+        payload = json.loads(body)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise ValueError("Invalid JSON body") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("JSON body must be an object")
+
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    spend_logs_metadata = metadata.get("spend_logs_metadata")
+    if not isinstance(spend_logs_metadata, dict):
+        spend_logs_metadata = {}
+    spend_logs_metadata.update(
+        {
+            "request_id": request_id,
+            "user_id": str(user.user_id),
+            "user_team_id": str(user.user_team_id),
+            "team_id": str(user.team_id),
+            "organization_name": user.organization_name,
+            "harness_id": harness_id,
+        }
+    )
+    metadata["spend_logs_metadata"] = spend_logs_metadata
+    payload["metadata"] = metadata
+    payload["user"] = str(user.user_id)
+    encoded_body = json.dumps(payload, separators=(",", ":")).encode()
+    if len(encoded_body) > _MAX_JSON_BODY_BYTES:
+        raise OverflowError("Attributed JSON body exceeds limit")
+    return encoded_body
+
+
+async def _forward_authenticated_request(
+    scope: Scope,
+    receive: Receive,
+    send: Send,
+    client: httpx.AsyncClient,
+    settings: LiteLLMSettings,
+    strip_mount_path: bool,
+    path: bytes,
+    user: AuthenticatedUser,
+    request_id: str,
+    harness_id: str,
+    service_token: str,
+    identity_secret: str,
+) -> None:
+    first_message = await receive()
+    if first_message["type"] == "http.disconnect":
+        return
+    method = str(scope.get("method", "GET"))
+    incoming = Request(scope)
+    has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
+    content: bytes | AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
+    if method == "POST" and path not in _MULTIPART_PATHS:
+        content_type = incoming.headers.get("content-type", "").lower()
+        if "application/json" not in content_type or incoming.headers.get("content-encoding"):
+            await _send_error(send, 400, _INVALID_BODY)
+            return
+        try:
+            content = await _json_body(first_message, receive, user, request_id, harness_id)
+        except OverflowError:
+            await _send_error(send, 413, _TOO_LARGE_BODY)
+            return
+        except ValueError:
+            await _send_error(send, 400, _INVALID_BODY)
+            return
+
+    context = _identity_context(user, request_id, harness_id, identity_secret)
+    request_headers = [
+        (name, value)
+        for name, value in _end_to_end_headers(scope.get("headers", []))
+        if name.lower() not in _PROTECTED_REQUEST_HEADERS
+    ]
+    request_headers.extend(
+        [
+            (b"authorization", f"Bearer {service_token}".encode("ascii")),
+            (b"x-auth-context", context.encode("ascii")),
+            (b"x-request-id", request_id.encode("ascii")),
+        ]
+    )
+
+    try:
+        upstream_request = httpx.Request(
+            method=method,
+            url=_upstream_url(scope, settings, strip_mount_path=strip_mount_path),
+            headers=request_headers,
+            content=content,
+        )
+        upstream_response = await client.send(upstream_request, stream=True)
+    except httpx.HTTPError:
+        logger.warning("LiteLLM upstream request failed", exc_info=True)
+        await _send_error(send, 502, _BAD_GATEWAY_BODY)
+        return
+
+    await _send_upstream_response(upstream_response, send, request_id, user.session_refresh_token)
+
+
+class LiteLLMProxy:
+    """Authenticate and forward allow-listed LLM traffic without response buffering."""
+
+    def __init__(self, settings: LiteLLMSettings, *, strip_mount_path: bool = False) -> None:
         self.settings = settings
         self.strip_mount_path = strip_mount_path
 
@@ -197,47 +358,49 @@ class LiteLLMProxy:
                 await send({"type": "websocket.close", "code": 1008})
             return
 
+        path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path)
+        method = str(scope.get("method", "GET"))
+        if not ((method == "POST" and path in _POST_PATHS) or (method == "GET" and path in _GET_PATHS)):
+            await _send_error(send, 404, _NOT_FOUND_BODY)
+            return
+
         app = scope.get("app")
-        app_state = getattr(app, "state", None)
-        client: httpx.AsyncClient | None = getattr(
-            app_state,
-            LITELLM_CLIENT_STATE_KEY,
-            None,
-        )
-        if client is None:
+        client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
+        service_token = os.environ.get("LITELLM_SERVICE_TOKEN", "").strip()
+        identity_secret = os.environ.get("LITELLM_IDENTITY_SECRET", "").strip()
+        if client is None or not service_token or not identity_secret:
             await _send_error(send, 503, _SERVICE_UNAVAILABLE_BODY)
             return
 
-        first_message = await receive()
-        if first_message["type"] == "http.disconnect":
-            return
-
-        has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
-        content = _request_body(first_message, receive) if has_body else None
-        request_headers = _end_to_end_headers(scope.get("headers", []))
-
+        incoming = Request(scope)
+        request_id = _safe_identifier(incoming.headers.get("x-request-id"), str(uuid4()))
+        harness_id = _safe_identifier(incoming.headers.get("x-harness-id"), "unknown")
         try:
-            upstream_request = httpx.Request(
-                method=str(scope.get("method", "GET")),
-                url=_upstream_url(
-                    scope,
-                    self.settings,
-                    strip_mount_path=self.strip_mount_path,
-                ),
-                headers=request_headers,
-                content=content,
-            )
-            upstream_response = await client.send(upstream_request, stream=True)
-        except httpx.HTTPError:
-            logger.warning("LiteLLM upstream request failed", exc_info=True)
-            await _send_error(send, 502, _BAD_GATEWAY_BODY)
+            user = await authenticate_request(incoming)
+        except AuthServiceError as exc:
+            status_code = exc.status_code
+            body = _UNAUTHORIZED_BODY if status_code == 401 else _FORBIDDEN_BODY if status_code == 403 else _AUTH_UNAVAILABLE_BODY
+            await _send_error(send, status_code, body)
             return
 
-        await _send_upstream_response(upstream_response, send)
+        await _forward_authenticated_request(
+            scope=scope,
+            receive=receive,
+            send=send,
+            client=client,
+            settings=self.settings,
+            strip_mount_path=self.strip_mount_path,
+            path=path,
+            user=user,
+            request_id=request_id,
+            harness_id=harness_id,
+            service_token=service_token,
+            identity_secret=identity_secret,
+        )
 
 
 def mount_litellm_proxy(app: FastAPI) -> None:
-    """Expose LiteLLM at `/litellm` before the frontend catch-all is mounted."""
+    """Expose authenticated LiteLLM traffic before the frontend catch-all."""
     settings = get_settings().litellm
     app.add_route(
         LITELLM_MOUNT_PATH,
@@ -245,9 +408,5 @@ def mount_litellm_proxy(app: FastAPI) -> None:
         name="litellm-proxy-root",
         include_in_schema=False,
     )
-    app.mount(
-        LITELLM_MOUNT_PATH,
-        LiteLLMProxy(settings),
-        name="litellm-proxy",
-    )
+    app.mount(LITELLM_MOUNT_PATH, LiteLLMProxy(settings), name="litellm-proxy")
     logger.info("LiteLLM proxy mounted at %s", LITELLM_MOUNT_PATH)
