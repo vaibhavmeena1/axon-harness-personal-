@@ -1,0 +1,47 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "342c26d860e0bedaa88a86047a282409ff094dc3",
+  "prompts": {
+    "17a6b73f9402224e": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "484459",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "779c7688de8fafa1": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "483253",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "dee61176b5a836eb": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "484404",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    }
+  }
+}
