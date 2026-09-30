@@ -1,0 +1,211 @@
+apps/backend/app/routers/__init__.py
+  s_b4473f54abf236::t_324cb4c785a125 7,15-17
+  s_d20ca3bc31a0fb::t_57d2959c1548dc 5,18
+apps/cli/pi-version.json
+  s_d20ca3bc31a0fb::t_6a04d4ba2b7bab 2
+apps/cli/src/harnesses/pi/telemetry/tests/environment.test.ts
+  s_d20ca3bc31a0fb::t_77b41baf765f6e 12
+apps/cli/src/product/endpoints.ts
+  s_b4473f54abf236::t_91109a6296ad37 34-36,41-44
+  s_d20ca3bc31a0fb::t_c0c4b4077941eb 37-40
+apps/backend/config_template.json
+  s_b4473f54abf236::t_e96f994af0e175 35-36,49
+  s_d20ca3bc31a0fb::t_19cd9178d57749 37-48
+apps/cli/src/cli/auth/session.ts
+  s_b4473f54abf236::t_35133a5d110fb3 77-80,83
+  s_b4473f54abf236::t_ab75fd5719dba1 91-94,97-99,104-106,109-117
+  s_b4473f54abf236::t_15303500d89ad4 4,66-67,89-90,95-96,100-103,107-108,118
+apps/cli/src/harnesses/pi/adapter.ts
+  s_b4473f54abf236::t_7bba53096190bc 2-3,17,44,67-69,93
+  s_d20ca3bc31a0fb::t_bc9a4e4efcbf29 90-92
+  s_b4473f54abf236::t_ab75fd5719dba1 5,56-66,72-79,87-89,104-109
+  s_b4473f54abf236::t_78352d4ed3da5a 70-71,80-86
+apps/cli/tests/client-config.test.ts
+  s_b4473f54abf236::t_f696594a8bd9c2 1-8,10-15,17-27,34-40,45-47,51-54,57-60,63-64,66,84-87,91,94,107-112,123-126,130,134-151,162-164,174-179,190-192,204-205
+  s_b4473f54abf236::t_3914222f51e17f 16
+  s_d20ca3bc31a0fb::t_8e8ddf417ebacf 9,56,65,159-161,182,184,199
+  s_b4473f54abf236::t_ab75fd5719dba1 28-33,41-44,48-50,55,61-62,67-77,88-90,92-93,95-106,113-122,127-129,131-133,152-153,158,165-173,180-181,183,185-186
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 78-83,154-157,187-189,193-198
+  s_d20ca3bc31a0fb::t_2da1e2b3b1c9bc 200-203
+apps/backend/app/listeners/__init__.py
+  s_d20ca3bc31a0fb::t_0ff722296c2379 13,35-36
+  s_d20ca3bc31a0fb::t_b3124b58c805a6 37
+apps/cli/src/cli/dispatch.ts
+  s_b4473f54abf236::t_e32377894ce7d6 5,7,29
+apps/cli/src/harnesses/pi/telemetry/src/identity.ts
+  s_d20ca3bc31a0fb::t_842511d8c21991 10,113-116
+apps/backend/tests/test_cli_config.py
+  s_b4473f54abf236::t_3aafc5ad435c60 1-19,21-22,24-37,39-68,70-85,91-95,99-126,128-135,137,139,142-161
+  s_d20ca3bc31a0fb::t_1ccd93799a1ce8 20,136,138,140-141
+  s_b4473f54abf236::t_90af00ec492547 69
+  s_d20ca3bc31a0fb::t_f2fe81bf0de02f 86-90
+  s_d20ca3bc31a0fb::t_6592af3ea9a59d 23,38,96-98,127
+apps/cli/src/harnesses/pi/telemetry/docs/data-policy.md
+  s_d20ca3bc31a0fb::t_4980e7c28758d4 5-9
+apps/backend/tests/test_auth_service_identity.py
+  s_d20ca3bc31a0fb::t_879e18b77df96f 12-25,29,33,49,52
+  s_d20ca3bc31a0fb::t_ce5cc0a48a0896 1-11,26-28,30-32,34-48,50-51,53
+apps/cli/tests/launcher.test.ts
+  s_b4473f54abf236::t_ab75fd5719dba1 5-6,387-390
+  s_b4473f54abf236::t_4bea5298647230 95
+apps/backend/app/core/cli_config.py
+  s_d20ca3bc31a0fb::t_adeca0676ac555 1,3,9,11,16-17,22,24-33,35-39,42,44,53,57,59-60,63,67-69,74-81,84-89,94-108,133,154-155
+  s_b4473f54abf236::t_bb6e24b01df276 2,4-8,10,12-15,23,34,40-41,43,45-52,54-55,132,134-153,156
+  s_b4473f54abf236::t_71670f7a660164 18,58,61-62,64-66,130-131
+  s_d20ca3bc31a0fb::t_35ec4fbdc83b8c 56,70-73,90-93,109-129
+  s_d20ca3bc31a0fb::t_f2fe81bf0de02f 19-21,82-83
+apps/backend/app/proxies/otel.py
+  s_d20ca3bc31a0fb::t_f2fe81bf0de02f 64-66,101-103,191-193,264-266
+  s_d20ca3bc31a0fb::t_9df9b13e7582f7 218-219
+  s_d20ca3bc31a0fb::t_3cdd013cbe8568 175-190,194-217,220-240,246-251,259,272-277
+  s_d20ca3bc31a0fb::t_b78da465bfc053 1-8,10-63,67-88,114-138,140-150,152-174,252-258,260-263,267-271,278-294
+  s_d20ca3bc31a0fb::t_f4534d6ef6b3b6 241-245
+  s_d20ca3bc31a0fb::t_1faefd63ce4ddd 9,89-100,104-113,139,151
+apps/cli/src/harnesses/pi/telemetry/src/environment.ts
+  s_d20ca3bc31a0fb::t_744bc96db0c353 12
+apps/backend/app/core/config.py
+  s_b4473f54abf236::t_fc4796ba128fc9 15,161,566-567,591
+  s_d20ca3bc31a0fb::t_2ea67e2a07c7be 14,162,568-570,592
+  s_b4473f54abf236::t_fe5c6dd2384a2c 571-573
+  s_b4473f54abf236::t_c9a975f354024e 574
+apps/cli/src/cli/launcher-program.ts
+  s_b4473f54abf236::t_a02844523ba6ad 4-5,11,124-128,135-139
+  s_b4473f54abf236::t_ab75fd5719dba1 129-134
+  s_b4473f54abf236::t_2ee3b068e5e9ef 140
+apps/cli/tests/pi-client-config.test.ts
+  s_d20ca3bc31a0fb::t_a087e8b437e905 54-55,129-132,147-148
+  s_b4473f54abf236::t_2c1d9f12d30441 1-6,11-28,36,41-48,64-68,73,77-80,87,96-98,104-108,112,118-126,128,133-136,140-146,149-152,159-161,164-166
+  s_b4473f54abf236::t_c2ec835830d463 95
+  s_b4473f54abf236::t_ab75fd5719dba1 7-10,29-35,37-40,49-53,56-63,69-72,74-76,81-86,88-94,99-103,109-111,113-117,127,137-139,153-158,162-163
+apps/cli/src/harnesses/pi/telemetry/README.md
+  s_d20ca3bc31a0fb::t_efebc06cc3c96f 18-20,38-44
+apps/cli/src/harnesses/pi/telemetry-environment.ts
+  s_b4473f54abf236::t_be900ea73acd12 61,64
+  s_b4473f54abf236::t_1e0a133ab5f5f1 9-11
+  s_d20ca3bc31a0fb::t_09340ccabf65f6 1-3,6,13-17,19-24,30,32-36,38-43,46-49,63
+  s_b4473f54abf236::t_fa4d1cf2cacf91 4-5,7-8,12,18,25-29,31,37,44-45,50-53,62,65-67
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 54-60
+apps/cli/src/cli/commands/auth.ts
+  h_cbc19accedcd8a 9
+  s_b4473f54abf236::t_e88d8cd29286d0 28
+apps/backend/app/clients/auth_service.py
+  s_d20ca3bc31a0fb::t_ddf4e40b74c000 97-111,115,118-119
+  s_d20ca3bc31a0fb::t_da47c54a2c0324 112-114,116-117
+apps/backend/tests/test_otel_proxy.py
+  s_d20ca3bc31a0fb::t_92bb3acf6af27a 1-46,50-81,83-103,108-110,117-119,127-145,147-149,152-153,163-165,167-170,173,181-184,186-188,207,212-214,216-218,221,236-237,239-241,247-250,260-264,266-268,271-272,277-285,287-289,291-293,297-302,321-324,326-330
+  s_d20ca3bc31a0fb::t_6da3c841c53e5c 82,107,150-151,171-172,206,219-220,246,269-270,290,314,325
+  s_d20ca3bc31a0fb::t_f2fe81bf0de02f 47-49,104-106,111-116,120-126,146,154-162,166,174-180,185,189-205,208-211,215,222-235,238,242-245,251-259,265,273-276,286,294-296,303-313,315-320
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 231,233,235,238-245,247,249,251-252,256-258,260-261,263-269
+apps/cli/src/harnesses/pi/telemetry/src/otel/runtime.ts
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 57-61,240-243,247-250,254-257
+agents.md
+  s_040a3d1b1cb178::t_72b0e65a7a0dc5 1-3
+apps/cli/docs/plans/cli-client-config.md
+  s_b4473f54abf236::t_1aaf9904415e83 57,59,64,66
+  s_e1b7cd6eb59847::t_ff4fb420577494 80
+  s_b4473f54abf236::t_2cea6af4668109 71
+  s_e1b7cd6eb59847::t_dbbfe2a9aa0e1f 2,4,6,8,13,15,45-47,53,55,76,78
+  s_b4473f54abf236::t_c3a2ddc1669cbe 1,3,5,9-10,14,16,18,20-24,26-29,31,33,38-39,41-44,48-49,52,54,56,58,60-63,69-70,73,79
+  s_e1b7cd6eb59847::t_2de0dfd721d425 7,17,19,25,30,32,34-37,72,74
+  s_d20ca3bc31a0fb::t_73f22e29297126 11-12,40,50-51,65,67-68,75,77,81
+apps/cli/tests/auth-preflight.test.ts
+  s_b4473f54abf236::t_6b1791661609fa 1-6,13-15,25-30,38-43,48-55,64-67,71-76,85-93,97,101-111,116-125,135,141-142,150-154,164
+  s_b4473f54abf236::t_ab75fd5719dba1 7-12,16-24,31-37,44-47,56-63,68-70,77-84,94-96,98-100,112-115,126-134,136-140,143-149,155-163
+apps/cli/tests/endpoints.test.ts
+  s_b4473f54abf236::t_6b1f772211d240 27-28
+apps/cli/docs/launcher-plan.md
+  s_b4473f54abf236::t_01590d839ee2e1 105,124,132,474,476,478
+apps/cli/tests/pi-telemetry-extension-integration.test.ts
+  s_d20ca3bc31a0fb::t_ff329f341d6dbf 7-9,90-98,104-124,139-142,146-150,154-155
+  s_d20ca3bc31a0fb::t_d1f57fbc26bc9b 99-103,125-138,143-145,151-153
+apps/cli/src/harnesses/pi/telemetry/docs/deployment.md
+  s_b4473f54abf236::t_7222fa05ef92c5 21,24,26,31,55-56
+  s_d20ca3bc31a0fb::t_570f5f390212f4 23,25,27-30,74
+  s_d20ca3bc31a0fb::t_0224503dd76c44 22
+apps/backend/app/routers/cli_config.py
+  s_b4473f54abf236::t_ec5bd684df3d38 1-5,7-15,17-23
+  s_b4473f54abf236::t_6e925a5f975d31 6,16
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_d20ca3bc31a0fb::t_7a3dc3e54da674 3,12-16
+apps/cli/package.json
+  s_d20ca3bc31a0fb::t_ba26d433149b94 40-41
+  s_d20ca3bc31a0fb::t_72ac9064e19c86 51-52
+apps/backend/README.md
+  s_b4473f54abf236::t_ab410cdbabdaec 32-33,45-55,57-59,71-73,80,82
+  s_d20ca3bc31a0fb::t_a5a868c64c9dbd 34,56,60-70,74-79,81,83
+  s_d20ca3bc31a0fb::t_8323c69b58fe77 84
+apps/cli/src/harnesses/pi/telemetry/src/otel/managed-exporter.ts
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 5,7,98-101,113-116,139-140,146-151,170-177,180-182,186-188,192-194
+  s_d20ca3bc31a0fb::t_8033a271d38b7d 1-4,6,8-97,102-112,117-138,141-145,152-169,178-179,183-185,189-191,195-196
+apps/cli/src/cli/client-config.ts
+  s_b4473f54abf236::t_ab75fd5719dba1 52-55,78-81,91
+  s_b4473f54abf236::t_ddc5dd34276830 1-10,13-23,27-51,56-69,71-77,82,84-90,104-109
+  s_d20ca3bc31a0fb::t_0acd88b7511b16 11-12,24-26,99
+  s_b4473f54abf236::t_dff78e1aed7f13 70,83,95-98,100-103
+  s_b4473f54abf236::t_1e0a133ab5f5f1 92-94
+apps/cli/docs/shipplan.md
+  s_b4473f54abf236::t_245eb00e6ae5fb 8,11-12,19
+apps/cli/src/harnesses/pi/telemetry/tests/managed-exporter.test.ts
+  s_d20ca3bc31a0fb::t_40452be8232111 1-5,8-37,41-47,59-61,68,73-74,80-85,93-96,101-107,123-130,135-140,148-149,160-161,163-172,178-182,201,210-215,227-228,233,237-244,249-252,258-260,267
+  s_d20ca3bc31a0fb::t_5e754e6eba8b8f 6-7
+  s_d20ca3bc31a0fb::t_4c9a4032b42629 38-40,48-58,62-67,69-72,75-79,86-92,97-100,108-122,131-134,141-147,150-159,162,173-177,183-200,202-209,216-226,229-232,234-236,245-248,253-257,261-266
+apps/backend/pyproject.toml
+  s_d20ca3bc31a0fb::t_c3ac6ba33f0ca8 14
+apps/cli/README.md
+  s_b4473f54abf236::t_21cc56ec434bb3 16-17,36,83-84,96-101
+  s_d20ca3bc31a0fb::t_0d01050f18aa17 20,42,104
+  s_d20ca3bc31a0fb::t_3c3eb315e8e04c 141
+apps/cli/src/cli/auth/preflight.ts
+  s_b4473f54abf236::t_1e56895e933dd9 1-25,35,37-47,49-69
+  s_b4473f54abf236::t_a6e5af2a126a98 26-34,36,48
+apps/backend/uv.lock
+  s_d20ca3bc31a0fb::t_e3962aef9ded0a 195,214,366-377,421-435
+bun.lock
+  s_d20ca3bc31a0fb::t_56463f4cce53d8 26-27,37-38,50,52,82,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,252,306,326,352,384,390,392,394,416,418,426,440-443,450,470,474,498,501-502
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "75ae7e8e8392a0347294aa3c0edd9ef7ceea6f89",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_040a3d1b1cb178": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0ed14-5f17-776c-bfaa-e5337810e957",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_b4473f54abf236": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0ed17-e653-776c-bfaa-e537e382d27a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d20ca3bc31a0fb": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0f205-bf90-71f2-a76e-61c249924ff4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_e1b7cd6eb59847": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0ecf0-d85f-77d3-a6e3-a42ece44cfa0",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
