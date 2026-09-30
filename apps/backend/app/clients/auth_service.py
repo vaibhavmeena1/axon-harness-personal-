@@ -2,7 +2,7 @@
 
 import httpx
 from fastapi import Request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.core.config import AuthServiceSettings
 
@@ -17,19 +17,29 @@ class AuthServiceError(Exception):
         self.status_code = status_code
 
 
-class AuthenticatedUser(BaseModel):
-    user_id: int
+class AuthData(BaseModel):
+    """Fields guaranteed by the auth-service contract used by the extension backend."""
+
+    model_config = ConfigDict(extra="allow")
+
     user_team_id: int
+    session_refresh_token: str | None = None
+
+
+class AuthenticatedUser(AuthData):
+    """Additional identity fields required for LiteLLM spend attribution."""
+
+    user_id: int
     team_id: int
     user_email: str
     user_name: str | None = None
     organization_name: str
     role: str
-    session_refresh_token: str | None = None
 
 
 class AuthDataResponse(BaseModel):
-    user_data: AuthenticatedUser
+    auth_data: AuthData
+    response_headers: dict[str, str]
 
 
 class AuthServiceClient:
@@ -64,8 +74,8 @@ class AuthServiceClient:
         self,
         authorization: str,
         grace_params: dict[str, str],
-    ) -> AuthenticatedUser:
-        """Validate a session and return canonical user data from deputydev-auth."""
+    ) -> AuthDataResponse:
+        """Validate a session and return auth data and response headers from deputydev-auth."""
         try:
             response = await self._client.get(
                 "get-auth-data",
@@ -82,9 +92,7 @@ class AuthServiceClient:
         except (httpx.HTTPError, ValueError, ValidationError) as exc:
             raise AuthServiceError("Auth service identity lookup failed") from exc
 
-        if not auth_data.user_data.user_email:
-            raise AuthServiceError("Auth service returned an invalid identity")
-        return auth_data.user_data
+        return auth_data
 
     async def close(self) -> None:
         await self._client.aclose()

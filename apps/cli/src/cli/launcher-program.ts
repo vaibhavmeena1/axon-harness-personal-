@@ -5,8 +5,8 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveDeputyDevPaths } from "../product/paths.ts";
-import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { checkForUpdate, installUpdate } from "../updater/update.ts";
+import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
@@ -114,10 +114,6 @@ function createLauncherProgram(): Command {
     .command("uninstall")
     .description("remove the managed binary while preserving user data by default")
     .option("--remove-runtimes", "also remove cached immutable runtimes")
-    .option(
-      "--remove-profiles",
-      "also remove launcher profiles; shared auth in uuid.json is preserved",
-    )
     .action(async (options: UninstallOptions) => {
       await runUninstall(resolveDeputyDevPaths(), options);
     });

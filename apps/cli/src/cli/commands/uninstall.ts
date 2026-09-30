@@ -5,6 +5,7 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
+import { SESSION_FILE_NAME } from "../auth/session.ts";
 
 export interface UninstallOptions {
   readonly removeRuntimes?: boolean;
@@ -59,12 +60,6 @@ export async function runUninstall(
     console.log(`preserved cached runtimes: ${paths.runtime}, ${paths.piRuntime}`);
   }
 
-  if (options.removeProfiles === true) {
-    await rm(paths.profiles, { force: true, recursive: true });
-    console.log(`removed launcher profiles: ${paths.profiles}`);
-  } else {
-    console.log(`preserved launcher profiles: ${paths.profiles}`);
-  }
-  // uuid.json may also be used by the VS Code extension; uninstall never removes it.
-  console.log(`preserved shared authentication file: ${join(paths.home, "uuid.json")}`);
+  // The session file may also be used by the VS Code extension; uninstall never removes it.
+  console.log(`preserved shared authentication file: ${join(paths.home, SESSION_FILE_NAME)}`);
 }

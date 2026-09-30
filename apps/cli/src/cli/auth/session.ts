@@ -4,10 +4,11 @@ import { dirname, join } from "node:path";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const AUTH_TOKEN_KEY = "extension_auth_token";
+export const SESSION_FILE_NAME = "264325ba-cbd0-47d5-9269-ac4bd19067c2.json";
 const MAX_SESSION_FILE_BYTES = 1024 * 1024;
 
 function sessionPath(paths: DeputyDevPaths): string {
-  return join(paths.home, "uuid.json");
+  return join(paths.home, SESSION_FILE_NAME);
 }
 
 async function assertRegularDirectory(directory: string): Promise<void> {
@@ -61,7 +62,7 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
   return encryptedSession;
 }
 
-/** Merge only our token into uuid.json and atomically set owner-only permissions. */
+/** Merge only our token into the shared session file and atomically set owner-only permissions. */
 export async function saveEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
@@ -70,7 +71,7 @@ export async function saveEncryptedSession(
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await assertRegularDirectory(paths.home);
 
-  // uuid.json can be shared with the VS Code binary: retain unrelated keys.
+  // The session file can be shared with the VS Code binary: retain unrelated keys.
   // Replace permissive existing permissions with 0600 when saving a new token.
   const existingData = await readSessionFile(destination);
   const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };

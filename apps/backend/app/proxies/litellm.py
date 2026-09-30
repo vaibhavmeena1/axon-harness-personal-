@@ -16,7 +16,7 @@ import httpx
 from fastapi import FastAPI, Request
 from starlette.types import Message, Receive, Scope, Send
 
-from app.authentication import authenticate_request
+from app.authentication import authenticate_identity
 from app.clients.auth_service import AuthenticatedUser, AuthServiceError
 from app.core.config import LiteLLMSettings, get_settings
 
@@ -376,7 +376,7 @@ class LiteLLMProxy:
         request_id = _safe_identifier(incoming.headers.get("x-request-id"), str(uuid4()))
         harness_id = _safe_identifier(incoming.headers.get("x-harness-id"), "unknown")
         try:
-            user = await authenticate_request(incoming)
+            user = await authenticate_identity(incoming)
         except AuthServiceError as exc:
             status_code = exc.status_code
             body = _UNAUTHORIZED_BODY if status_code == 401 else _FORBIDDEN_BODY if status_code == 403 else _AUTH_UNAVAILABLE_BODY
