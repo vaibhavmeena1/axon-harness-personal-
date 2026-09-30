@@ -1,6 +1,7 @@
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { withFileLock } from "../../launcher/file-lock.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const AUTH_TOKEN_KEY = "extension_auth_token";
@@ -62,24 +63,56 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
   return encryptedSession;
 }
 
-/** Merge only our token into the shared session file and atomically set owner-only permissions. */
-export async function saveEncryptedSession(
+/** Caller holds the shared CLI writer lock. Retain unrelated VS Code keys. */
+async function writeEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
 ): Promise<void> {
   const destination = sessionPath(paths);
-  await mkdir(paths.home, { recursive: true, mode: 0o700 });
-  await assertRegularDirectory(paths.home);
 
   // The session file can be shared with the VS Code binary: retain unrelated keys.
   // Replace permissive existing permissions with 0600 when saving a new token.
   const existingData = await readSessionFile(destination);
   const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
+  const serialized = `${JSON.stringify(data)}\n`;
+  if (Buffer.byteLength(serialized, "utf8") > MAX_SESSION_FILE_BYTES) {
+    throw new Error("Saved session file is too large");
+  }
   const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
   try {
-    await writeFile(temporary, `${JSON.stringify(data)}\n`, { flag: "wx", mode: 0o600 });
+    await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
     await rename(temporary, destination);
   } finally {
     await rm(temporary, { force: true });
   }
+}
+
+/** Merge our credential atomically with owner-only permissions and serialized CLI writes. */
+export async function saveEncryptedSession(
+  paths: DeputyDevPaths,
+  encryptedSession: string,
+): Promise<void> {
+  await mkdir(paths.home, { recursive: true, mode: 0o700 });
+  await assertRegularDirectory(paths.home);
+  await withFileLock(join(paths.home, ".session.lock"), () =>
+    writeEncryptedSession(paths, encryptedSession),
+  );
+}
+
+/** A response to an older request must not overwrite a newer CLI login. */
+export async function refreshEncryptedSession(
+  paths: DeputyDevPaths,
+  expectedSession: string,
+  refreshedSession: string,
+): Promise<boolean> {
+  await assertRegularDirectory(paths.home);
+  return withFileLock(
+    join(paths.home, ".session.lock"),
+    async () => {
+      if ((await loadEncryptedSession(paths)) !== expectedSession) return false;
+      await writeEncryptedSession(paths, refreshedSession);
+      return true;
+    },
+    { timeoutMs: 100 },
+  );
 }

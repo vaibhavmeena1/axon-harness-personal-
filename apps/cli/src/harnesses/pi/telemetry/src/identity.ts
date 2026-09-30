@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export type IdentitySource = "git_email" | "installation_id";
+export type IdentitySource = "git_email" | "installation_id" | "deputydev_auth";
 
 export interface TelemetryIdentity {
   readonly userId: string;
@@ -110,6 +110,10 @@ async function createInstallationId(path: string, directory: string): Promise<st
 }
 
 export async function resolveIdentity(options: IdentityOptions = {}): Promise<TelemetryIdentity> {
+  // Managed identity is rewritten by the backend. Do not send local Git PII in this mode.
+  if ((options.env ?? process.env).PI_ORG_OTEL_MANAGED_ENDPOINT) {
+    return { userId: "managed", source: "deputydev_auth" };
+  }
   const email = normalizeGitEmail(
     await (options.readGitEmail
       ? options.readGitEmail()

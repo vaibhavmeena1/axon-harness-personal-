@@ -2,7 +2,9 @@ import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { launchRegisteredHarness } from "../launcher/launch-harness.ts";
+import { resolveDeputyDevPaths } from "../product/paths.ts";
 import { runBackgroundUpdate } from "../updater/update.ts";
+import { runPiSessionPreflight } from "./auth/preflight.ts";
 import { runLauncherProgram } from "./launcher-program.ts";
 
 export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
@@ -24,6 +26,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
         },
       );
     }
+    await runPiSessionPreflight(resolveDeputyDevPaths(), harnessArguments, process.env);
     await launchRegisteredHarness(registration, harnessArguments);
     return;
   }

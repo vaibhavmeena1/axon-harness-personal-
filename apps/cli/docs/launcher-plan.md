@@ -102,7 +102,7 @@ The installer, signed distribution manifest, post-auth client config, and Pi MCP
 ```text
 ${BUILD_SERVICE_ORIGIN}/install.sh
 ${BUILD_SERVICE_ORIGIN}/stable.json
-${BUILD_SERVICE_ORIGIN}/v1/cli/config
+${BUILD_SERVICE_ORIGIN}/api/v1/cli/config
 ${BUILD_SERVICE_ORIGIN}/v1/cli/pi/mcp.json
 ```
 
@@ -121,7 +121,7 @@ No launcher- or updater-owned failure uses a code below 64. Child exit codes are
 
 ### Startup network contract
 
-The shared launcher startup path performs local checks only. The updater may enforce an already cached `minSupported` value synchronously, but a fresh network request is not part of every launch.
+The shared startup path performs a local first-run session check before normal Pi/setup/doctor/paths/harnesses commands. Missing-session interactive online runs complete browser onboarding before command work; scripted/CI/offline missing-session runs fail with guidance. Help/auth/update/uninstall and Pi administration are exempt. Interactive online Pi also consumes optional telemetry config with a 700 ms deadline; config failure never blocks launch. The updater rules below remain a proposal; see [shipplan.md](shipplan.md) for current release behavior.
 
 - Read and enforce the cached signed manifest first.
 - Refresh after the command in a detached worker.
@@ -129,7 +129,7 @@ The shared launcher startup path performs local checks only. The updater may enf
 - Print/piped/non-TTY invocations never pay foreground network latency.
 - A newly banned version can receive one final run before a refreshed manifest reaches the cache. This is an explicit availability/latency trade-off.
 - Mandatory updates may block and re-exec; ordinary updates stage in the background and swap after a later command exits.
-- Post-auth client configuration is not part of this shared startup path and cannot become a dependency for launch, update, or recovery.
+- Protected client configuration is consumed only by interactive online Pi for telemetry; it is not required for launch, update, or recovery.
 - The Pi-only MCP bootstrap is a narrow exception: it performs a best-effort request capped at 700 ms, writes only missing server names with `disabled: true`, and never blocks Pi after a setup failure. It does not consume post-auth client configuration or updater state.
 
 ---
@@ -471,16 +471,11 @@ Rules:
 
 ### Post-auth client configuration
 
-After the client reaches the post-auth application phase, it may fetch user-facing configuration from `${BUILD_SERVICE_ORIGIN}/v1/cli/config`. Treat the endpoint as public initially while preserving a transport boundary that can become private later. Authentication mechanics remain unspecified until that design is finalized.
+There is no persistent post-auth application phase. The implemented [client configuration](plans/cli-client-config.md) uses authenticated `GET /api/v1/cli/config` only for interactive online Pi telemetry. Browser login stays separate; normal commands run first-time onboarding only when no saved session exists.
 
-This config may include user-specific product settings, UI/behavior configuration, and flags that are unnecessary before that phase. It has a versioned response schema and safe compiled defaults. Unknown fields are ignored for forward compatibility.
+The optional config request has a 700 ms deadline and 16 KiB response limit, ignores unknown fields, refuses redirects, and has no disk cache. Valid remote telemetry settings override environment exporter/sampler/interval settings, except local disable and offline mode. Clear conflicting per-signal destinations and inherited collector headers/TLS identity overrides before configuring a remote sink. Config failure falls back without blocking launch.
 
-The boundary is strict:
-
-- Startup, update, recovery, and the ability to reach the post-auth phase must work without this response.
-- `minSupported`, artifact verification, endpoint selection, and all pre-auth/launch-critical flags remain in the signed distribution manifest or compiled defaults.
-- Client-config refresh and optional persistence are separate from `update.json`; do not reuse the updater's cache, ETags, sequence, or atomic writer.
-- Do not pass fetched settings wholesale into harness environments; adapters receive only explicitly modeled values they require.
+Release policy, service origin, Pi/package pins, and managed provider endpoints are not remotely configurable. Never pass an arbitrary settings/environment map to Pi. Installer/update/recovery remain independent of client config. Account display and other consumers are deferred.
 
 ---
 

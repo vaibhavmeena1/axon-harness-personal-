@@ -4,6 +4,9 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { saveEncryptedSession } from "../src/cli/auth/session.ts";
+import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+
 const repositoryRoot = resolve(import.meta.dir, "..");
 const piExecutable = join(repositoryRoot, "node_modules", ".bin", "pi");
 const telemetryExtension = join(
@@ -84,6 +87,72 @@ afterEach(async () => {
 });
 
 describe("Pi telemetry extension integration", () => {
+  test("standalone bundle exports authenticated telemetry under native Node", async () => {
+    const home = await mkdtemp(join(tmpdir(), "deputydev-native-otel-"));
+    temporaryDirectories.push(home);
+    await saveEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }), "native-session");
+    const seen: Array<{ path: string; auth: string | undefined; body: Buffer }> = [];
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        seen.push({
+          path: request.url ?? "",
+          auth: request.headers.authorization,
+          body: Buffer.concat(chunks),
+        });
+        response.writeHead(200, { "content-type": "application/x-protobuf" }).end();
+      });
+    });
+    const port = await listen(server);
+    const script = `
+      const {default: extension} = await import(${JSON.stringify(telemetryExtension)});
+      const handlers = new Map();
+      extension({on: (name,handler) => {handlers.set(name,handler); return () => {};}});
+      const ctx = {cwd: process.env.HOME, mode: "json", hasUI: false, sessionManager: {getSessionId: () => "native-node", getSessionFile: () => undefined}};
+      await handlers.get("session_start")({reason:"startup"},ctx);
+      await handlers.get("before_agent_start")({prompt:"test"},ctx);
+      await handlers.get("agent_start")({},ctx);
+      await handlers.get("turn_start")({turnIndex:0},ctx);
+      await handlers.get("turn_end")({message:{role:"assistant",stopReason:"stop"},toolResults:[]},ctx);
+      await handlers.get("agent_end")({messages:[]},ctx);
+      await handlers.get("agent_settled")({},ctx);
+      await handlers.get("session_shutdown")({reason:"quit"},ctx);
+    `;
+    try {
+      const child = Bun.spawn(["node", "--input-type=module", "--eval", script], {
+        cwd: repositoryRoot,
+        env: {
+          HOME: home,
+          PATH: Reflect.get(process.env, "PATH") ?? "",
+          PI_OFFLINE: "1",
+          PI_SKIP_VERSION_CHECK: "1",
+          PI_ORG_OTEL_DIAGNOSTICS: "true",
+          PI_ORG_OTEL_MANAGED_HOME: home,
+          PI_ORG_OTEL_MANAGED_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
+          OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
+        },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        timeout: 10000,
+      });
+      const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+      expect(stderr).toBe("");
+      expect(code).toBe(0);
+      expect(new Set(seen.map((request) => request.path))).toEqual(
+        new Set(["/api/v1/otel/v1/traces", "/api/v1/otel/v1/metrics", "/api/v1/otel/v1/logs"]),
+      );
+      for (const request of seen) {
+        expect(request.auth).toBe("Bearer native-session");
+        expect(request.body.includes(Buffer.from("native-session"))).toBe(false);
+        expect(request.body.includes(Buffer.from("deputydev_auth"))).toBe(true);
+      }
+    } finally {
+      await close(server);
+    }
+  });
+
   test("loads in the managed Pi version without an OTLP endpoint", async () => {
     const result = await runPi();
     expect(result.exitCode).toBe(0);

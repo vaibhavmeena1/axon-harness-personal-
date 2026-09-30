@@ -6,10 +6,10 @@ import { isCancel, select } from "@clack/prompts";
 import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 import { loadEncryptedSession, saveEncryptedSession } from "../auth/session.ts";
 
-const LOGIN_PATH = "/api/v1/auth/browser-login";
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const POLL_INTERVAL_MS = 2_000;
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -25,7 +25,7 @@ interface LoginStart {
 }
 
 function loginEndpoint(): string {
-  return new URL(LOGIN_PATH, BUILD_INFO.serviceOrigin).toString();
+  return resolveServiceUrl(BUILD_INFO.serviceOrigin, SERVICE_ENDPOINTS.auth.browserLogin);
 }
 
 function parseBrowserUrl(value: string, sessionId: string): string {

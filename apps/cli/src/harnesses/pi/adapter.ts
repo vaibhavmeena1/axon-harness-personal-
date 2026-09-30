@@ -1,6 +1,8 @@
 import { BUILD_INFO } from "../../build-info.ts";
-import { loadEncryptedSession } from "../../cli/auth/session.ts";
+import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
+import { fetchClientConfig } from "../../cli/client-config.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
+import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
@@ -12,6 +14,7 @@ import {
 } from "./installation.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
+import { createTelemetryOverrides, isTelemetryDisabled } from "./telemetry-environment.ts";
 import { resolvePiVersion } from "./version.ts";
 
 export function createPiAdapter(): HarnessAdapter {
@@ -38,6 +41,7 @@ export function createPiAdapter(): HarnessAdapter {
       // that setup materialized. Administration is forwarded untouched.
       const resourceArguments = setup.materialization?.arguments ?? [];
       let litellmOverrides = {};
+      let telemetryOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
         let encryptedSession: string | undefined;
         try {
@@ -49,6 +53,44 @@ export function createPiAdapter(): HarnessAdapter {
             { remediation: `Run ${PRODUCT_IDENTITY.command} auth login --browser.` },
           );
         }
+        telemetryOverrides = createTelemetryOverrides(
+          context.environment,
+          undefined,
+          setup.offline,
+        );
+        if (
+          encryptedSession &&
+          setup.invocationKind === "interactive" &&
+          !setup.offline &&
+          !isTelemetryDisabled(context.environment)
+        ) {
+          const result = await fetchClientConfig(encryptedSession);
+          // Persist rotation before passing the credential to the child. Config is
+          // optional, so a failed local rotation must not prevent Pi launch.
+          let telemetry = result.config?.telemetry;
+          try {
+            if (
+              result.sessionRefreshToken &&
+              (await refreshEncryptedSession(
+                context.paths,
+                encryptedSession,
+                result.sessionRefreshToken,
+              ))
+            ) {
+              encryptedSession = result.sessionRefreshToken;
+            }
+            const currentSession = await loadEncryptedSession(context.paths);
+            // Another CLI/VS Code login may have switched users during the fetch.
+            // Discard preferences obtained under the old credential in that case.
+            if (currentSession !== encryptedSession) telemetry = undefined;
+            encryptedSession = currentSession;
+          } catch {
+            /* Preserve the previous credential; no token diagnostics. */
+          }
+          telemetryOverrides = createTelemetryOverrides(context.environment, telemetry, false, {
+            home: context.paths.home,
+          });
+        }
         // Never pass an ambient LiteLLM credential or endpoint to managed Pi.
         litellmOverrides = {
           LITELLM_API_KEY: encryptedSession,
@@ -59,7 +101,12 @@ export function createPiAdapter(): HarnessAdapter {
       return Object.freeze({
         executable: context.executable,
         arguments: [...resourceArguments, ...userArguments],
-        environment: createPiEnvironment(context.environment, context.paths, litellmOverrides),
+        environment: createPiEnvironment(
+          context.environment,
+          context.paths,
+          litellmOverrides,
+          telemetryOverrides,
+        ),
         cwd: context.cwd,
       });
     },

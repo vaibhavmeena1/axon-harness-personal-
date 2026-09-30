@@ -11,6 +11,8 @@ from urllib.parse import quote, urlsplit
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
+
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
 
@@ -156,6 +158,8 @@ class Settings:
     litellm: LiteLLMSettings
     openrouter: OpenRouterSettings
     auth_service: AuthServiceSettings | None
+    cli_telemetry: CliTelemetryConfig | None
+    otel_proxy: OtelProxySettings | None
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -559,6 +563,15 @@ def get_settings() -> Settings:
         pool_max_size=pool_max_size,
     )
 
+    try:
+        cli_telemetry = parse_cli_telemetry(raw_config)
+        otel_proxy = parse_otel_proxy(raw_config)
+        if otel_proxy is not None and auth_service is None:
+            raise ValueError("OTEL proxy requires auth service")
+    except (ValueError, TypeError):
+        # Suppress chained validation inputs, including credentials in invalid URLs.
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
+
     return Settings(
         name=_string(raw_config, "NAME", "config"),
         host=_string(raw_config, "HOST", "config"),
@@ -575,4 +588,6 @@ def get_settings() -> Settings:
         litellm=litellm,
         openrouter=openrouter,
         auth_service=auth_service,
+        cli_telemetry=cli_telemetry,
+        otel_proxy=otel_proxy,
     )

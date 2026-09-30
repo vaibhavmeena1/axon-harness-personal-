@@ -1,0 +1,23 @@
+"""Protected CLI preferences. Browser login and releases remain separate APIs."""
+
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+
+from app.authentication import require_authenticated_user
+from app.core.cli_config import CliTelemetryConfig
+from app.core.config import Settings, get_settings
+
+router = APIRouter(prefix="/api/v1/cli/config", tags=["cli-config"], dependencies=[Depends(require_authenticated_user)])
+
+
+class CliConfigResponse(BaseModel):
+    schema_version: Literal[1] = Field(default=1, alias="schemaVersion")
+    telemetry: CliTelemetryConfig | None = None
+
+
+@router.get("", response_model=CliConfigResponse, response_model_exclude_none=True)
+async def client_config(settings: Annotated[Settings, Depends(get_settings)]) -> CliConfigResponse:
+    # Explicit projection only: never return auth_data, refresh tokens, or backend settings.
+    return CliConfigResponse(telemetry=settings.cli_telemetry)

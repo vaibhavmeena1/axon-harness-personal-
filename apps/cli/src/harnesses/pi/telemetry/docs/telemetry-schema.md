@@ -1,6 +1,6 @@
 # Telemetry schema
 
-Schema version: 2.
+Schema version: 3 (DeputyDev managed-auth attribution; environment fallback unchanged).
 
 ## Resource attributes
 
@@ -9,9 +9,11 @@ Schema version: 2.
 | `service.name` | Managed service name, default `pi-coding-agent` |
 | `service.version` | Extension version embedded when DeputyDev builds the standalone bundle |
 | `service.instance.id` | Per-process random instance ID |
-| `user.id` | Git email or installation UUID |
-| `user.email` | Raw effective Git email when available |
-| `pi.identity.source` | `git_email` or `installation_id` |
+| `user.id` | Managed: auth user ID or verified email; env fallback: Git email or installation UUID |
+| `user.email` | Managed: verified auth email; env fallback: raw effective Git email when available |
+| `user.name` | Optional verified auth-service name, managed mode only |
+| `deputydev.user_team_id` | Authenticated user-team membership ID, managed mode only |
+| `pi.identity.source` | `deputydev_auth`, `git_email`, or `installation_id` |
 | `pi.extension.name` | `pi-org-telemetry` |
 | `pi.extension.version` | Extension version |
 | `pi.version` | pi version, when pi can be imported at runtime |

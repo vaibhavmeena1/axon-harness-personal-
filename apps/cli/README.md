@@ -13,9 +13,11 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 - Bun 1.4.1, strict TypeScript, Biome, and native `darwin-arm64` compilation
 - Product identity, build metadata, service-origin validation, and managed paths
 - Pre-Commander dispatch for `pi`
+- First-run browser login before normal Pi and setup/doctor/paths/harnesses commands; local-only session status
+- Authenticated, best-effort Pi telemetry preferences, with fetched config taking priority over OTEL environment settings
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${DEPUTYDEV_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 0.85.0 pin: DeputyDev uses only its isolated executable under `${DEPUTYDEV_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 0.99.1 pin: DeputyDev uses only its isolated executable under `${DEPUTYDEV_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified DeputyDev Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -31,13 +33,13 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 ### Deferred
 
 - Phase 0 compatibility evidence and the complete Phase 0.5 PTY/import-boundary suite
-- Pi auth import and onboarding
+- Import of personal Pi provider authentication; automatic re-login on an expired DeputyDev session
 - Apple Developer ID signing and notarization
 - Independently signed update manifests, rollout policy, and rollback command (the current updater uses backend-served hashes)
 
 ## Installation
 
-The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` installs and uses its own exact Pi 0.85.0 release on first use, independently of any user-installed Pi.
+The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` installs and uses its own exact Pi 0.99.1 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -78,6 +80,8 @@ Everything after `pi` bypasses Commander and retains its relative token order. F
 Launcher-owned commands:
 
 ```bash
+ddcli auth login [--browser]
+ddcli auth status              # local saved-session check; no network verification
 ddcli harnesses
 ddcli paths
 ddcli doctor [pi]
@@ -89,9 +93,15 @@ ddcli uninstall [--remove-runtimes]
 
 Set `DEPUTYDEV_DEBUG=1` for a redacted launch preview on stderr. `DEPUTYDEV_PI_BIN` is rejected. A different `DEPUTYDEV_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
 
+### First-run login and client configuration
+
+Normal Pi sessions and `setup`, `doctor`, `paths`, and `harnesses` first check for a safely readable saved DeputyDev session. If absent, interactive online invocations offer browser login before doing any command work, then resume the original command after saving the credential. Non-TTY/CI/scripted or offline Pi invocations without a session fail with guidance to run `ddcli auth login` while online. Help/version, auth, update, uninstall, and Pi administrative commands remain exempt. A saved session avoids repeat onboarding; API routes still validate it server-side.
+
+Interactive online Pi launches fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB. Valid telemetry settings override environment endpoint/protocol/sampling/interval settings; unavailable, invalid, or absent telemetry config preserves the environment fallback. Explicit local `PI_ORG_OTEL_ENABLED=false` and offline Pi disable export and skip the config request. Scripted/print/RPC/JSON/CI/admin modes never perform this foreground fetch. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
+
 ### Pi installation bootstrap
 
-`ddcli pi` uses **only** the DeputyDev-managed executable at `${DEPUTYDEV_HOME}/pi-runtime/0.85.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `ddcli pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. DeputyDev's own required-package reconciliation still works through its pinned executable.
+`ddcli pi` uses **only** the DeputyDev-managed executable at `${DEPUTYDEV_HOME}/pi-runtime/0.99.1/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `ddcli pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. DeputyDev's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so DeputyDev does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -128,7 +138,7 @@ DeputyDev-owned extensions, skills, prompts, and themes are embedded in the CLI,
 
 Every non-administrative `ddcli pi` session also loads the embedded `pi-org-telemetry` extension. Its OpenTelemetry dependencies are bundled into one standalone ESM resource at DeputyDev build time, so `--extension <immutable-path>` does **not** run `npm install`, execute dependency lifecycle scripts, contact a package registry, or download dependencies. A new DeputyDev release materializes a new content-addressed bundle once; healthy launches verify and reuse it.
 
-The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) in the environment used to start `ddcli`. HTTP/protobuf and gRPC are supported. Export failures are passive and bounded, and `PI_ORG_OTEL_ENABLED=false` is the emergency kill switch. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. It does export raw effective Git email when available, an installation UUID fallback, and the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
+The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `ddcli`. A fetched policy uses only the pinned backend OTEL proxy with DeputyDev session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded, and `PI_ORG_OTEL_ENABLED=false` is the emergency kill switch. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, optional name, and user-team membership after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
 The embedded manifest in `src/product/manifest.ts` declares required community packages. It currently locks `pi-mcp-adapter` to `2.34.0` and `pi-provider-litellm` to `3.0.1`, while `@juicesharp/rpiv-ask-user-question` remains floating so Pi or the user can upgrade it. Package entries support:
 

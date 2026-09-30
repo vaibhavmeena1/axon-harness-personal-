@@ -94,6 +94,29 @@ class AuthServiceClient:
 
         return auth_data
 
+    async def verify_identity(self, authorization: str) -> dict[str, object]:
+        """Existing auth-service verification API supplies email/name for minimal auth_data."""
+        try:
+            response = await self._client.post(
+                "verify-auth-token",
+                headers={"Authorization": authorization},
+                params={"use_grace_period": "false", "enable_grace_period": "false"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPStatusError as exc:
+            code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
+            raise AuthServiceError("Identity verification failed", status_code=code) from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AuthServiceError("Identity verification unavailable") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("status"), str):
+            raise AuthServiceError("Auth service returned invalid identity")
+        if payload["status"] == "NOT_VERIFIED":
+            raise AuthServiceError("Identity verification failed", status_code=401)
+        if payload["status"] not in {"VERIFIED", "EXPIRED"}:
+            raise AuthServiceError("Auth service returned invalid identity")
+        return payload
+
     async def close(self) -> None:
         await self._client.aclose()
 
