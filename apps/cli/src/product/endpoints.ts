@@ -31,6 +31,17 @@ function defineEndpoint<const T extends EndpointPath>(path: T): T {
  * service surface; adding a route is a one-line change in one file.
  */
 export const SERVICE_ENDPOINTS = Object.freeze({
+  auth: Object.freeze({
+    browserLogin: defineEndpoint("/api/v1/auth/browser-login"),
+  }),
+  otel: Object.freeze({
+    /** Authenticated OTLP/HTTP base; exporters append /v1/{signal}. */
+    base: defineEndpoint("/api/v1/otel"),
+  }),
+  cli: Object.freeze({
+    /** Authenticated, non-secret telemetry preferences. */
+    config: defineEndpoint("/api/v1/cli/config"),
+  }),
   pi: Object.freeze({
     /** Organization MCP catalog consumed by Pi setup. */
     mcpConfig: defineEndpoint("/v1/cli/pi/mcp.json"),

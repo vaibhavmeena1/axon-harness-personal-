@@ -9,7 +9,7 @@ import {
 
 test("uses the version embedded in the standalone DeputyDev extension", () => {
   assert.equal(readExtensionVersion(), PI_ORG_TELEMETRY_VERSION);
-  assert.equal(readExtensionVersion(), "0.2.0-deputydev.1");
+  assert.equal(readExtensionVersion(), "0.3.0-deputydev.1");
 });
 
 test("falls back when pi cannot be imported", async () => {

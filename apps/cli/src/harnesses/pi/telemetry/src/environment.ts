@@ -9,7 +9,7 @@ export interface ResourceEnvironment {
 
 export type PiModuleImporter = () => Promise<{ VERSION?: unknown }>;
 
-export const PI_ORG_TELEMETRY_VERSION = "0.2.0-deputydev.1";
+export const PI_ORG_TELEMETRY_VERSION = "0.3.0-deputydev.1";
 
 const OS_TYPES: Readonly<Record<string, string>> = {
   win32: "windows",

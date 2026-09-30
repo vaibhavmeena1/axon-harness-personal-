@@ -2,7 +2,11 @@
 
 ## Attribution
 
-Every record carries `user.id` and `pi.identity.source`. When available, raw effective Git email is used for both `user.id` and `user.email`. Otherwise `user.id` is a random installation UUID and `user.email` is absent.
+Every record carries `user.id` and `pi.identity.source`. In **environment fallback**, raw effective Git email is used for both `user.id` and `user.email` when available; otherwise `user.id` is a random installation UUID and `user.email` is absent. No name is automatically read from Git.
+
+In **managed proxy mode**, the extension does not read Git email. It sends a placeholder identity (`user.id=managed`, `pi.identity.source=deputydev_auth`), and the backend overwrites resource and record/datapoint identity with verified auth-service data before forwarding. `user.id` is the authenticated user ID when present, otherwise verified email; `user.email`, optional `user.name`, and `deputydev.user_team_id` come from that same authenticated session. Client-supplied `user.*` and `enduser.*` attributes are removed, including identity fields on span events/links and metric exemplars. Missing verified identity fails closed.
+
+The saved session is used only as the backend request Authorization header, never as an OTEL attribute. Exporter response rotation is compare-and-swap persisted without overwriting newer logins. Verified email/name are personal data: restrict collector access and retention. Authentication establishes attribution, not the truth of caller-supplied usage/cost measurements.
 
 Identity is duplicated as a metric datapoint attribute because some metrics backends do not expose resource attributes as queryable labels. This intentionally creates one metric series per user and must be covered by organization retention and access policy.
 

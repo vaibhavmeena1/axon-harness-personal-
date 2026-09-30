@@ -54,6 +54,11 @@ import { describeEnvironment, type ResourceEnvironment } from "../environment.ts
 import type { TelemetryIdentity } from "../identity.ts";
 import { sanitizeText } from "../sanitization.ts";
 import type { LogSeverity, LogSink, MetricSink, TelemetryRuntime } from "../telemetry-types.ts";
+import {
+  managedLogExporter,
+  managedMetricExporter,
+  managedTraceExporter,
+} from "./managed-exporter.ts";
 
 const SEVERITIES: Record<LogSeverity, SeverityNumber> = {
   debug: SeverityNumber.DEBUG,
@@ -232,15 +237,24 @@ class OtelMetricSink implements MetricSink {
 }
 
 function createTraceExporter(config: OrgTelemetryConfig): SpanExporter {
-  return config.protocol === "grpc" ? new GrpcTraceExporter() : new ProtoTraceExporter();
+  return (
+    managedTraceExporter(config.exportTimeoutMs) ??
+    (config.protocol === "grpc" ? new GrpcTraceExporter() : new ProtoTraceExporter())
+  );
 }
 
 function createMetricExporter(config: OrgTelemetryConfig): PushMetricExporter {
-  return config.protocol === "grpc" ? new GrpcMetricExporter() : new ProtoMetricExporter();
+  return (
+    managedMetricExporter(config.exportTimeoutMs) ??
+    (config.protocol === "grpc" ? new GrpcMetricExporter() : new ProtoMetricExporter())
+  );
 }
 
 function createLogExporter(config: OrgTelemetryConfig): LogRecordExporter {
-  return config.protocol === "grpc" ? new GrpcLogExporter() : new ProtoLogExporter();
+  return (
+    managedLogExporter(config.exportTimeoutMs) ??
+    (config.protocol === "grpc" ? new GrpcLogExporter() : new ProtoLogExporter())
+  );
 }
 
 async function waitBounded(operation: Promise<unknown>, timeoutMs: number): Promise<void> {

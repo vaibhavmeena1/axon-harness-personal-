@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from app.authentication import require_authenticated_user
 from app.clients.openrouter import OpenRouterError
 from app.services.model_recommendation import (
     ModelRecommendationError,
@@ -17,7 +18,11 @@ from app.services.model_recommendation.catalog import is_model_recommendation_en
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/model-recommendations", tags=["model-recommendations"])
+router = APIRouter(
+    prefix="/api/v1/model-recommendations",
+    tags=["model-recommendations"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 
 @router.post(
@@ -31,6 +36,7 @@ async def recommend_model(
         ModelRecommendationService,
         Depends(get_model_recommendation_service),
     ],
+    response: Response,
 ) -> ModelRecommendationResponse | Response:
     """Recommend models available to the caller for a new coding task."""
     # The prompt may contain user content, so log only metadata Pi supplied for routing.
@@ -44,7 +50,7 @@ async def recommend_model(
             "Model recommendation skipped for current model %s",
             request.current_model,
         )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return Response(status_code=status.HTTP_204_NO_CONTENT, headers=dict(response.headers))
 
     try:
         return await service.recommend(request)

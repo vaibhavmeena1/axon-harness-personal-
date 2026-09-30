@@ -11,6 +11,8 @@ from urllib.parse import quote, urlsplit
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
+
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
 
@@ -101,6 +103,16 @@ class OpenRouterSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class AuthServiceSettings:
+    """Private auth-service origin and operator-controlled browser login page."""
+
+    base_url: str
+    browser_login_url: str
+    connect_timeout_seconds: int
+    request_timeout_seconds: int
+
+
+@dataclass(frozen=True, slots=True)
 class CliInstallSettings:
     """Public CLI release distribution settings; never include secrets here."""
 
@@ -145,6 +157,9 @@ class Settings:
     database: DatabaseSettings
     litellm: LiteLLMSettings
     openrouter: OpenRouterSettings
+    auth_service: AuthServiceSettings | None
+    cli_telemetry: CliTelemetryConfig | None
+    otel_proxy: OtelProxySettings | None
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -389,6 +404,39 @@ def get_settings() -> Settings:
     litellm_config = _mapping(raw_config, "LITELLM", "config")
     openrouter_config = _mapping(raw_config, "OPENROUTER", "config")
     cli_install_config = _mapping(raw_config, "CLI_INSTALL", "config")
+    auth_service_config = raw_config.get("AUTH_SERVICE")
+    if auth_service_config is not None and not isinstance(auth_service_config, dict):
+        raise ConfigurationError("config.AUTH_SERVICE must be an object")
+    auth_service = None
+    if auth_service_config is not None:
+        browser_login_url = _string(auth_service_config, "BROWSER_LOGIN_URL", "config.AUTH_SERVICE")
+        parsed_browser_url = urlsplit(browser_login_url)
+        if (
+            parsed_browser_url.scheme not in {"http", "https"}
+            or not parsed_browser_url.hostname
+            or parsed_browser_url.username is not None
+            or parsed_browser_url.password is not None
+            or parsed_browser_url.fragment
+            or parsed_browser_url.query
+            or not parsed_browser_url.path.endswith("/external-auth")
+            or (
+                parsed_browser_url.scheme == "http"
+                and parsed_browser_url.hostname not in {"localhost", "127.0.0.1", "::1"}
+            )
+        ):
+            raise ConfigurationError(
+                "config.AUTH_SERVICE.BROWSER_LOGIN_URL must end in /external-auth and use HTTPS (or loopback HTTP) without credentials, query, or fragment"
+            )
+        auth_service = AuthServiceSettings(
+            base_url=_http_base_url(auth_service_config, "BASE_URL", "config.AUTH_SERVICE"),
+            browser_login_url=browser_login_url,
+            connect_timeout_seconds=_integer(
+                auth_service_config, "CONNECT_TIMEOUT_SECONDS", "config.AUTH_SERVICE", default=5
+            ),
+            request_timeout_seconds=_integer(
+                auth_service_config, "REQUEST_TIMEOUT_SECONDS", "config.AUTH_SERVICE", default=10
+            ),
+        )
     pool_min_size = _integer(
         database_config,
         "DB_POOL_MIN_SIZE",
@@ -515,6 +563,15 @@ def get_settings() -> Settings:
         pool_max_size=pool_max_size,
     )
 
+    try:
+        cli_telemetry = parse_cli_telemetry(raw_config)
+        otel_proxy = parse_otel_proxy(raw_config)
+        if otel_proxy is not None and auth_service is None:
+            raise ValueError("OTEL proxy requires auth service")
+    except (ValueError, TypeError):
+        # Suppress chained validation inputs, including credentials in invalid URLs.
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
+
     return Settings(
         name=_string(raw_config, "NAME", "config"),
         host=_string(raw_config, "HOST", "config"),
@@ -530,4 +587,7 @@ def get_settings() -> Settings:
         database=database,
         litellm=litellm,
         openrouter=openrouter,
+        auth_service=auth_service,
+        cli_telemetry=cli_telemetry,
+        otel_proxy=otel_proxy,
     )

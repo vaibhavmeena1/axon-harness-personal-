@@ -18,7 +18,17 @@ bun run telemetry:build
 bun run telemetry:check
 ```
 
-## Environment
+## Client config (preferred for interactive DeputyDev sessions)
+
+The CLI fetches authenticated `/api/v1/cli/config` before launching interactive online Pi. Configure `CLI_CLIENT_CONFIG.TELEMETRY`, private `PROXY.UPSTREAM_URL`/`HEADERS`, and the collector origin in `ALLOWED_TELEMETRY_ORIGINS`; see [backend setup](../../../../../../backend/README.md#cli-client-configuration). Managed config advertises only `/api/v1/otel`, resolved against the CLI’s compiled service origin, and `http/protobuf`. The extension makes no config request itself.
+
+Managed sampling/interval policy takes priority over environment values, except the explicit local `PI_ORG_OTEL_ENABLED=false/0/no` kill switch. Offline Pi disables export. Scripted/CI/print/RPC/JSON/admin launches do not fetch config; unavailable or absent policy uses environment fallback. An explicit disabled policy prevents export instead of falling back. Conflicting per-signal endpoints/protocols and inherited collector headers/TLS identity overrides are cleared for managed export.
+
+Managed exporters always POST protobuf to the pinned backend’s `/api/v1/otel/v1/{traces,metrics,logs}`. They read the shared DeputyDev session safely for each batch, refuse redirects, and persist bounded response refresh tokens using the same compare-and-swap writer as CLI config. Retryable failures get bounded retries honoring Retry-After; auth failures are not retried or made interactive. No session is placed in OTEL attributes or config JSON. Export remains best-effort and bounded.
+
+The backend verifies subscription/session auth, resolves verified email/name through auth data or `/verify-auth-token`, and replaces all canonical user identity before forwarding to the private collector. Managed extension identity is a placeholder; local Git email is not read. Collector credentials are backend-owned and never sent to the CLI. See [Data policy](data-policy.md). Environment fallback never automatically attaches a DeputyDev session and retains standard env headers and Git/installation attribution.
+
+## Environment fallback
 
 Recommended HTTP/protobuf setup:
 
@@ -42,7 +52,8 @@ ddcli pi
 
 Keep credentials in the managed environment or its secret-injection mechanism. Do not put
 credentials in Pi settings or hardcode them in the bundle. DeputyDev preserves standard `OTEL_*`
-variables for Pi but never prints their values in launch previews.
+variables as fallback but never prints their values in launch previews. Config-managed collector
+settings override the exporter settings and remove inherited exporter authentication/TLS overrides.
 
 Without a base endpoint, all three signal endpoints must be set:
 
@@ -60,7 +71,7 @@ activity.
 The collector should:
 
 - accept OTLP traces, metrics, and logs;
-- retain `user.id`, `user.email`, `pi.identity.source`, and `pi.version` resource attributes;
+- retain `user.id`, `user.email`, optional `user.name`, `deputydev.user_team_id`, `pi.identity.source`, and `pi.version` resource attributes;
 - retain `pi.repo.slug` where per-repository dashboards are wanted;
 - apply access controls appropriate for raw employee email and private repository names;
 - transform resource attributes into metric labels only if the metrics backend requires it;

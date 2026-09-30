@@ -1,11 +1,15 @@
 import { Command, CommanderError } from "commander";
 
 import { BUILD_INFO } from "../build-info.ts";
+import { currentPiInvocationEnvironment } from "../harnesses/pi/setup/packages/invocation.ts";
+import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveDeputyDevPaths } from "../product/paths.ts";
 import { checkForUpdate, installUpdate } from "../updater/update.ts";
+import { ensureDeputyDevSession } from "./auth/preflight.ts";
+import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
@@ -41,6 +45,21 @@ function createLauncherProgram(): Command {
     .description("show managed DeputyDev paths")
     .action(() => {
       printPaths(resolveDeputyDevPaths());
+    });
+
+  const auth = program.command("auth").description("manage the local DeputyDev session");
+  auth
+    .command("login")
+    .description("sign in to DeputyDev from your browser")
+    .option("--browser", "open the browser without a selection prompt")
+    .action(async (options: AuthLoginOptions) => {
+      await runAuthLogin(resolveDeputyDevPaths(), options);
+    });
+  auth
+    .command("status")
+    .description("check whether a local encrypted session is saved")
+    .action(async () => {
+      await runAuthStatus(resolveDeputyDevPaths());
     });
 
   program
@@ -101,6 +120,23 @@ function createLauncherProgram(): Command {
     .action(async (options: UninstallOptions) => {
       await runUninstall(resolveDeputyDevPaths(), options);
     });
+
+  program.hook("preAction", async (_command, actionCommand) => {
+    const name = actionCommand.name();
+    if (!["harnesses", "paths", "doctor", "setup"].includes(name)) return;
+    // Let the action report invalid harness/operation usage without prompting.
+    const harness = actionCommand.args[0];
+    if (
+      (name === "doctor" && harness !== undefined && !resolveHarnessRegistration(harness)) ||
+      (name === "setup" &&
+        (harness !== "pi" || actionCommand.opts<SetupOptions>().syncPackages !== true))
+    )
+      return;
+    const invocation = currentPiInvocationEnvironment();
+    await ensureDeputyDevSession(resolveDeputyDevPaths(), {
+      interactive: !invocation.ci && invocation.stdinIsTty && invocation.stdoutIsTty,
+    });
+  });
 
   program.addHelpText(
     "after",

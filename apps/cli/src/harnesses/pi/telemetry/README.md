@@ -15,7 +15,9 @@ metadata. DeputyDev changes include:
 - Bun tests and DeputyDev TypeScript/Biome compatibility;
 - a compile-time extension version because the materialized bundle has no adjacent package.json;
 - deterministic bundling of OpenTelemetry dependencies into one standalone ESM extension;
-- embedding and checksum-protected materialization through DeputyDev's Pi resource manifest.
+- embedding and checksum-protected materialization through DeputyDev's Pi resource manifest;
+- authenticated managed HTTP/protobuf export through DeputyDev, with live session reads/rotation
+  and backend-authoritative user identity, separate from standard environment exporters.
 
 ## Build
 
@@ -33,8 +35,13 @@ file. Loading it with `--extension` does not install packages or contact a regis
 ## Runtime
 
 The extension is loaded for every non-administrative `ddcli pi` invocation. It stays inert when a
-managed OTLP endpoint is absent. Configure `OTEL_EXPORTER_OTLP_ENDPOINT`, or all three per-signal
-endpoints, in the environment used to start `ddcli`.
+OTLP endpoint is absent. Interactive online Pi can receive sampling/interval policy from authenticated
+CLI config, with higher priority than environment settings (except explicit local disable). Managed
+export always uses HTTP/protobuf to the pinned DeputyDev backend proxy and reads the saved session
+for each batch; the backend replaces user identity with verified auth-service data. Configure
+`OTEL_EXPORTER_OTLP_ENDPOINT`, or all three per-signal endpoints, as environment fallback; standard
+headers/API keys and HTTP/protobuf or gRPC remain supported there. Offline Pi disables export.
+See [Deployment](docs/deployment.md).
 
 Read these documents before changing exported data:
 

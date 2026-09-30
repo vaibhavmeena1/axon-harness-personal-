@@ -1,10 +1,11 @@
 import { rm, stat } from "node:fs/promises";
-import { dirname, parse, resolve } from "node:path";
+import { dirname, join, parse, resolve } from "node:path";
 
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
+import { SESSION_FILE_NAME } from "../auth/session.ts";
 
 export interface UninstallOptions {
   readonly removeRuntimes?: boolean;
@@ -59,5 +60,6 @@ export async function runUninstall(
     console.log(`preserved cached runtimes: ${paths.runtime}, ${paths.piRuntime}`);
   }
 
-  console.log(`preserved Pi settings, auth, and sessions: ${paths.pi}`);
+  // The session file may also be used by the VS Code extension; uninstall never removes it.
+  console.log(`preserved shared authentication file: ${join(paths.home, SESSION_FILE_NAME)}`);
 }
