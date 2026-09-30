@@ -1,0 +1,85 @@
+apps/backend/app/authentication.py
+  89861949721137a7 4,6,8-9,11-13,15,19,22-32,34,37-52,55-56,58,66-67,70-74,76
+apps/cli/src/cli/launcher-program.ts
+  1e5b66108387a7ea 9
+apps/cli/src/cli/auth/session.ts
+  1e5b66108387a7ea 7,11,65,74
+apps/cli/src/cli/commands/uninstall.ts
+  1e5b66108387a7ea 8,63-64
+apps/backend/app/clients/auth_service.py
+  89861949721137a7 5,20-24,26-32,41-42,77-78,95
+apps/backend/app/proxies/litellm.py
+  89861949721137a7 19,379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "a4dc23fef5c0e566705afe03bee243ddcd32b5cf",
+  "prompts": {
+    "17a6b73f9402224e": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "484459",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 46,
+      "overriden_lines": 0
+    },
+    "1e5b66108387a7ea": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "485024",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 18,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "779c7688de8fafa1": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "483253",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 32,
+      "overriden_lines": 0
+    },
+    "89861949721137a7": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "485137",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 74,
+      "total_deletions": 31,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    },
+    "dee61176b5a836eb": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "484404",
+        "model": "OPENROUTER_GPT_6_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    }
+  }
+}
