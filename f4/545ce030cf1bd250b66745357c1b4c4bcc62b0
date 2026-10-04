@@ -1,0 +1,89 @@
+apps/cli/src/launcher/contracts.ts
+  31f004b9b4e83e77 21-22
+apps/cli/src/cli/auth/request-relay.ts
+  31f004b9b4e83e77 1-5,8-76,78,90,92-93,98,107,112,114,119-120,123,139,153-154,160-169,172-176,178-192,196-209,211-223,225-228
+  b942aac58afd1059 6-7,77,79-89,91,94-97,101-106,108-111,113,115-118,122,124-138,140-152,155-159,170-171,177,193-195,210,224
+apps/backend/app/clients/auth_service.py
+  31f004b9b4e83e77 3-4,47-48,50,103-117
+apps/cli/src/launcher/spawn-harness.ts
+  31f004b9b4e83e77 24,57
+apps/cli/src/harnesses/pi/resources/extensions/deputydev.ts
+  b942aac58afd1059 1,5-6,8-159,162-171
+apps/cli/src/harnesses/pi/adapter.ts
+  b942aac58afd1059 53-58
+  31f004b9b4e83e77 1,39-52,65
+apps/cli/src/launcher/launch-harness.ts
+  31f004b9b4e83e77 68
+apps/backend/app/proxies/litellm.py
+  66c62220e7b45130 19,37,39,42,44,52,56-67,200,202,237-240,242,257-260,324,347-348,358,366,409-413,429,438,442
+apps/backend/app/routers/browser_login.py
+  31f004b9b4e83e77 11,14-16,20,35-59,77
+apps/cli/src/cli/auth/ensure-session.ts
+  31f004b9b4e83e77 1-45
+apps/cli/src/cli/auth/verification.ts
+  31f004b9b4e83e77 1-37
+apps/backend/app/authentication.py
+  66c62220e7b45130 5,57-97
+  31f004b9b4e83e77 6,98-135
+apps/cli/src/cli/dispatch.ts
+  31f004b9b4e83e77 1,6,8,30-35,40-43
+apps/cli/src/cli/commands/auth.ts
+  31f004b9b4e83e77 11,87,89-95,130,143,166,184-188,190-192,194-195
+  b942aac58afd1059 21-23,52,56-59,148,150-153,157,159,161,163,165
+apps/cli/src/cli/auth/session.ts
+  31f004b9b4e83e77 4,22-30,32-33,44-51,53,80,90,92,97-111,115-116
+apps/backend/deployment/litellm/custom_auth.py
+  66c62220e7b45130 25-31,73,88-111,198-200,204-208
+apps/cli/tests/launcher.test.ts
+  31f004b9b4e83e77 6-7,20,24-37,122-125,130,171
+apps/backend/app/main.py
+  31f004b9b4e83e77 5,20
+apps/cli/src/cli/auth/session-recovery.ts
+  b942aac58afd1059 1-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "f4545ce030cf1bd250b66745357c1b4c4bcc62b0",
+  "prompts": {
+    "31f004b9b4e83e77": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "485837",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 543,
+      "total_deletions": 106,
+      "accepted_lines": 445,
+      "overriden_lines": 2
+    },
+    "66c62220e7b45130": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "485815",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 153,
+      "total_deletions": 41,
+      "accepted_lines": 126,
+      "overriden_lines": 0
+    },
+    "b942aac58afd1059": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "485918",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 426,
+      "total_deletions": 78,
+      "accepted_lines": 392,
+      "overriden_lines": 0
+    }
+  }
+}
