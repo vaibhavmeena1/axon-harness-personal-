@@ -21,6 +21,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
       },
     });
   } catch (error) {
+    specification.dispose?.();
     throw new LauncherError(
       `failed to start harness executable: ${specification.executable}`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
@@ -53,6 +54,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
+    specification.dispose?.();
   }
 
   if (spawnError !== undefined) {

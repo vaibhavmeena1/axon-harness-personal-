@@ -22,7 +22,13 @@ _IDENTITY_SYNC_LOCK = asyncio.Lock()
 def _required_environment(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        raise RuntimeError(f"{name} is required")
+        # A configuration failure must not trigger native-key fallback in auto mode.
+        raise ProxyException(
+            message="Gateway authentication is not configured",
+            type="service_unavailable_error",
+            param="api_key",
+            code=503,
+        )
     return value
 
 
@@ -52,9 +58,7 @@ def _verify_identity_context(token: str) -> dict[str, Any]:
         expected = hmac.new(_required_environment("LITELLM_IDENTITY_SECRET").encode(), payload, hashlib.sha256).digest()
         if not hmac.compare_digest(signature, expected):
             raise ValueError("Invalid identity signature")
-        claims = json.loads(
-            base64.b64decode(payload + b"=" * (-len(payload) % 4), altchars=b"-_", validate=True)
-        )
+        claims = json.loads(base64.b64decode(payload + b"=" * (-len(payload) % 4), altchars=b"-_", validate=True))
         now = int(time.time())
         if (
             not isinstance(claims, dict)
@@ -66,7 +70,7 @@ def _verify_identity_context(token: str) -> dict[str, Any]:
             or isinstance(claims["exp"], bool)
             or claims["iat"] > now + 5
             or claims["exp"] < now - 5
-            or claims["exp"] - claims["iat"] > 60
+            or not 0 < claims["exp"] - claims["iat"] <= 60
             or not isinstance(claims.get("user_id"), str)
             or not claims["user_id"]
             or not isinstance(claims.get("team_id"), str)
@@ -79,6 +83,30 @@ def _verify_identity_context(token: str) -> dict[str, Any]:
         return claims
     except (ValueError, UnicodeError, TypeError, KeyError, binascii.Error) as error:
         raise _unauthorized("Invalid identity context") from error
+
+
+def _verify_session_request(request: Request, claims: dict[str, Any]) -> None:
+    """Verify that auth approved this opaque session for this specific request target."""
+    session_headers = request.headers.getlist("x-encrypted-session-data")
+    request_ids = request.headers.getlist("x-request-id")
+    if len(session_headers) != 1 or not session_headers[0] or len(request_ids) != 1 or not request_ids[0]:
+        raise _unauthorized("Missing or ambiguous session context")
+
+    try:
+        session_digest = hashlib.sha256(session_headers[0].encode("ascii")).hexdigest()
+        query_string = request.scope.get("query_string", b"").decode("ascii")
+        expected_digest = claims.get("session_sha256")
+        if (
+            not isinstance(expected_digest, str)
+            or not hmac.compare_digest(session_digest, expected_digest)
+            or request_ids[0] != claims.get("request_id")
+            or request.method != claims.get("request_method")
+            or request.url.path != claims.get("request_path")
+            or query_string != claims.get("request_query")
+        ):
+            raise _unauthorized("Session request mismatch")
+    except (UnicodeError, TypeError) as error:
+        raise _unauthorized("Invalid session context") from error
 
 
 async def _insert_record_if_missing(
@@ -167,16 +195,17 @@ async def user_api_key_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
 
     service_token = _required_environment("LITELLM_SERVICE_TOKEN")
     if not secrets.compare_digest(api_key, service_token):
+        if "x-auth-context" in request.headers or "x-encrypted-session-data" in request.headers:
+            # Gateway assertions must never fall back to native key validation.
+            raise _unauthorized("Invalid gateway credential")
         # Allow LiteLLM's native verifier to handle its Admin UI and virtual keys.
         raise Exception("Credential is not managed by meta-harness")
 
-    identity_token = request.headers.get("x-auth-context", "")
-    if not identity_token:
-        raise _unauthorized("Missing identity context")
-    claims = _verify_identity_context(identity_token)
-    request_id = request.headers.get("x-request-id")
-    if request_id and request_id != claims.get("request_id"):
-        raise _unauthorized("Request identity mismatch")
+    identity_tokens = request.headers.getlist("x-auth-context")
+    if len(identity_tokens) != 1 or not identity_tokens[0]:
+        raise _unauthorized("Missing or ambiguous identity context")
+    claims = _verify_identity_context(identity_tokens[0])
+    _verify_session_request(request, claims)
 
     user_id = claims["user_id"]
     team_id = claims["team_id"]

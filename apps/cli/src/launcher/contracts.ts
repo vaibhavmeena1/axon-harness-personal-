@@ -18,6 +18,8 @@ export interface LaunchSpec {
   readonly arguments: readonly string[];
   readonly environment: NodeJS.ProcessEnv;
   readonly cwd: string;
+  /** Release per-session resources before propagating the child's exit status. */
+  readonly dispose?: () => void;
 }
 
 export interface DoctorFinding {

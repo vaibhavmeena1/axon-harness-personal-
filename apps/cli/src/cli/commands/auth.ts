@@ -8,6 +8,7 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 import { loadEncryptedSession, saveEncryptedSession } from "../auth/session.ts";
+import { verifyEncryptedSession } from "../auth/verification.ts";
 
 const LOGIN_PATH = "/api/v1/auth/browser-login";
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -17,6 +18,9 @@ const REQUEST_TIMEOUT_MS = 10_000;
 
 export interface AuthLoginOptions {
   readonly browser?: boolean;
+  /** Pi owns the terminal during in-chat login; report progress through its UI instead. */
+  readonly quiet?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 interface LoginStart {
@@ -45,11 +49,14 @@ function parseBrowserUrl(value: string, sessionId: string): string {
   return url.toString();
 }
 
-async function startBrowserLogin(endpoint: string): Promise<LoginStart> {
+async function startBrowserLogin(endpoint: string, signal?: AbortSignal): Promise<LoginStart> {
   const response = await fetch(endpoint, {
     method: "POST",
     redirect: "error",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.any([
+      ...(signal === undefined ? [] : [signal]),
+      AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    ]),
   });
   if (!response.ok) throw new Error(`Login request returned HTTP ${response.status}`);
 
@@ -77,8 +84,15 @@ async function pollEncryptedSession(
   while (!signal.aborted) {
     const response = await fetch(`${endpoint}/${encodeURIComponent(sessionId)}`, {
       redirect: "error",
+      cache: "no-store",
       signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
-    });
+    }).catch(() => undefined);
+    // Retry temporary outages until the overall login deadline, not just the first failure.
+    if (!response || response.status === 429 || response.status >= 500) {
+      await response?.body?.cancel();
+      await sleep(POLL_INTERVAL_MS, undefined, { signal });
+      continue;
+    }
     if (!response.ok) throw new Error(`Session request returned HTTP ${response.status}`);
 
     const payload: unknown = await response.json();
@@ -113,7 +127,7 @@ async function openBrowser(url: string): Promise<void> {
 export async function runAuthLogin(
   paths: DeputyDevPaths,
   options: AuthLoginOptions,
-): Promise<void> {
+): Promise<boolean> {
   if (!options.browser) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new LauncherError(
@@ -126,23 +140,30 @@ export async function runAuthLogin(
       message: "Sign in to DeputyDev",
       options: [{ value: "browser", label: "Login from browser" }],
     });
-    if (isCancel(choice)) return;
+    if (isCancel(choice)) return false;
   }
 
   const endpoint = loginEndpoint();
   try {
-    const login = await startBrowserLogin(endpoint);
+    const login = await startBrowserLogin(endpoint, options.signal);
     const controller = new AbortController();
+    const signal = AbortSignal.any([
+      controller.signal,
+      ...(options.signal === undefined ? [] : [options.signal]),
+    ]);
     const timeout = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
     try {
       // Start the CLI-side polling before asking the OS to open the browser.
-      const polling = pollEncryptedSession(endpoint, login.session_id, controller.signal);
+      const polling = pollEncryptedSession(endpoint, login.session_id, signal);
       void polling.catch(() => {});
+      signal.throwIfAborted();
       await openBrowser(login.browser_url);
-      console.log("Complete login in your browser; waiting for approval...");
+      if (!options.quiet) console.log("Complete login in your browser; waiting for approval...");
       const encryptedSession = await polling;
+      signal.throwIfAborted();
       await saveEncryptedSession(paths, encryptedSession);
-      console.log("DeputyDev encrypted session saved locally.");
+      if (!options.quiet) console.log("DeputyDev encrypted session saved locally.");
+      return true;
     } finally {
       clearTimeout(timeout);
       controller.abort();
@@ -160,12 +181,18 @@ export async function runAuthLogin(
 export async function runAuthStatus(paths: DeputyDevPaths): Promise<void> {
   try {
     const encryptedSession = await loadEncryptedSession(paths);
+    if (encryptedSession === undefined) {
+      console.log("No saved DeputyDev browser session. Run ddcli auth login to sign in.");
+      return;
+    }
+    const status = await verifyEncryptedSession(encryptedSession);
     console.log(
-      encryptedSession
-        ? "DeputyDev encrypted session saved locally (not verified)."
-        : "No saved DeputyDev browser session.",
+      status === "VERIFIED"
+        ? "DeputyDev session is valid."
+        : `DeputyDev session is ${status === "EXPIRED" ? "expired" : "invalid"}. Run ddcli auth login to sign in.`,
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof LauncherError) throw error;
     throw new LauncherError(
       "Saved DeputyDev session could not be read safely",
       LAUNCHER_EXIT_STATUS.profileFailure,

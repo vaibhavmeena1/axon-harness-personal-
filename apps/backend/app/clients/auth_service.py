@@ -1,5 +1,7 @@
 """Private, pooled HTTP client for deputydev-auth session and identity lookups."""
 
+from typing import Literal
+
 import httpx
 from fastapi import Request
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -40,6 +42,10 @@ class AuthenticatedUser(AuthData):
 class AuthDataResponse(BaseModel):
     auth_data: AuthData
     response_headers: dict[str, str]
+
+
+class AuthSessionVerification(BaseModel):
+    status: Literal["VERIFIED", "NOT_VERIFIED", "EXPIRED"]
 
 
 class AuthServiceClient:
@@ -93,6 +99,22 @@ class AuthServiceClient:
             raise AuthServiceError("Auth service identity lookup failed") from exc
 
         return auth_data
+
+    async def verify_auth_token(self, authorization: str) -> AuthSessionVerification:
+        """Check startup credentials without refreshing an expired session."""
+        try:
+            response = await self._client.post(
+                "verify-auth-token",
+                headers={"Authorization": authorization},
+                params={"refresh_expired": "false"},
+            )
+            response.raise_for_status()
+            return AuthSessionVerification.model_validate(response.json())
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
+            raise AuthServiceError("Session verification failed", status_code=status_code) from exc
+        except (httpx.HTTPError, ValueError, ValidationError) as exc:
+            raise AuthServiceError("Auth service session verification failed") from exc
 
     async def close(self) -> None:
         await self._client.aclose()

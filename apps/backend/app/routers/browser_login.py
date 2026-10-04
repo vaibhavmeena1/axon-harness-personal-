@@ -8,11 +8,16 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel
 
-from app.clients.auth_service import AuthServiceClient, AuthServiceError, get_auth_service_client
+from app.clients.auth_service import (
+    AuthServiceClient,
+    AuthServiceError,
+    AuthSessionVerification,
+    get_auth_service_client,
+)
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/auth/browser-login", tags=["auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 class BrowserLoginStart(BaseModel):
@@ -27,7 +32,31 @@ class BrowserLoginSession(BaseModel):
     user_name: str | None = None
 
 
-@router.post("", response_model=BrowserLoginStart)
+@router.post("/verify-auth-token", response_model=AuthSessionVerification)
+async def verify_cli_session(request: Request, response: Response) -> AuthSessionVerification:
+    """Forward CLI startup verification without exposing identity or refresh credentials."""
+    credentials = request.headers.getlist("authorization")
+    if len(credentials) != 1:
+        raise HTTPException(401, "Authentication required", headers={"Cache-Control": "no-store"})
+    scheme, separator, encrypted_session = credentials[0].partition(" ")
+    if (
+        scheme.lower() != "bearer"
+        or not separator
+        or not encrypted_session
+        or any(not 33 <= ord(character) <= 126 for character in encrypted_session)
+    ):
+        raise HTTPException(401, "Authentication required", headers={"Cache-Control": "no-store"})
+    try:
+        result = await get_auth_service_client(request).verify_auth_token(credentials[0])
+    except (AuthServiceError, RuntimeError) as exc:
+        status_code = exc.status_code if isinstance(exc, AuthServiceError) else 503
+        detail = "Authentication required" if status_code in {401, 403} else "Auth service is unavailable"
+        raise HTTPException(status_code, detail, headers={"Cache-Control": "no-store"}) from exc
+    response.headers["Cache-Control"] = "no-store"
+    return result
+
+
+@router.post("/browser-login", response_model=BrowserLoginStart)
 async def start_browser_login(response: Response) -> BrowserLoginStart:
     """Create an unpredictable pairing ID and a browser URL owned by backend config."""
     settings = get_settings().auth_service
@@ -45,7 +74,7 @@ async def start_browser_login(response: Response) -> BrowserLoginStart:
     )
 
 
-@router.get("/{session_id}", response_model=BrowserLoginSession)
+@router.get("/browser-login/{session_id}", response_model=BrowserLoginSession)
 async def get_browser_login_session(
     session_id: Annotated[
         str,

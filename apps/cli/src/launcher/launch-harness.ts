@@ -65,6 +65,7 @@ export async function launchRegisteredHarness(
   }
 
   if (specification.executable !== executable) {
+    specification.dispose?.();
     throw new LauncherError(
       `${registration.id} adapter attempted to replace the allowlisted executable`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,

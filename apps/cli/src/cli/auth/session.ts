@@ -1,6 +1,7 @@
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { withFileLock } from "../../launcher/file-lock.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const AUTH_TOKEN_KEY = "extension_auth_token";
@@ -18,7 +19,19 @@ async function assertRegularDirectory(directory: string): Promise<void> {
   }
 }
 
-async function readSessionFile(destination: string): Promise<Record<string, unknown> | undefined> {
+export function isEncryptedSession(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length < MAX_SESSION_FILE_BYTES &&
+    /^[!-~]+$/.test(value)
+  );
+}
+
+async function readSessionFile(
+  destination: string,
+  recoverInvalidJson = false,
+): Promise<Record<string, unknown> | undefined> {
   try {
     const fileStatus = await lstat(destination);
     if (
@@ -28,8 +41,16 @@ async function readSessionFile(destination: string): Promise<Record<string, unkn
     ) {
       throw new Error("Saved session is not a regular file");
     }
-    const payload: unknown = JSON.parse(await readFile(destination, "utf8"));
+    const serialized = await readFile(destination, "utf8");
+    let payload: unknown;
+    try {
+      payload = JSON.parse(serialized);
+    } catch (error) {
+      if (recoverInvalidJson && error instanceof SyntaxError) return {};
+      throw error;
+    }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      if (recoverInvalidJson) return {};
       throw new Error("Saved session file is not a JSON object");
     }
     return payload as Record<string, unknown>;
@@ -56,7 +77,7 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
   const payload = await readSessionFile(destination);
   const encryptedSession = payload?.[AUTH_TOKEN_KEY];
   if (encryptedSession === undefined) return undefined;
-  if (typeof encryptedSession !== "string" || !encryptedSession) {
+  if (!isEncryptedSession(encryptedSession)) {
     throw new Error("Saved session token is invalid");
   }
   return encryptedSession;
@@ -66,20 +87,31 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
 export async function saveEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
+  expectedSession?: string,
 ): Promise<void> {
+  if (!isEncryptedSession(encryptedSession)) throw new Error("Invalid encrypted session");
   const destination = sessionPath(paths);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await assertRegularDirectory(paths.home);
 
-  // The session file can be shared with the VS Code binary: retain unrelated keys.
-  // Replace permissive existing permissions with 0600 when saving a new token.
-  const existingData = await readSessionFile(destination);
-  const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
-  const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(data)}\n`, { flag: "wx", mode: 0o600 });
-    await rename(temporary, destination);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await withFileLock(join(paths.locks, "session.lock"), async () => {
+    // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
+    const existingData = await readSessionFile(destination, expectedSession === undefined);
+    // A late response must not overwrite a newer login or another process's refresh.
+    if (expectedSession !== undefined && existingData?.[AUTH_TOKEN_KEY] !== expectedSession) {
+      return;
+    }
+    const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
+    const serialized = `${JSON.stringify(data)}\n`;
+    if (Buffer.byteLength(serialized) > MAX_SESSION_FILE_BYTES) {
+      throw new Error("Saved session is too large");
+    }
+    const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
+      await rename(temporary, destination);
+    } finally {
+      await rm(temporary, { force: true });
+    }
+  });
 }

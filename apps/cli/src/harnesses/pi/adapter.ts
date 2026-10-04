@@ -1,5 +1,4 @@
-import { BUILD_INFO } from "../../build-info.ts";
-import { loadEncryptedSession } from "../../cli/auth/session.ts";
+import { startAuthenticatedRequestRelay } from "../../cli/auth/request-relay.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
@@ -37,30 +36,33 @@ export function createPiAdapter(): HarnessAdapter {
       // Ordinary sessions reference the immutable, verified runtime directory
       // that setup materialized. Administration is forwarded untouched.
       const resourceArguments = setup.materialization?.arguments ?? [];
-      let litellmOverrides = {};
-      if (setup.invocationKind !== "administrative") {
-        let encryptedSession: string | undefined;
-        try {
-          encryptedSession = await loadEncryptedSession(context.paths);
-        } catch {
-          throw new LauncherError(
-            "Saved DeputyDev session could not be read safely",
-            LAUNCHER_EXIT_STATUS.profileFailure,
-            { remediation: `Run ${PRODUCT_IDENTITY.command} auth login --browser.` },
-          );
-        }
-        // Never pass an ambient LiteLLM credential or endpoint to managed Pi.
-        litellmOverrides = {
-          LITELLM_API_KEY: encryptedSession,
-          LITELLM_BASE_URL: new URL("/litellm", BUILD_INFO.serviceOrigin).toString(),
-          PI_MODEL_RECOMMENDER_API_KEY: encryptedSession,
-        };
-      }
+      const relay =
+        setup.invocationKind === "administrative"
+          ? undefined
+          : startAuthenticatedRequestRelay(context.paths);
+      // Pi holds only a per-launch loopback capability. ddcli loads the real
+      // session immediately before every managed request, including discovery.
+      const litellmOverrides =
+        relay === undefined
+          ? {}
+          : {
+              LITELLM_API_KEY: relay.capability,
+              LITELLM_BASE_URL: `${relay.origin}/litellm`,
+              PI_MODEL_RECOMMENDER_API_KEY: relay.capability,
+              PI_MODEL_RECOMMENDER_URL: `${relay.origin}/api/v1/model-recommendations`,
+              // PI_* survives the final harness environment sanitization; DEPUTYDEV_*
+              // is reserved for launcher-only configuration and would be stripped.
+              PI_DEPUTYDEV_AUTH_RELAY_URL:
+                setup.invocationKind === "interactive" ? relay.origin : undefined,
+              PI_DEPUTYDEV_AUTH_RELAY_KEY:
+                setup.invocationKind === "interactive" ? relay.capability : undefined,
+            };
       return Object.freeze({
         executable: context.executable,
         arguments: [...resourceArguments, ...userArguments],
         environment: createPiEnvironment(context.environment, context.paths, litellmOverrides),
         cwd: context.cwd,
+        ...(relay === undefined ? {} : { dispose: relay.dispose }),
       });
     },
     doctor: async (context) => [

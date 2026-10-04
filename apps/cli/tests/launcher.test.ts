@@ -3,11 +3,12 @@ import { chmod, mkdir, mkdtemp, readlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+import { saveEncryptedSession } from "../src/cli/auth/session.ts";
+import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
 import {
   normalizeManifestPackages,
   resolveInstalledPackagePath,
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
-import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 import { DEPUTYDEV_MANIFEST } from "../src/product/manifest.ts";
@@ -16,9 +17,24 @@ import { resolveDeputyDevPaths } from "../src/product/paths.ts";
 const projectRoot = resolve(import.meta.dir, "..");
 let fixtureDirectory: string;
 let fakeHarnessPath: string;
+let authService: ReturnType<typeof Bun.serve>;
 const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
 
 beforeAll(async () => {
+  authService = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      if (
+        new URL(request.url).pathname === "/api/v1/auth/verify-auth-token" &&
+        request.method === "POST" &&
+        request.headers.get("authorization") === "Bearer launcher-fixture-session"
+      ) {
+        return Response.json({ status: "VERIFIED" });
+      }
+      return new Response(null, { status: 404 });
+    },
+  });
   fixtureDirectory = await mkdtemp(join(tmpdir(), "deputydev launcher "));
   fakeHarnessPath = join(fixtureDirectory, "fake harness");
   await Bun.write(
@@ -103,10 +119,15 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     );
     await Bun.write(join(binaryDirectory, "pi"), Bun.file(fakeHarnessPath));
     await chmod(join(binaryDirectory, "pi"), 0o755);
+    await saveEncryptedSession(
+      resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }),
+      "launcher-fixture-session",
+    );
   }
 });
 
 afterAll(async () => {
+  await authService.stop(true);
   await rm(fixtureDirectory, { force: true, recursive: true });
 });
 
@@ -147,7 +168,7 @@ function runLauncher(
     env: {
       ...process.env,
       HOME: fixtureDirectory,
-      DEPUTYDEV_SERVICE_ORIGIN: "http://127.0.0.1:1",
+      DEPUTYDEV_SERVICE_ORIGIN: authService.url.origin,
       ...environment,
     },
     stdin: "ignore",

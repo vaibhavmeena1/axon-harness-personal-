@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from app.authentication import SessionRefreshResponseMiddleware
 from app.core.config import get_settings
 from app.listeners import lifespan
 from app.proxies import mount_litellm_proxy
@@ -16,6 +17,7 @@ app = FastAPI(
     description="Centralized management API for DeputyDev CLI installations",
     version="0.1.0",
 )
+app.add_middleware(SessionRefreshResponseMiddleware)
 for router in ROUTERS:
     app.include_router(router)
 mount_litellm_proxy(app)
