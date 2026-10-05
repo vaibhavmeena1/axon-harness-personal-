@@ -1,0 +1,55 @@
+apps/cli/src/cli/auth/ensure-session.ts
+  1174ba4d0197f290 9-10,20-21,34-35
+apps/cli/tests/pi-client-config.test.ts
+  1174ba4d0197f290 95,125,136-146
+apps/backend/app/proxies/otel.py
+  1174ba4d0197f290 58-59
+apps/cli/src/cli/launcher-program.ts
+  1174ba4d0197f290 60
+apps/cli/src/cli/dispatch.ts
+  1174ba4d0197f290 1,31-33,35-39
+apps/backend/config_template.json
+  1174ba4d0197f290 53-57,103
+apps/cli/src/cli/auth/request-relay.ts
+  1174ba4d0197f290 140,142-147,161
+apps/backend/app/core/config.py
+  1174ba4d0197f290 5,86-90,108,185-200,477-487,529
+apps/backend/app/clients/litellm.py
+  1174ba4d0197f290 1-285
+apps/backend/app/clients/openrouter/client.py
+  1174ba4d0197f290 20-21,56
+apps/cli/src/harnesses/pi/adapter.ts
+  1174ba4d0197f290 2-4,46-49,101-103,105-113
+apps/backend/app/proxies/litellm.py
+  1174ba4d0197f290 16,44,62,87-88,197-201,260,262,264-266,268,271-272,275,282-289,291,325-330,339-340,343,347-348
+apps/backend/app/listeners/litellm.py
+  1174ba4d0197f290 8,33-37,49
+apps/cli/src/cli/auth/session.ts
+  1174ba4d0197f290 87,91,97,102,116,119-134
+apps/backend/deployment/litellm/config.yaml
+  1174ba4d0197f290 1
+apps/backend/app/clients/auth_service.py
+  1174ba4d0197f290 32,34-35,104-125
+apps/cli/tests/auth-preflight.test.ts
+  1174ba4d0197f290 36,48,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "0af4ecc45ce23892f010dc0b198f08f35953495d",
+  "prompts": {
+    "1174ba4d0197f290": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "487033",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 608,
+      "total_deletions": 178,
+      "accepted_lines": 532,
+      "overriden_lines": 0
+    }
+  }
+}
