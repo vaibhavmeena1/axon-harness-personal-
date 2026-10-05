@@ -2,12 +2,12 @@
 
 ## Implementation status
 
-**Current state: implementation complete; the embedded community package list contains the selected required packages.**
+**Current state: implementation complete; Pi 1.0 native MCP replaces the retired `pi-mcp-adapter` package.**
 
 Implemented:
 
 - Embedded, schema-validated manifest with typed `pi.install` actions and exact, minimum, and floating policies.
-- Required floating entries for `pi-mcp-adapter` and `@juicesharp/rpiv-ask-user-question`, plus an exact `2.3.0` entry for `pi-provider-litellm`.
+- Required floating entry for `@juicesharp/rpiv-ask-user-question` and an exact `3.0.1` entry for `pi-provider-litellm`. The legacy `pi-mcp-adapter` is retired and removed by package reconciliation when verified as DeputyDev-managed.
 - Content-addressed DeputyDev Pi resource materialization with checksum verification, atomic `runtime/current` activation, and a separately typechecked core extension.
 - Local settings/package inspection, enforced required entries, package provenance state, same-user locks, direct Pi install/remove subprocesses, exact-version fallback, minimum floors, and Pi/user-owned floating updates.
 - Automatic interactive provisioning, local-only non-interactive validation, forwarded Pi administration exemptions, explicit `ddcli setup pi --sync-packages`, and package-aware doctor output.

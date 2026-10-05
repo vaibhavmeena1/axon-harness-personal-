@@ -4,6 +4,8 @@ import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
+  // PI_* markers survive the launcher's final DeputyDev-control-variable filter.
+  PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
   PI_MODEL_RECOMMENDER_URL: new URL(
     "/api/v1/model-recommendations",
     BUILD_INFO.serviceOrigin,
@@ -62,6 +64,7 @@ function createPiDirectoryOverrides(paths: DeputyDevPaths): EnvironmentOverrides
   return Object.freeze({
     PI_CODING_AGENT_DIR: paths.pi,
     PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
+    PI_DEPUTYDEV_BACKUP_HOME: paths.home,
   });
 }
 

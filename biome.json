@@ -32,7 +32,10 @@
   },
   "overrides": [
     {
-      "includes": ["apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs"],
+      "includes": [
+        "apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs",
+        "apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs"
+      ],
       "formatter": {
         "enabled": false
       },

@@ -10,6 +10,7 @@ from app.routers.health import ping_router
 from app.routers.health import router as health_router
 from app.routers.install import router as install_router
 from app.routers.model_recommendations import router as model_recommendations_router
+from app.routers.sessions import router as sessions_router
 
 ROUTERS: list[APIRouter] = [
     health_router,
@@ -20,4 +21,5 @@ ROUTERS: list[APIRouter] = [
     ping_router,
     install_router,
     cli_releases_router,
+    sessions_router,
 ]
