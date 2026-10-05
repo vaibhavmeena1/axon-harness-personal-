@@ -47,11 +47,9 @@ if (argumentsVector[0] === "--version") {
   process.exit(0);
 }
 const [action, source] = argumentsVector;
-const managedInstallTargets = new Set([
-  "npm:pi-mcp-adapter@2.34.0",
-  "npm:@juicesharp/rpiv-ask-user-question",
-  "npm:pi-provider-litellm@3.0.1",
-]);
+const managedInstallTargets = new Set(${JSON.stringify(
+      normalizeManifestPackages(DEPUTYDEV_MANIFEST).map((entry) => entry.configuredSource),
+    )});
 if (action === "install" && source !== undefined && managedInstallTargets.has(source)) {
   const packageSource = source.slice("npm:".length);
   const versionSeparator = packageSource.lastIndexOf("@");
@@ -77,6 +75,8 @@ console.log(JSON.stringify({
       "PI_CODING_AGENT_DIR",
       "PI_CODING_AGENT_SESSION_DIR",
       "PI_SKIP_VERSION_CHECK",
+      "PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN",
+      "PI_DEPUTYDEV_BACKUP_HOME",
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GEMINI_API_KEY",
@@ -268,6 +268,8 @@ describe("launcher dispatch", () => {
       PI_CODING_AGENT_DIR: "/inherited/pi",
       PI_CODING_AGENT_SESSION_DIR: "/inherited/pi/sessions",
       PI_SKIP_VERSION_CHECK: "0",
+      PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
+      PI_DEPUTYDEV_BACKUP_HOME: "/inherited/backup-home",
       ANTHROPIC_API_KEY: "anthropic-secret",
       OPENAI_API_KEY: "openai-secret",
       GEMINI_API_KEY: "gemini-secret",
@@ -293,6 +295,8 @@ describe("launcher dispatch", () => {
         PI_CODING_AGENT_DIR: join(deputyDevHome, "pi"),
         PI_CODING_AGENT_SESSION_DIR: join(deputyDevHome, "pi", "sessions"),
         PI_SKIP_VERSION_CHECK: "1",
+        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: "http://127.0.0.1:1",
+        PI_DEPUTYDEV_BACKUP_HOME: deputyDevHome,
         LITELLM_API_KEY: "litellm-token",
         LITELLM_BASE_URL: "https://litellm.example",
         OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
@@ -326,6 +330,8 @@ describe("launcher dispatch", () => {
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
       "--extension",
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
+      "--extension",
+      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");
@@ -451,11 +457,11 @@ describe("launcher dispatch", () => {
     ]);
 
     expect(exitCode).toBe(0);
-    expect(stderr).toContain("Installing npm:pi-mcp-adapter@2.34.0...");
-    expect(stderr).toContain("Installing npm:@juicesharp/rpiv-ask-user-question...");
-    expect(stderr).toContain("Installing npm:pi-provider-litellm@3.0.1...");
+    for (const entry of normalizeManifestPackages(DEPUTYDEV_MANIFEST)) {
+      expect(stderr).toContain(`Installing ${entry.configuredSource}...`);
+    }
     expect(stdout).toContain("Pi resources ready:");
-    expect(stdout).toContain("Pi required packages ready: 3");
+    expect(stdout).toContain("Pi required packages ready: 2");
   });
 
   test("passes through the Pi child exit code", async () => {

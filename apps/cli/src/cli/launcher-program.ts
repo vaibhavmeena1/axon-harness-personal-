@@ -13,6 +13,7 @@ import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/a
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
+import { runSessions } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
 
@@ -61,6 +62,46 @@ function createLauncherProgram(): Command {
     .action(async () => {
       await runAuthStatus(resolveDeputyDevPaths());
     });
+
+  const sessions = program
+    .command("sessions")
+    .description("opt-in latest session backups and explicit checkout-bound restore");
+  sessions
+    .command("list")
+    .description("list latest owned remote backups")
+    .action(() => runSessions("list"));
+  sessions
+    .command("status")
+    .description("show consent, confirmed and pending backup status")
+    .action(() => runSessions("status"));
+  sessions
+    .command("enable")
+    .description("consent to sensitive transcript backup")
+    .option("--accept-sensitive-data", "explicitly consent without an interactive prompt")
+    .action((options: { acceptSensitiveData?: boolean }) =>
+      runSessions("enable", undefined, options),
+    );
+  sessions
+    .command("disable")
+    .description("pause uploads without deleting pending snapshots")
+    .action(() => runSessions("disable"));
+  sessions
+    .command("retry")
+    .description("explicitly retry repaired/access-restored snapshots")
+    .action(() => runSessions("retry"));
+  sessions
+    .command("restore")
+    .argument("<session-id>")
+    .requiredOption("--cwd <checkout>", "existing local checkout")
+    .option("--yes", "confirm this explicit download/fork without prompting")
+    .action((id: string, options: { cwd: string; yes?: boolean }) =>
+      runSessions("restore", id, options),
+    );
+  sessions
+    .command("delete")
+    .argument("<session-id>")
+    .option("--yes", "confirm remote backup deletion")
+    .action((id: string, options: { yes?: boolean }) => runSessions("delete", id, options));
 
   program
     .command("doctor")

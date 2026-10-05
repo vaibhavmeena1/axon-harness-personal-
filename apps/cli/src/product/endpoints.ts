@@ -46,6 +46,13 @@ export const SERVICE_ENDPOINTS = Object.freeze({
     /** Organization MCP catalog consumed by Pi setup. */
     mcpConfig: defineEndpoint("/v1/cli/pi/mcp.json"),
   }),
+  sessions: Object.freeze({
+    base: defineEndpoint("/api/v1/sessions"),
+    status: defineEndpoint("/api/v1/sessions/status"),
+    upload: defineEndpoint("/api/v1/sessions/:id/backup-upload"),
+    finalize: defineEndpoint("/api/v1/sessions/:id/backup-finalize"),
+    download: defineEndpoint("/api/v1/sessions/:id/backup-download"),
+  }),
   release: Object.freeze({
     /** Public CLI release discovery, checksums, and CloudFront download redirect. */
     base: defineEndpoint("/api/v1/cli/releases"),

@@ -32,6 +32,17 @@
       }
     }
   },
+  "SESSION_BACKUPS": {
+    "ENABLED": false,
+    "REQUIRE_CREATE_ONLY_POLICY": true,
+    "AWS_BUCKET_NAME": "",
+    "AWS_REGION": "ap-south-1",
+    "KEY_PREFIX": "deputydev/sessions/",
+    "URL_SECONDS": 300,
+    "RESERVATION_SECONDS": 900,
+    "CLEANUP_GRACE_SECONDS": 3600,
+    "CREDENTIALS": {}
+  },
   "CLI_CLIENT_CONFIG": {
     "ALLOWED_TELEMETRY_ORIGINS": [],
     "TELEMETRY": null,
@@ -57,6 +68,8 @@
     "IDENTITY_SYNC_CACHE_MAX_ENTRIES": 1000,
     "UPSTREAM_URL": "http://10.1.0.62:4000",
     "UPSTREAM_ROOT_PATH": "/engram-service/litellm",
+    "SERVICE_TOKEN": "replace-with-litellm-service-token",
+    "IDENTITY_SECRET": "replace-with-a-random-shared-signing-secret",
     "CONNECT_TIMEOUT_SECONDS": 10,
     "POOL_TIMEOUT_SECONDS": 10,
     "MAX_CONNECTIONS": 100,

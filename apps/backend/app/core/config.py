@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
+from app.core.session_storage import SessionStorageSettings, parse_session_storage
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -78,6 +79,8 @@ class LiteLLMSettings:
 
     upstream_url: str
     upstream_root_path: str
+    service_token: str = field(repr=False)
+    identity_secret: str = field(repr=False)
     connect_timeout_seconds: int
     pool_timeout_seconds: int
     max_connections: int
@@ -166,6 +169,7 @@ class Settings:
     auth_service: AuthServiceSettings | None
     cli_telemetry: CliTelemetryConfig | None
     otel_proxy: OtelProxySettings | None
+    session_backups: SessionStorageSettings | None = None
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -411,6 +415,13 @@ def _url_path(source: dict[str, Any], key: str, path: str) -> str:
     return value if value == "/" else value.rstrip("/")
 
 
+def _session_backups(raw: dict) -> SessionStorageSettings | None:
+    try:
+        return parse_session_storage(raw)
+    except (ValueError, TypeError, AttributeError):
+        raise ConfigurationError("config.SESSION_BACKUPS contains invalid settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -491,6 +502,8 @@ def get_settings() -> Settings:
             "UPSTREAM_ROOT_PATH",
             "config.LITELLM",
         ),
+        service_token=_string(litellm_config, "SERVICE_TOKEN", "config.LITELLM"),
+        identity_secret=_string(litellm_config, "IDENTITY_SECRET", "config.LITELLM"),
         connect_timeout_seconds=_integer(
             litellm_config,
             "CONNECT_TIMEOUT_SECONDS",
@@ -606,6 +619,8 @@ def get_settings() -> Settings:
         # Suppress chained validation inputs, including credentials in invalid URLs.
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
+    session_backups = _session_backups(raw_config)
+
     return Settings(
         name=_string(raw_config, "NAME", "config"),
         host=_string(raw_config, "HOST", "config"),
@@ -624,4 +639,5 @@ def get_settings() -> Settings:
         auth_service=auth_service,
         cli_telemetry=cli_telemetry,
         otel_proxy=otel_proxy,
+        session_backups=session_backups,
     )
