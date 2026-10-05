@@ -29,6 +29,9 @@ Routing, in match order:
 | --- | --- |
 | `/api/v1/*` | FastAPI routers |
 | `/install.sh` | Public, unauthenticated CLI installer |
+| `/api/v1/auth/browser-login` | Existing public browser-login start POST and GET polling at `/{session_id}` |
+| `/api/v1/cli/config` | Session-authenticated, non-secret CLI telemetry settings |
+| `/api/v1/otel/v1/{traces,metrics,logs}` | Session-authenticated OTLP/HTTP proxy with authoritative identity |
 | `/api/v1/cli/releases/*` | Public release discovery, hashes, and CloudFront downloads; private upload-signing POST |
 | `/ping` | FastAPI liveness route |
 | `/docs`, `/openapi.json` | FastAPI |
@@ -38,6 +41,46 @@ Routing, in match order:
 The mount is registered in `app/main.py` *after* the API routers, including `/install.sh`. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every registered route has been tried.
 
 `/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, then fetches `/<version>/checksums.txt` and `/<version>/ddcli-darwin-arm64.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
+
+### CLI client configuration
+
+`GET /api/v1/cli/config` requires `Authorization: Bearer <DeputyDev encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry settings, never backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
+
+The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-based telemetry unchanged. To manage it centrally, configure an approved collector, for example:
+
+```json
+"CLI_CLIENT_CONFIG": {
+  "ALLOWED_TELEMETRY_ORIGINS": ["https://collector.example.com"],
+  "TELEMETRY": {
+    "ENABLED": true,
+    "ENDPOINT": "/api/v1/otel",
+    "PROTOCOL": "http/protobuf",
+    "TRACE_SAMPLE_RATIO": 0.25,
+    "METRIC_EXPORT_INTERVAL_MS": 10000
+  },
+  "PROXY": {
+    "ENABLED": true,
+    "UPSTREAM_URL": "https://collector.example.com",
+    "HEADERS": {"Authorization": "Bearer YOUR_COLLECTOR_TOKEN"},
+    "CONNECT_TIMEOUT_SECONDS": 2,
+    "REQUEST_TIMEOUT_SECONDS": 5,
+    "MAX_BODY_BYTES": 2097152,
+    "MAX_DECODED_BODY_BYTES": 4194304,
+    "MAX_CONCURRENT_REQUESTS": 20,
+    "RATE_LIMIT_PER_MINUTE": 120
+  }
+}
+```
+
+This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a DeputyDev credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
+
+Interactive online Pi fetches config best-effort with a 700 ms deadline and no disk cache. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved DeputyDev session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
+
+The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=deputydev_auth`, and `deputydev.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
+
+`PROXY.UPSTREAM_URL` is a private collector base (optional path prefix), not a signal-specific URL. Its origin must be explicitly approved in `ALLOWED_TELEMETRY_ORIGINS`. HTTP is allowed for trusted private-network collectors; public CLI-to-backend traffic requires HTTPS except local development. `PROXY.HEADERS` stays server-side. Caller authorization/cookies/query parameters are never forwarded. Redirects are refused; OTLP response bodies/statuses/Retry-After are preserved. Gzip uploads are decoded with a bounded expansion limit; collector requests are sent as uncompressed protobuf. Wire/decoded payload, response, record-count, timeout, and concurrent-request limits are enforced. The per-user-team rate limit and concurrency limit are **per backend worker**; add ingress/global controls for multiple workers and unauthenticated abuse.
+
+Environment fallback retains standard HTTP/protobuf or gRPC exporters and environment-supplied headers/API keys. It never automatically attaches a DeputyDev session, and its Git-email/installation-UUID attribution remains unchanged. Collector access and retention must cover verified employee identity and private repository names.
 
 ### CLI releases (macOS arm64 only)
 

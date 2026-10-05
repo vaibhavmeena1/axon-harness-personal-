@@ -24,6 +24,8 @@ describe("service endpoints registry", () => {
   test("pi MCP catalog and release paths stay pinned", () => {
     expect(SERVICE_ENDPOINTS.pi.mcpConfig).toBe("/v1/cli/pi/mcp.json");
     expect(SERVICE_ENDPOINTS.release.base).toBe("/api/v1/cli/releases");
+    expect(SERVICE_ENDPOINTS.auth.browserLogin).toBe("/api/v1/auth/browser-login");
+    expect(SERVICE_ENDPOINTS.cli.config).toBe("/api/v1/cli/config");
   });
 });
 

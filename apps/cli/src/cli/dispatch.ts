@@ -6,6 +6,7 @@ import { launchRegisteredHarness } from "../launcher/launch-harness.ts";
 import { resolveDeputyDevPaths } from "../product/paths.ts";
 import { runBackgroundUpdate } from "../updater/update.ts";
 import { ensureAuthenticatedSession } from "./auth/ensure-session.ts";
+import { runPiSessionPreflight } from "./auth/preflight.ts";
 import { runLauncherProgram } from "./launcher-program.ts";
 
 export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
@@ -27,6 +28,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
         },
       );
     }
+    await runPiSessionPreflight(resolveDeputyDevPaths(), harnessArguments, process.env);
     if (
       classifyPiInvocation(harnessArguments) !== "administrative" &&
       !(await ensureAuthenticatedSession(resolveDeputyDevPaths()))

@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { PI_INSTALL_VERSION, PI_PACKAGE_NAME } from "../src/harnesses/pi/installation.ts";
 import {
@@ -108,6 +107,7 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     [join(fixtureDirectory, "dev home"), DEVELOPMENT_VERSION],
   ]) {
     if (home === undefined || version === undefined) throw new Error("invalid Pi test fixture");
+    await saveEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }), "fixture-session");
     const directory = join(home, "pi-runtime", version, "node_modules");
     const packageDirectory = join(directory, PI_PACKAGE_NAME);
     const binaryDirectory = join(directory, ".bin");
@@ -404,6 +404,10 @@ describe("launcher dispatch", () => {
     expect(output).toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
 
     const absentHome = join(fixtureDirectory, "doctor missing home");
+    await saveEncryptedSession(
+      resolveDeputyDevPaths({ DEPUTYDEV_HOME: absentHome }),
+      "fixture-session",
+    );
     const absent = runLauncher(["doctor", "pi"], { DEPUTYDEV_HOME: absentHome });
     const [missingOutput, missingStatus] = await Promise.all([
       new Response(absent.stdout).text(),

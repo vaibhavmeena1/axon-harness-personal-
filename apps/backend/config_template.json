@@ -32,6 +32,21 @@
       }
     }
   },
+  "CLI_CLIENT_CONFIG": {
+    "ALLOWED_TELEMETRY_ORIGINS": [],
+    "TELEMETRY": null,
+    "PROXY": {
+      "ENABLED": false,
+      "UPSTREAM_URL": "",
+      "HEADERS": {},
+      "CONNECT_TIMEOUT_SECONDS": 2,
+      "REQUEST_TIMEOUT_SECONDS": 5,
+      "MAX_BODY_BYTES": 2097152,
+      "MAX_DECODED_BODY_BYTES": 4194304,
+      "MAX_CONCURRENT_REQUESTS": 20,
+      "RATE_LIMIT_PER_MINUTE": 120
+    }
+  },
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
   "LITELLM": {
