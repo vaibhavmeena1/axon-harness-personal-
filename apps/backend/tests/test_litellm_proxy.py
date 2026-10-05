@@ -1,9 +1,6 @@
 """LiteLLM proxy credentials come exclusively from validated JSON settings."""
 
 import asyncio
-import base64
-import hashlib
-import hmac
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -13,6 +10,7 @@ import httpx
 import pytest
 from fastapi import FastAPI, Request
 
+from app import authentication
 from app.clients.auth_service import AuthenticatedUser
 from app.core import config
 from app.proxies import litellm
@@ -24,8 +22,8 @@ def configured_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     raw["LITELLM"].update(
         UPSTREAM_URL="http://localhost:4000",
         UPSTREAM_ROOT_PATH="/",
-        SERVICE_TOKEN="configured-service-token",
-        IDENTITY_SECRET="configured-signing-secret",
+        API_KEY="configured-api-key",
+        IDENTITY_SYNC_ENABLED=False,
     )
     path = tmp_path / "config.json"
     path.write_text(json.dumps(raw))
@@ -37,29 +35,23 @@ def configured_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
 
 def test_settings_load_json_credentials(configured_settings: tuple[dict[str, Any], Path]) -> None:
     settings = config.get_settings().litellm
-    assert settings.service_token == "configured-service-token"
-    assert settings.identity_secret == "configured-signing-secret"
-    assert settings.service_token not in repr(settings)
-    assert settings.identity_secret not in repr(settings)
+    assert settings.api_key == "configured-api-key"
+    assert settings.api_key not in repr(settings)
 
 
-@pytest.mark.parametrize("key", ["SERVICE_TOKEN", "IDENTITY_SECRET"])
-@pytest.mark.parametrize("value", [None, "", "   ", 123])
-def test_invalid_credentials_fail_at_startup(
-    configured_settings: tuple[dict[str, Any], Path], key: str, value: object
-) -> None:
+@pytest.mark.parametrize("value", [None, 123, "key with spaces", "key\nvalue"])
+def test_invalid_credentials_fail_at_startup(configured_settings: tuple[dict[str, Any], Path], value: object) -> None:
     raw, path = configured_settings
-    raw["LITELLM"][key] = value
+    raw["LITELLM"]["API_KEY"] = value
     path.write_text(json.dumps(raw))
-    with pytest.raises(config.ConfigurationError, match=f"config.LITELLM.{key}"):
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.API_KEY"):
         config.get_settings()
 
 
 def test_proxy_uses_config_not_environment(
     configured_settings: tuple[dict[str, Any], Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LITELLM_SERVICE_TOKEN", "wrong-environment-token")
-    monkeypatch.setenv("LITELLM_IDENTITY_SECRET", "wrong-environment-secret")
+    monkeypatch.setenv("LITELLM_API_KEY", "wrong-environment-key")
 
     async def run() -> None:
         user = AuthenticatedUser(
@@ -72,9 +64,10 @@ def test_proxy_uses_config_not_environment(
         )
 
         async def authenticate(request: Request) -> AuthenticatedUser:
+            request.state.authenticated_user = user
             return user
 
-        monkeypatch.setattr(litellm, "authenticate_identity", authenticate)
+        monkeypatch.setattr(authentication, "authenticate_identity", authenticate)
         seen = []
 
         def upstream(request: httpx.Request) -> httpx.Response:
@@ -83,7 +76,7 @@ def test_proxy_uses_config_not_environment(
 
         app = FastAPI()
         settings = config.get_settings().litellm
-        app.mount("/litellm", litellm.LiteLLMProxy(settings))
+        app.mount("/litellm", authentication.AuthenticatedSessionMiddleware(litellm.LiteLLMProxy(settings)))
         async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
             app.state.litellm_proxy_client = upstream_client
             async with httpx.AsyncClient(
@@ -94,10 +87,8 @@ def test_proxy_uses_config_not_environment(
         assert len(seen) == 1
         request = seen[0]
         assert str(request.url) == "http://localhost:4000/v1/models"
-        assert request.headers["authorization"] == "Bearer configured-service-token"
-        payload, signature = request.headers["x-auth-context"].split(".")
-        actual = base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4))
-        expected = hmac.new(b"configured-signing-secret", payload.encode(), hashlib.sha256).digest()
-        assert hmac.compare_digest(actual, expected)
+        assert request.headers["authorization"] == "Bearer configured-api-key"
+        assert request.headers["x-litellm-end-user-id"] == "12"
+        assert "x-auth-context" not in request.headers
 
     asyncio.run(run())

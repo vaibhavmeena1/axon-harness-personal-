@@ -68,8 +68,6 @@
     "IDENTITY_SYNC_CACHE_MAX_ENTRIES": 1000,
     "UPSTREAM_URL": "http://10.1.0.62:4000",
     "UPSTREAM_ROOT_PATH": "/engram-service/litellm",
-    "SERVICE_TOKEN": "replace-with-litellm-service-token",
-    "IDENTITY_SECRET": "replace-with-a-random-shared-signing-secret",
     "CONNECT_TIMEOUT_SECONDS": 10,
     "POOL_TIMEOUT_SECONDS": 10,
     "MAX_CONNECTIONS": 100,

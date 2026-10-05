@@ -27,14 +27,14 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
 "LITELLM": {
   "UPSTREAM_URL": "http://localhost:4000",
   "UPSTREAM_ROOT_PATH": "/",
-  "SERVICE_TOKEN": "replace-with-litellm-service-token",
-  "IDENTITY_SECRET": "replace-with-a-random-shared-signing-secret"
+  "API_KEY": "replace-with-litellm-master-key",
+  "IDENTITY_SYNC_ENABLED": true
 }
 ```
 
-For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. Both credential fields are required non-empty strings and are read only from JSON, never environment variables. Restart the backend after changing them. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
+For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
-For local connectivity testing against an unmodified LiteLLM container, `SERVICE_TOKEN` can be its master key; this does not test custom user/team authorization or accounting. For the full integration, load `deployment/litellm/config.yaml` and `custom_auth.py` into LiteLLM and set its `LITELLM_SERVICE_TOKEN` and `LITELLM_IDENTITY_SECRET` environment variables to match the backend's JSON values. The separate LiteLLM container still uses environment variables; the backend proxy does not. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
+Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
 
 ## Serving the console frontend
 

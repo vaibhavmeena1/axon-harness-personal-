@@ -79,8 +79,6 @@ class LiteLLMSettings:
 
     upstream_url: str
     upstream_root_path: str
-    service_token: str = field(repr=False)
-    identity_secret: str = field(repr=False)
     connect_timeout_seconds: int
     pool_timeout_seconds: int
     max_connections: int
@@ -502,8 +500,6 @@ def get_settings() -> Settings:
             "UPSTREAM_ROOT_PATH",
             "config.LITELLM",
         ),
-        service_token=_string(litellm_config, "SERVICE_TOKEN", "config.LITELLM"),
-        identity_secret=_string(litellm_config, "IDENTITY_SECRET", "config.LITELLM"),
         connect_timeout_seconds=_integer(
             litellm_config,
             "CONNECT_TIMEOUT_SECONDS",
