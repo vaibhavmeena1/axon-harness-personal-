@@ -1,0 +1,25 @@
+apps/backend/tests/test_litellm_proxy.py
+  2e75d35a54e08d48 13,25-26,38-39,42,45,47,54,67,70,79,90-92
+apps/backend/README.md
+  2e75d35a54e08d48 30-31,35,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "d606983d419dcaa2b86b88fca8777fa53e675e0a",
+  "prompts": {
+    "2e75d35a54e08d48": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "487187",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 36,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    }
+  }
+}
