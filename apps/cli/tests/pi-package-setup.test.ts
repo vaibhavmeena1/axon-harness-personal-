@@ -148,24 +148,58 @@ describe("Pi package manifest", () => {
       })),
     ).toEqual([
       {
-        id: "pi-mcp-adapter",
-        installTarget: "npm:pi-mcp-adapter@2.34.0",
-        updateOwner: "deputydev",
-        versionPolicy: { kind: "exact", version: "2.34.0" },
-      },
-      {
         id: "rpiv-ask-user-question",
-        installTarget: "npm:@juicesharp/rpiv-ask-user-question",
-        updateOwner: "pi-or-user",
-        versionPolicy: { kind: "floating" },
+        installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.12.0",
+        updateOwner: "deputydev",
+        versionPolicy: { kind: "exact", version: "2.12.0" },
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@3.0.1",
+        installTarget: "npm:pi-provider-litellm@3.2.0",
         updateOwner: "deputydev",
-        versionPolicy: { kind: "exact", version: "3.0.1" },
+        versionPolicy: { kind: "exact", version: "3.2.0" },
       },
     ]);
+  });
+
+  test("retires the legacy MCP adapter from previously managed installs", async () => {
+    const context = createContext("retired-mcp-adapter");
+    const legacyManifest = manifest(
+      [
+        {
+          id: "pi-mcp-adapter",
+          source: "npm:pi-mcp-adapter",
+          required: true,
+          versionPolicy: { kind: "exact", version: "2.34.0" },
+          install: { action: "pi.install" },
+        },
+      ],
+      "legacy-mcp-adapter",
+    );
+    const legacyPackage = normalizeManifestPackages(legacyManifest)[0];
+    if (legacyPackage === undefined) throw new Error("legacy MCP adapter entry missing");
+    await writeNpmPackage(context, legacyManifest, "2.34.0");
+    await writeSettings(context, ["npm:pi-mcp-adapter@2.34.0"]);
+    await synchronizePiPackages({ allowInstall: false, context, manifest: legacyManifest });
+
+    const actions: string[] = [];
+    const installedPath = resolveInstalledPackagePath(legacyPackage, context.paths.pi);
+    await synchronizePiPackages({
+      allowInstall: false,
+      context,
+      manifest: manifest([], "without-mcp-adapter"),
+      runAction: async ({ action, source }) => {
+        actions.push(`${action}:${source}`);
+        await rm(installedPath, { force: true, recursive: true });
+        return { exitCode: 0 };
+      },
+    });
+
+    expect(actions).toEqual(["remove:npm:pi-mcp-adapter@2.34.0"]);
+    expect(await Bun.file(installedPath).exists()).toBe(false);
+    expect(await settingsPackages(context)).toEqual([]);
+    expect(Object.keys((await readPiPackageState(context.paths.piPackageState)).packages)).toEqual([]);
+    expect(normalizeManifestPackages(DEPUTYDEV_MANIFEST).some((entry) => entry.id === "pi-mcp-adapter")).toBe(false);
   });
 
   test("normalizes exact, minimum, and floating npm install sources", () => {
@@ -660,12 +694,13 @@ describe("package and resource locks", () => {
 
     expect(second.hash).toBe(first.hash);
     expect(await readlink(context.paths.runtimeCurrent)).toContain(first.hash.slice(0, 16));
-    expect(first.arguments).toHaveLength(6);
+    expect(first.arguments).toHaveLength(EMBEDDED_PI_RESOURCES.length * 2);
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
       "deputydev.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
+      "session-backup.mjs",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

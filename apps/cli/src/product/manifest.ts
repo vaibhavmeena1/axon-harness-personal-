@@ -7,11 +7,20 @@ import modelRecommenderExtensionAsset from "../harnesses/pi/resources/extensions
 import piOrgTelemetryExtensionAsset from "../harnesses/pi/resources/extensions/pi-org-telemetry.mjs" with {
   type: "file",
 };
+import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/session-backup.mjs" with {
+  type: "file",
+};
 
 import {
   type PiResourceManifestEntry,
   parseDeputyDevManifest,
 } from "../harnesses/pi/setup/packages/manifest.ts";
+
+const SESSION_BACKUP_RESOURCE = Object.freeze({
+  id: "session-backup",
+  type: "extension",
+  destination: "pi/extensions/session-backup.mjs",
+}) satisfies PiResourceManifestEntry;
 
 const DEPUTYDEV_CORE_RESOURCE = Object.freeze({
   id: "deputydev-core",
@@ -33,33 +42,30 @@ const MODEL_RECOMMENDER_RESOURCE = Object.freeze({
 
 export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
   schemaVersion: 1,
-  revision: "3",
+  revision: "6",
   pi: {
     packages: [
-      {
-        id: "pi-mcp-adapter",
-        source: "npm:pi-mcp-adapter",
-        required: true,
-        versionPolicy: { kind: "exact", version: "2.34.0" },
-        install: { action: "pi.install" },
-      },
       {
         id: "rpiv-ask-user-question",
         source: "npm:@juicesharp/rpiv-ask-user-question",
         required: true,
-        versionPolicy: { kind: "floating" },
+        versionPolicy: { kind: "exact", version: "2.12.0" },
         install: { action: "pi.install" },
-        updates: { owner: "pi-or-user" },
       },
       {
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "3.0.1" },
+        versionPolicy: { kind: "exact", version: "3.2.0" },
         install: { action: "pi.install" },
       },
     ],
-    resources: [DEPUTYDEV_CORE_RESOURCE, PI_ORG_TELEMETRY_RESOURCE, MODEL_RECOMMENDER_RESOURCE],
+    resources: [
+      DEPUTYDEV_CORE_RESOURCE,
+      PI_ORG_TELEMETRY_RESOURCE,
+      MODEL_RECOMMENDER_RESOURCE,
+      SESSION_BACKUP_RESOURCE,
+    ],
   },
 });
 
@@ -80,5 +86,9 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...MODEL_RECOMMENDER_RESOURCE,
     sourcePath: modelRecommenderExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...SESSION_BACKUP_RESOURCE,
+    sourcePath: sessionBackupExtensionAsset as unknown as string,
   }),
 ] as const satisfies readonly EmbeddedPiResource[]);

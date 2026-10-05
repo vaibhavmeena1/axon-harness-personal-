@@ -19,6 +19,23 @@ make install
 
 The backend loads `config.json` from this directory and validates it before serving requests. The Vortex audit in [`VORTEX_REFERENCE.md`](VORTEX_REFERENCE.md) describes the former stack and is not current implementation guidance.
 
+## Local LiteLLM
+
+To use LiteLLM running on the host at port 4000, set these fields in the ignored `config.json` (keep the other connection-pool settings):
+
+```json
+"LITELLM": {
+  "UPSTREAM_URL": "http://localhost:4000",
+  "UPSTREAM_ROOT_PATH": "/",
+  "SERVICE_TOKEN": "replace-with-litellm-service-token",
+  "IDENTITY_SECRET": "replace-with-a-random-shared-signing-secret"
+}
+```
+
+For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. Both credential fields are required non-empty strings and are read only from JSON, never environment variables. Restart the backend after changing them. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
+
+For local connectivity testing against an unmodified LiteLLM container, `SERVICE_TOKEN` can be its master key; this does not test custom user/team authorization or accounting. For the full integration, load `deployment/litellm/config.yaml` and `custom_auth.py` into LiteLLM and set its `LITELLM_SERVICE_TOKEN` and `LITELLM_IDENTITY_SECRET` environment variables to match the backend's JSON values. The separate LiteLLM container still uses environment variables; the backend proxy does not. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
+
 ## Serving the console frontend
 
 This service also serves `apps/frontend`. The console is a Vite build — an `index.html` plus content-hashed files under `assets/` — with nothing to run, so hosting it here keeps one origin, one deploy, and one version for the API and the UI, and removes CORS entirely.

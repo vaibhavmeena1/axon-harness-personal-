@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import re
 import time
 from collections.abc import AsyncIterator, Iterable
@@ -366,8 +365,8 @@ class LiteLLMProxy:
 
         app = scope.get("app")
         client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
-        service_token = os.environ.get("LITELLM_SERVICE_TOKEN", "").strip()
-        identity_secret = os.environ.get("LITELLM_IDENTITY_SECRET", "").strip()
+        service_token = self.settings.service_token
+        identity_secret = self.settings.identity_secret
         if client is None or not service_token or not identity_secret:
             await _send_error(send, 503, _SERVICE_UNAVAILABLE_BODY)
             return

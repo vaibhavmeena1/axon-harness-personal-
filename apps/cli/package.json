@@ -14,9 +14,11 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run pi-version:check && bun run telemetry:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/ddcli",
-    "build:release": "bun run telemetry:check && bun run scripts/build-release.ts",
+    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/ddcli",
+    "build:release": "bun run telemetry:check && bun run backups:check && bun run scripts/build-release.ts",
     "pi-version:check": "bun run scripts/check-pi-version.ts",
+    "backups:build": "bun run scripts/build-session-backup.ts",
+    "backups:check": "bun run scripts/build-session-backup.ts --check",
     "telemetry:build": "bun run scripts/build-pi-telemetry.ts",
     "telemetry:check": "bun run scripts/build-pi-telemetry.ts --check",
     "release:validate": "bun run scripts/validate-release.ts",
@@ -26,7 +28,7 @@
     "test": "bun test",
     "test:installer": "bun test tests/installer",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.pi-resources.json",
-    "check": "bun run pi-version:check && bun run telemetry:check && bun run typecheck"
+    "check": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun run typecheck"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
@@ -37,8 +39,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
-    "@earendil-works/pi-coding-agent": "0.99.1",
-    "@earendil-works/pi-tui": "0.99.1",
+    "@earendil-works/pi-coding-agent": "1.0.2",
+    "@earendil-works/pi-tui": "1.0.2",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/core": "2.11.0",
