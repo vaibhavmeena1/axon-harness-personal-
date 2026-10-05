@@ -1,4 +1,4 @@
-import { classifyPiInvocation } from "../harnesses/pi/setup/packages/invocation.ts";
+import { classifyPiInvocation, isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
 import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
@@ -28,10 +28,15 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
         },
       );
     }
-    await runPiSessionPreflight(resolveDeputyDevPaths(), harnessArguments, process.env);
+    const paths = resolveDeputyDevPaths();
+    const invocationKind = classifyPiInvocation(harnessArguments);
+    await runPiSessionPreflight(paths, harnessArguments, process.env);
     if (
-      classifyPiInvocation(harnessArguments) !== "administrative" &&
-      !(await ensureAuthenticatedSession(resolveDeputyDevPaths()))
+      invocationKind !== "administrative" &&
+      !(await ensureAuthenticatedSession(paths, {
+        offline: isPiOffline(process.env, harnessArguments),
+        interactive: invocationKind === "interactive",
+      }))
     ) {
       return;
     }

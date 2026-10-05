@@ -84,22 +84,22 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
 }
 
 /** Merge only our token into the shared session file and atomically set owner-only permissions. */
-export async function saveEncryptedSession(
+async function persistEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
   expectedSession?: string,
-): Promise<void> {
+): Promise<boolean> {
   if (!isEncryptedSession(encryptedSession)) throw new Error("Invalid encrypted session");
   const destination = sessionPath(paths);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await assertRegularDirectory(paths.home);
 
-  await withFileLock(join(paths.locks, "session.lock"), async () => {
+  return withFileLock(join(paths.locks, "session.lock"), async () => {
     // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
     const existingData = await readSessionFile(destination, expectedSession === undefined);
     // A late response must not overwrite a newer login or another process's refresh.
     if (expectedSession !== undefined && existingData?.[AUTH_TOKEN_KEY] !== expectedSession) {
-      return;
+      return false;
     }
     const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
     const serialized = `${JSON.stringify(data)}\n`;
@@ -113,5 +113,23 @@ export async function saveEncryptedSession(
     } finally {
       await rm(temporary, { force: true });
     }
+    return true;
   });
+}
+
+export async function saveEncryptedSession(
+  paths: DeputyDevPaths,
+  encryptedSession: string,
+  expectedSession?: string,
+): Promise<void> {
+  await persistEncryptedSession(paths, encryptedSession, expectedSession);
+}
+
+/** Rotate only the credential that produced this response, never a newer login. */
+export async function refreshEncryptedSession(
+  paths: DeputyDevPaths,
+  expectedSession: string,
+  refreshedSession: string,
+): Promise<boolean> {
+  return persistEncryptedSession(paths, refreshedSession, expectedSession);
 }

@@ -50,6 +50,11 @@
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
   "LITELLM": {
+    "API_KEY": "",
+    "IDENTITY_SYNC_ENABLED": true,
+    "IDENTITY_SYNC_TIMEOUT_SECONDS": 10,
+    "IDENTITY_SYNC_CACHE_SECONDS": 60,
+    "IDENTITY_SYNC_CACHE_MAX_ENTRIES": 1000,
     "UPSTREAM_URL": "http://10.1.0.62:4000",
     "UPSTREAM_ROOT_PATH": "/engram-service/litellm",
     "CONNECT_TIMEOUT_SECONDS": 10,
@@ -95,6 +100,7 @@
     "REQUEST_TIMEOUT_SECONDS": 10
   },
   "OPENROUTER": {
+    "CA_BUNDLE": "",
     "API_KEY": "<OPENROUTER_API_KEY>",
     "BASE_URL": "https://openrouter.ai/api",
     "HTTP_REFERER": "https://deputydev.ai",

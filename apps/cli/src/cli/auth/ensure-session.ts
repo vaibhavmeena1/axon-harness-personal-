@@ -5,7 +5,10 @@ import { runAuthLogin } from "../commands/auth.ts";
 import { loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
 
-export async function ensureAuthenticatedSession(paths: DeputyDevPaths): Promise<boolean> {
+export async function ensureAuthenticatedSession(
+  paths: DeputyDevPaths,
+  options: { readonly offline?: boolean; readonly interactive?: boolean } = {},
+): Promise<boolean> {
   let encryptedSession: string | undefined;
   try {
     encryptedSession = await loadEncryptedSession(paths);
@@ -14,6 +17,8 @@ export async function ensureAuthenticatedSession(paths: DeputyDevPaths): Promise
   }
 
   if (encryptedSession !== undefined) {
+    // Offline sessions may use saved state, but must never contact the auth service.
+    if (options.offline) return true;
     const status = await verifyEncryptedSession(encryptedSession);
     if (status === "VERIFIED") return true;
     console.error(
@@ -25,7 +30,12 @@ export async function ensureAuthenticatedSession(paths: DeputyDevPaths): Promise
     console.error("Sign in to DeputyDev to continue.");
   }
 
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+  if (
+    options.offline ||
+    options.interactive === false ||
+    !process.stdin.isTTY ||
+    !process.stdout.isTTY
+  ) {
     throw new LauncherError("DeputyDev login is required", LAUNCHER_EXIT_STATUS.profileFailure, {
       remediation: "Login from browser: run ddcli auth login --browser in a terminal.",
     });

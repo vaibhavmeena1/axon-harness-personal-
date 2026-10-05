@@ -29,9 +29,10 @@ class AuthData(BaseModel):
 
 
 class AuthenticatedUser(AuthData):
-    """Additional identity fields required for LiteLLM spend attribution."""
+    """Verified identity; inherited user_team_id is LiteLLM's canonical user ID."""
 
-    user_id: int
+    # The account-level ID is optional and never determines LiteLLM ownership.
+    user_id: int | None = None
     team_id: int
     user_email: str
     user_name: str | None = None
@@ -99,6 +100,28 @@ class AuthServiceClient:
             raise AuthServiceError("Auth service identity lookup failed") from exc
 
         return auth_data
+
+    async def verify_identity(self, authorization: str) -> dict[str, object]:
+        """Obtain verified telemetry identity, preserving any refreshed session."""
+        try:
+            response = await self._client.post(
+                "verify-auth-token",
+                headers={"Authorization": authorization},
+                params={"use_grace_period": "false", "enable_grace_period": "false"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
+            raise AuthServiceError("Identity verification failed", status_code=status_code) from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AuthServiceError("Auth service identity verification failed") from exc
+
+        if not isinstance(payload, dict) or payload.get("status") not in ("VERIFIED", "EXPIRED", "NOT_VERIFIED"):
+            raise AuthServiceError("Auth service returned an invalid identity")
+        if payload["status"] == "NOT_VERIFIED":
+            raise AuthServiceError("Authentication failed", status_code=401)
+        return payload
 
     async def verify_auth_token(self, authorization: str) -> AuthSessionVerification:
         """Check startup credentials without refreshing an expired session."""

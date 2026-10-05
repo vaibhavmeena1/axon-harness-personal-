@@ -2,7 +2,7 @@
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -83,6 +83,11 @@ class LiteLLMSettings:
     max_connections: int
     max_keepalive_connections: int
     keepalive_expiry_seconds: int
+    api_key: str = field(default="", repr=False)
+    identity_sync_enabled: bool = False
+    identity_sync_timeout_seconds: int = 10
+    identity_sync_cache_seconds: int = 60
+    identity_sync_cache_max_entries: int = 1000
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +105,7 @@ class OpenRouterSettings:
     max_connections: int
     max_keepalive_connections: int
     keepalive_expiry_seconds: int
+    ca_bundle: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,6 +180,22 @@ def _string(source: dict[str, Any], key: str, path: str, *, allow_empty: bool = 
     if not isinstance(value, str) or (not allow_empty and not value.strip()):
         raise ConfigurationError(f"{path}.{key} must be a non-empty string")
     return value.strip() if not allow_empty else value
+
+
+def _optional_string(source: dict[str, Any], key: str, path: str) -> str:
+    value = source.get(key, "")
+    if not isinstance(value, str):
+        raise ConfigurationError(f"{path}.{key} must be a string")
+    return value.strip()
+
+
+def _upstream_api_key(source: dict[str, Any], key: str, path: str) -> str:
+    value = _optional_string(source, key, path)
+    # A private stock LiteLLM deployment may not require its own API key.
+    # DeputyDev session authentication remains mandatory even when this is empty.
+    if any(not 33 <= ord(character) <= 126 for character in value):
+        raise ConfigurationError(f"{path}.{key} must contain only printable ASCII characters without spaces")
+    return value
 
 
 def _integer(
@@ -452,6 +474,17 @@ def get_settings() -> Settings:
     )
 
     litellm = LiteLLMSettings(
+        api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
+        identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
+        identity_sync_timeout_seconds=_integer(
+            litellm_config, "IDENTITY_SYNC_TIMEOUT_SECONDS", "config.LITELLM", default=10
+        ),
+        identity_sync_cache_seconds=_integer(
+            litellm_config, "IDENTITY_SYNC_CACHE_SECONDS", "config.LITELLM", default=60, minimum=0
+        ),
+        identity_sync_cache_max_entries=_integer(
+            litellm_config, "IDENTITY_SYNC_CACHE_MAX_ENTRIES", "config.LITELLM", default=1000
+        ),
         upstream_url=_http_origin(litellm_config, "UPSTREAM_URL", "config.LITELLM"),
         upstream_root_path=_url_path(
             litellm_config,
@@ -493,6 +526,7 @@ def get_settings() -> Settings:
         raise ConfigurationError("config.LITELLM.MAX_KEEPALIVE_CONNECTIONS must not exceed MAX_CONNECTIONS")
 
     openrouter = OpenRouterSettings(
+        ca_bundle=_optional_string(openrouter_config, "CA_BUNDLE", "config.OPENROUTER"),
         api_key=_string(openrouter_config, "API_KEY", "config.OPENROUTER"),
         base_url=_http_base_url(openrouter_config, "BASE_URL", "config.OPENROUTER"),
         http_referer=_http_origin(openrouter_config, "HTTP_REFERER", "config.OPENROUTER"),

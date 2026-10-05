@@ -137,8 +137,14 @@ async function forwardManagedRequest(
     }
     if (upstream.status === 401) {
       await upstream.body?.cancel();
-      if (attempt !== 0 || !supportsRecovery) return loginRequired();
+      if (!supportsRecovery) return loginRequired();
       try {
+        // A refresh or another terminal's login may already have replaced this
+        // credential. Retry once with it before offering another browser login.
+        const latestSession = await loadEncryptedSession(paths);
+        if (attempt === 0 && latestSession !== undefined && latestSession !== encryptedSession) {
+          continue;
+        }
         // A model-provider 401 with a valid DeputyDev session is not a reason to log in again.
         if ((await verifyEncryptedSession(encryptedSession)) === "VERIFIED") {
           return relayError(
@@ -146,16 +152,13 @@ async function forwardManagedRequest(
             "The model service rejected this request; your DeputyDev session is still valid.",
           );
         }
-        // A login in another terminal may already have replaced the rejected credential.
-        const latestSession = await loadEncryptedSession(paths);
-        if (latestSession !== undefined && latestSession !== encryptedSession) continue;
       } catch {
         return relayError(
           503,
           "Could not verify your DeputyDev session. Check connectivity and retry.",
         );
       }
-      if (await recovery.recover(request.signal)) continue;
+      if (attempt === 0 && (await recovery.recover(request.signal))) continue;
       return loginRequired();
     }
 

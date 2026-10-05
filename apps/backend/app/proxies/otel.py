@@ -55,6 +55,8 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
             if refreshed is None:
                 raise AuthServiceError("Identity verification returned no refreshed session")
             request.state.auth_response_headers["x-session-refresh-token"] = refreshed
+            # The response middleware must preserve this newest auth-issued rotation.
+            auth_data.session_refresh_token = refreshed
     if email is None or "@" not in email:
         raise AuthServiceError("Auth service returned incomplete telemetry identity")
     if auth_data.session_refresh_token and "x-session-refresh-token" not in request.state.auth_response_headers:

@@ -1,6 +1,5 @@
 """Async OpenRouter client for chat completions and typed decisions."""
 
-import os
 import ssl
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
@@ -18,9 +17,8 @@ CHAT_COMPLETIONS_PATH = "v1/chat/completions"
 DECISIONS_PATH = "alpha/decisions"
 
 
-def _verify_ssl_context() -> ssl.SSLContext | bool:
-    """Use an explicitly supplied CA bundle without inheriting proxy settings."""
-    certificate_bundle = os.getenv("SSL_CERT_FILE")
+def _verify_ssl_context(certificate_bundle: str) -> ssl.SSLContext | bool:
+    """Use only the CA bundle explicitly configured in backend config.json."""
     if not certificate_bundle:
         return True
     return ssl.create_default_context(cafile=certificate_bundle)
@@ -55,7 +53,7 @@ class OpenRouterClient:
             ),
             follow_redirects=False,
             trust_env=False,
-            verify=_verify_ssl_context(),
+            verify=_verify_ssl_context(settings.ca_bundle),
         )
 
     async def create_chat_completion(

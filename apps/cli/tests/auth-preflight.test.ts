@@ -33,6 +33,7 @@ describe("first-run preflight", () => {
       offline: true,
       login: async () => {
         calls++;
+        return true;
       },
     });
     expect(calls).toBe(0);
@@ -44,6 +45,7 @@ describe("first-run preflight", () => {
     const login = async () => {
       calls++;
       await saveEncryptedSession(home, "new-session");
+      return true;
     };
     await ensureDeputyDevSession(home, { interactive: true, login });
     expect(await loadEncryptedSession(home)).toBe("new-session");
@@ -66,7 +68,7 @@ describe("first-run preflight", () => {
 
   test("cancelled onboarding cannot continue", async () => {
     await expect(
-      ensureDeputyDevSession(paths("cancel"), { interactive: true, login: async () => {} }),
+      ensureDeputyDevSession(paths("cancel"), { interactive: true, login: async () => false }),
     ).rejects.toThrow("not completed");
   });
 

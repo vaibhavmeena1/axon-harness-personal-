@@ -1,13 +1,8 @@
 """Authenticated HTTP proxy for the privately hosted LiteLLM service."""
 
-import base64
-import hashlib
-import hmac
 import json
 import logging
-import os
 import re
-import time
 from collections.abc import AsyncIterator, Iterable
 from urllib.parse import quote
 from uuid import uuid4
@@ -18,6 +13,7 @@ from starlette.types import Message, Receive, Scope, Send
 
 from app.authentication import AuthenticatedSessionMiddleware
 from app.clients.auth_service import AuthenticatedUser
+from app.clients.litellm import LITELLM_IDENTITY_CLIENT_STATE_KEY, LiteLLMIdentityClient, LiteLLMIdentityError
 from app.core.config import LiteLLMSettings, get_settings
 
 LITELLM_MOUNT_PATH = "/litellm"
@@ -45,6 +41,7 @@ _PROTECTED_REQUEST_HEADERS = {
     b"x-forwarded-for",
     b"x-forwarded-host",
     b"x-forwarded-proto",
+    b"x-litellm-api-key",
     b"x-litellm-customer-id",
     b"x-litellm-end-user-id",
     b"x-litellm-spend-logs-metadata",
@@ -62,6 +59,7 @@ _PROTECTED_RESPONSE_HEADERS = {
     b"x-api-key",
     b"x-auth-context",
     b"x-encrypted-session-data",
+    b"x-litellm-api-key",
     b"x-request-id",
     b"x-session-refresh-token",
 }
@@ -86,6 +84,8 @@ _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
 _MAX_JSON_BODY_BYTES = 10 * 1024 * 1024
 _BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
 _SERVICE_UNAVAILABLE_BODY = b'{"detail":"LiteLLM proxy is not ready"}'
+_IDENTITY_SYNC_UNAVAILABLE_BODY = b'{"detail":"LiteLLM user/team synchronization is unavailable"}'
+_ACCESS_DENIED_BODY = b'{"detail":"LiteLLM access denied"}'
 _UNAUTHORIZED_BODY = b'{"detail":"Authentication required"}'
 _INVALID_BODY = b'{"detail":"Invalid JSON request body"}'
 _TOO_LARGE_BODY = b'{"detail":"Request body is too large"}'
@@ -194,6 +194,11 @@ async def _send_upstream_response(
 ) -> None:
     """Stream an upstream response and always release its pooled connection."""
     try:
+        if upstream_response.status_code in {401, 403}:
+            # Native key failures do not invalidate the DeputyDev session, and
+            # their response bodies can expose backend-only credentials.
+            await _send_error(send, 403, _ACCESS_DENIED_BODY)
+            return
         response_headers = [
             (name, value)
             for name, value in _end_to_end_headers(upstream_response.headers.raw)
@@ -230,43 +235,6 @@ def _safe_identifier(value: str | None, fallback: str) -> str:
     return fallback
 
 
-def _identity_context(
-    user: AuthenticatedUser,
-    request_id: str,
-    harness_id: str,
-    secret: str,
-    encrypted_session: str,
-    method: str,
-    upstream_url: httpx.URL,
-) -> str:
-    """Bind the validated identity, encrypted session, and target to a short-lived assertion."""
-    issued_at = int(time.time())
-    claims = {
-        "iss": "meta-harness",
-        "aud": "litellm",
-        "sub": str(user.user_id),
-        "user_id": str(user.user_id),
-        "user_team_id": str(user.user_team_id),
-        "team_id": str(user.team_id),
-        "user_email": user.user_email,
-        "user_name": user.user_name,
-        "organization_name": user.organization_name,
-        "role": user.role,
-        "request_id": request_id,
-        "harness_id": harness_id,
-        "session_sha256": hashlib.sha256(encrypted_session.encode("ascii")).hexdigest(),
-        "request_method": method,
-        "request_path": upstream_url.path,
-        "request_query": upstream_url.query.decode("ascii"),
-        "jti": str(uuid4()),
-        "iat": issued_at,
-        "exp": issued_at + 60,
-    }
-    payload = base64.urlsafe_b64encode(json.dumps(claims, separators=(",", ":")).encode()).rstrip(b"=")
-    signature = hmac.new(secret.encode(), payload, hashlib.sha256).digest()
-    return f"{payload.decode('ascii')}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode('ascii')}"
-
-
 async def _json_body(
     first_message: Message, receive: Receive, user: AuthenticatedUser, request_id: str, harness_id: str
 ) -> bytes:
@@ -289,23 +257,36 @@ async def _json_body(
     spend_logs_metadata = metadata.get("spend_logs_metadata")
     if not isinstance(spend_logs_metadata, dict):
         spend_logs_metadata = {}
-    spend_logs_metadata.update(
-        {
-            "request_id": request_id,
-            "user_id": str(user.user_id),
-            "user_team_id": str(user.user_team_id),
-            "team_id": str(user.team_id),
-            "organization_name": user.organization_name,
-            "harness_id": harness_id,
-        }
-    )
+    identity_metadata = {
+        "request_id": request_id,
+        "user_id": str(user.user_team_id),
+        "user_team_id": str(user.user_team_id),
+        "team_id": str(user.team_id),
+        "user_email": user.user_email,
+        "user_name": user.user_name,
+        "organization_name": user.organization_name,
+        "role": user.role,
+        "harness_id": harness_id,
+    }
+    spend_logs_metadata.update(identity_metadata)
+    metadata.update(identity_metadata)
     metadata["spend_logs_metadata"] = spend_logs_metadata
     payload["metadata"] = metadata
-    payload["user"] = str(user.user_id)
+    payload["user"] = str(user.user_team_id)
     encoded_body = json.dumps(payload, separators=(",", ":")).encode()
     if len(encoded_body) > _MAX_JSON_BODY_BYTES:
         raise OverflowError("Attributed JSON body exceeds limit")
     return encoded_body
+
+
+async def _authenticated_upstream_key(scope: Scope, settings: LiteLLMSettings, user: AuthenticatedUser) -> str:
+    if not settings.identity_sync_enabled:
+        return settings.api_key
+    app = scope.get("app")
+    identity_client = getattr(getattr(app, "state", None), LITELLM_IDENTITY_CLIENT_STATE_KEY, None)
+    if not isinstance(identity_client, LiteLLMIdentityClient):
+        raise LiteLLMIdentityError("LiteLLM identity synchronization client is unavailable")
+    return await identity_client.ensure_identity(user)
 
 
 async def _forward_authenticated_request(
@@ -319,9 +300,6 @@ async def _forward_authenticated_request(
     user: AuthenticatedUser,
     request_id: str,
     harness_id: str,
-    service_token: str,
-    identity_secret: str,
-    encrypted_session: str,
 ) -> None:
     first_message = await receive()
     if first_message["type"] == "http.disconnect":
@@ -344,21 +322,30 @@ async def _forward_authenticated_request(
             await _send_error(send, 400, _INVALID_BODY)
             return
 
+    try:
+        upstream_api_key = await _authenticated_upstream_key(scope, settings, user)
+    except LiteLLMIdentityError as exc:
+        logger.warning("LiteLLM identity synchronization failed: %s", exc)
+        body = _ACCESS_DENIED_BODY if exc.status_code == 403 else _IDENTITY_SYNC_UNAVAILABLE_BODY
+        await _send_error(send, exc.status_code, body)
+        return
+
     upstream_url = _upstream_url(scope, settings, strip_mount_path=strip_mount_path)
-    context = _identity_context(user, request_id, harness_id, identity_secret, encrypted_session, method, upstream_url)
     request_headers = [
         (name, value)
         for name, value in _end_to_end_headers(scope.get("headers", []))
         if name.lower() not in _PROTECTED_REQUEST_HEADERS
     ]
+    # User authentication is complete in the backend. Stock LiteLLM receives
+    # attribution only, never the user's session or a custom identity assertion.
     request_headers.extend(
         [
-            (b"authorization", f"Bearer {service_token}".encode("ascii")),
-            (b"x-auth-context", context.encode("ascii")),
-            (b"x-encrypted-session-data", encrypted_session.encode("ascii")),
+            (b"x-litellm-end-user-id", str(user.user_team_id).encode("ascii")),
             (b"x-request-id", request_id.encode("ascii")),
         ]
     )
+    if upstream_api_key:
+        request_headers.append((b"authorization", f"Bearer {upstream_api_key}".encode("ascii")))
 
     try:
         upstream_request = httpx.Request(
@@ -397,9 +384,7 @@ class LiteLLMProxy:
 
         app = scope.get("app")
         client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
-        service_token = os.environ.get("LITELLM_SERVICE_TOKEN", "").strip()
-        identity_secret = os.environ.get("LITELLM_IDENTITY_SECRET", "").strip()
-        if client is None or not service_token or not identity_secret:
+        if client is None:
             await _send_error(send, 503, _SERVICE_UNAVAILABLE_BODY)
             return
 
@@ -424,9 +409,6 @@ class LiteLLMProxy:
             user=user,
             request_id=request_id,
             harness_id=harness_id,
-            service_token=service_token,
-            identity_secret=identity_secret,
-            encrypted_session=encrypted_session,
         )
 
 

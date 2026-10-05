@@ -1,4 +1,7 @@
-import { BUILD_INFO } from "../../build-info.ts";
+import {
+  type AuthenticatedRequestRelay,
+  startAuthenticatedRequestRelay,
+} from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
 import { fetchClientConfig } from "../../cli/client-config.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
@@ -40,7 +43,11 @@ export function createPiAdapter(): HarnessAdapter {
       // Ordinary sessions reference the immutable, verified runtime directory
       // that setup materialized. Administration is forwarded untouched.
       const resourceArguments = setup.materialization?.arguments ?? [];
-      let litellmOverrides = {};
+      let relay: AuthenticatedRequestRelay | undefined;
+      let litellmOverrides: EnvironmentOverrides = {
+        PI_DEPUTYDEV_AUTH_RELAY_URL: undefined,
+        PI_DEPUTYDEV_AUTH_RELAY_KEY: undefined,
+      };
       let telemetryOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
         let encryptedSession: string | undefined;
@@ -91,11 +98,19 @@ export function createPiAdapter(): HarnessAdapter {
             home: context.paths.home,
           });
         }
-        // Never pass an ambient LiteLLM credential or endpoint to managed Pi.
+        // Pi receives only a per-launch loopback capability. The relay reads the
+        // live session for each request and owns refresh persistence and recovery.
+        relay = startAuthenticatedRequestRelay(context.paths);
         litellmOverrides = {
-          LITELLM_API_KEY: encryptedSession,
-          LITELLM_BASE_URL: new URL("/litellm", BUILD_INFO.serviceOrigin).toString(),
-          PI_MODEL_RECOMMENDER_API_KEY: encryptedSession,
+          LITELLM_API_KEY: relay.capability,
+          LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
+          PI_MODEL_RECOMMENDER_API_KEY: relay.capability,
+          PI_MODEL_RECOMMENDER_URL: new URL(
+            "/api/v1/model-recommendations",
+            relay.origin,
+          ).toString(),
+          PI_DEPUTYDEV_AUTH_RELAY_URL: relay.origin,
+          PI_DEPUTYDEV_AUTH_RELAY_KEY: relay.capability,
         };
       }
       return Object.freeze({
