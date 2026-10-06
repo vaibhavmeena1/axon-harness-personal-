@@ -295,7 +295,7 @@ describe("launcher dispatch", () => {
         PI_CODING_AGENT_DIR: join(deputyDevHome, "pi"),
         PI_CODING_AGENT_SESSION_DIR: join(deputyDevHome, "pi", "sessions"),
         PI_SKIP_VERSION_CHECK: "1",
-        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: "http://127.0.0.1:1",
+        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: authService.url.origin,
         PI_DEPUTYDEV_BACKUP_HOME: deputyDevHome,
         LITELLM_API_KEY: "litellm-token",
         LITELLM_BASE_URL: "https://litellm.example",
@@ -332,6 +332,8 @@ describe("launcher dispatch", () => {
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
       "--extension",
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
+      "--extension",
+      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");

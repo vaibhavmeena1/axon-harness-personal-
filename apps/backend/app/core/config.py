@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
+from app.core.web_search import WebSearchSettings, parse_web_search
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -168,6 +169,7 @@ class Settings:
     cli_telemetry: CliTelemetryConfig | None
     otel_proxy: OtelProxySettings | None
     session_backups: SessionStorageSettings | None = None
+    web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -420,6 +422,13 @@ def _session_backups(raw: dict) -> SessionStorageSettings | None:
         raise ConfigurationError("config.SESSION_BACKUPS contains invalid settings") from None
 
 
+def _web_search(raw: dict[str, Any]) -> WebSearchSettings:
+    try:
+        return parse_web_search(raw)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.WEB_SEARCH contains invalid search settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -616,6 +625,7 @@ def get_settings() -> Settings:
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
     session_backups = _session_backups(raw_config)
+    web_search = _web_search(raw_config)
 
     return Settings(
         name=_string(raw_config, "NAME", "config"),
@@ -636,4 +646,5 @@ def get_settings() -> Settings:
         cli_telemetry=cli_telemetry,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
+        web_search=web_search,
     )
