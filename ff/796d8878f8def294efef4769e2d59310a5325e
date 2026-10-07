@@ -1,0 +1,36 @@
+apps/backend/app/proxies/litellm.py
+  7e8ab0f66335b2ef 66-68,308,364
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "ff796d8878f8def294efef4769e2d59310a5325e",
+  "prompts": {
+    "4af420c51b2b642d": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "488497",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 1004,
+      "total_deletions": 14,
+      "accepted_lines": 990,
+      "overriden_lines": 0
+    },
+    "7e8ab0f66335b2ef": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "488577",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 13,
+      "accepted_lines": 5,
+      "overriden_lines": 0
+    }
+  }
+}
