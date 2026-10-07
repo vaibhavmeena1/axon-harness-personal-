@@ -1,0 +1,14 @@
+apps/cli/src/product/manifest.ts
+  h_cbc19accedcd8a 55,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "58c1da7800a6dea690183ebddd289e4392cf56ea",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
