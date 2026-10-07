@@ -48,6 +48,44 @@ def test_invalid_credentials_fail_at_startup(configured_settings: tuple[dict[str
         config.get_settings()
 
 
+def test_team_settings_default_when_omitted(configured_settings: tuple[dict[str, Any], Path]) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"].pop("TEAM_ID")
+    raw["LITELLM"].pop("TEAM_ROLE")
+    path.write_text(json.dumps(raw))
+    settings = config.get_settings().litellm
+    assert settings.team_id == ""
+    assert settings.team_role == "user"
+
+
+@pytest.mark.parametrize("role", ["user", "admin"])
+def test_configured_team_settings(configured_settings: tuple[dict[str, Any], Path], role: str) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"].update(TEAM_ID=" existing-team-id ", TEAM_ROLE=f" {role} ")
+    path.write_text(json.dumps(raw))
+    settings = config.get_settings().litellm
+    assert settings.team_id == "existing-team-id"
+    assert settings.team_role == role
+
+
+@pytest.mark.parametrize("value", [None, 123, [], {}, "", "manager", "proxy_admin", "USER"])
+def test_invalid_team_role_fails_at_startup(configured_settings: tuple[dict[str, Any], Path], value: object) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["TEAM_ROLE"] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.TEAM_ROLE"):
+        config.get_settings()
+
+
+@pytest.mark.parametrize("value", [None, 123, [], {}, "team with spaces", "team\nvalue"])
+def test_invalid_team_id_fails_at_startup(configured_settings: tuple[dict[str, Any], Path], value: object) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["TEAM_ID"] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.TEAM_ID"):
+        config.get_settings()
+
+
 def test_proxy_uses_config_not_environment(
     configured_settings: tuple[dict[str, Any], Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:

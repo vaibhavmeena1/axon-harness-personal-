@@ -32,7 +32,7 @@ class LiteLLMIdentityClient:
     def __init__(self, settings: LiteLLMSettings, client: httpx.AsyncClient) -> None:
         self.settings = settings
         self._client = client
-        self._cache: OrderedDict[tuple[int, int], tuple[float, str]] = OrderedDict()
+        self._cache: OrderedDict[tuple[int, str], tuple[float, str]] = OrderedDict()
         # Coalesce provisioning in this worker. Read-back also handles creation
         # races with other workers without overwriting existing budgets or roles.
         self._lock = asyncio.Lock()
@@ -127,6 +127,15 @@ class LiteLLMIdentityClient:
             raise LiteLLMIdentityError("LiteLLM returned invalid team membership data")
         return any(isinstance(member, dict) and str(member.get("user_id")) == user_id for member in members)
 
+    async def _existing_team(self, team_id: str) -> dict[str, Any]:
+        """Require an operator-selected team; never create or change its policies."""
+        team = await self._lookup("/team/info", {"team_id": team_id}, "team_info", {"team_id": team_id})
+        if team is None:
+            raise LiteLLMIdentityError("Configured LiteLLM team does not exist")
+        if team.get("blocked") is True:
+            raise LiteLLMIdentityError("LiteLLM team is disabled", status_code=403)
+        return team
+
     async def _ensure_membership(self, team: dict[str, Any], user_id: str, team_id: str) -> None:
         if self._has_member(team, user_id):
             return
@@ -134,7 +143,7 @@ class LiteLLMIdentityClient:
             await self._request(
                 "POST",
                 "/team/member_add",
-                payload={"team_id": team_id, "member": {"user_id": user_id, "role": "user"}},
+                payload={"team_id": team_id, "member": {"user_id": user_id, "role": self.settings.team_role}},
             )
         except LiteLLMIdentityError as exc:
             if exc.upstream_status_code not in {400, 409, 500}:
@@ -180,22 +189,28 @@ class LiteLLMIdentityClient:
         # LiteLLM calls this field user_id, but DeputyDev's canonical identifier
         # is the verified membership's user_team_id, not the account-level ID.
         user_id = str(user.user_team_id)
-        team_id = str(user.team_id)
+        team_id = self.settings.team_id or str(user.team_id)
+        if self.settings.team_id:
+            # Validate the configured team before creating a user or granting membership.
+            await self._existing_team(team_id)
+        user_payload: dict[str, Any] = {
+            "user_id": user_id,
+            "user_email": user.user_email,
+            "user_alias": user.user_name,
+            "user_role": "internal_user",
+            "auto_create_key": False,
+            "send_invite_email": False,
+            "metadata": {"source": "meta-harness", "deputydev_user_team_id": user_id},
+        }
+        if self.settings.team_id:
+            user_payload["teams"] = [{"team_id": team_id, "user_role": self.settings.team_role}]
         user_record = await self._ensure_record(
             "/user/info",
             "/user/new",
             {"user_id": user_id},
             "user_info",
             {"user_id": user_id},
-            {
-                "user_id": user_id,
-                "user_email": user.user_email,
-                "user_alias": user.user_name,
-                "user_role": "internal_user",
-                "auto_create_key": False,
-                "send_invite_email": False,
-                "metadata": {"source": "meta-harness", "deputydev_user_team_id": user_id},
-            },
+            user_payload,
         )
         # Do not attach a DeputyDev identity to an unrelated existing native user.
         existing_email = user_record.get("user_email")
@@ -203,19 +218,23 @@ class LiteLLMIdentityClient:
             not isinstance(existing_email, str) or existing_email.casefold() != user.user_email.casefold()
         ):
             raise LiteLLMIdentityError("LiteLLM user ID is already assigned to a different identity")
-        team_record = await self._ensure_record(
-            "/team/info",
-            "/team/new",
-            {"team_id": team_id},
-            "team_info",
-            {"team_id": team_id},
-            {
-                "team_id": team_id,
-                "team_alias": user.organization_name or f"DeputyDev team {team_id}",
-                "members_with_roles": [{"user_id": user_id, "role": "user"}],
-                "metadata": {"source": "meta-harness", "deputydev_team_id": team_id},
-            },
-        )
+        if self.settings.team_id:
+            # /user/new can attach membership, so read it back before adding an existing user.
+            team_record = await self._existing_team(team_id)
+        else:
+            team_record = await self._ensure_record(
+                "/team/info",
+                "/team/new",
+                {"team_id": team_id},
+                "team_info",
+                {"team_id": team_id},
+                {
+                    "team_id": team_id,
+                    "team_alias": user.organization_name or f"DeputyDev team {team_id}",
+                    "members_with_roles": [{"user_id": user_id, "role": self.settings.team_role}],
+                    "metadata": {"source": "meta-harness", "deputydev_team_id": str(user.team_id)},
+                },
+            )
         if user_record.get("blocked") is True or team_record.get("blocked") is True:
             raise LiteLLMIdentityError("LiteLLM user or team is disabled", status_code=403)
         await self._ensure_membership(team_record, user_id, team_id)
@@ -238,7 +257,7 @@ class LiteLLMIdentityClient:
                 "metadata": {
                     "source": "meta-harness",
                     "deputydev_user_team_id": user_id,
-                    "deputydev_team_id": team_id,
+                    "deputydev_team_id": str(user.team_id),
                 },
             },
         )
@@ -247,7 +266,7 @@ class LiteLLMIdentityClient:
         self._require_active_key(key_record)
         return virtual_key
 
-    def _cached_key(self, identity: tuple[int, int]) -> str | None:
+    def _cached_key(self, identity: tuple[int, str]) -> str | None:
         cached = self._cache.get(identity)
         if cached is None:
             return None
@@ -262,7 +281,7 @@ class LiteLLMIdentityClient:
         """Return a native user/team key only after verified identity synchronization."""
         if not self.settings.api_key:
             raise LiteLLMIdentityError("LITELLM.API_KEY must be an admin key when identity synchronization is enabled")
-        identity = (user.user_team_id, user.team_id)
+        identity = (user.user_team_id, self.settings.team_id or str(user.team_id))
         cached_key = self._cached_key(identity)
         if cached_key is not None:
             return cached_key

@@ -44,6 +44,9 @@
     "CREDENTIALS": {}
   },
   "CLI_CLIENT_CONFIG": {
+    "PI": {
+      "CODEMODE_ENABLED": true
+    },
     "ALLOWED_TELEMETRY_ORIGINS": [],
     "TELEMETRY": null,
     "PROXY": {
@@ -79,6 +82,8 @@
   "LITELLM": {
     "API_KEY": "",
     "IDENTITY_SYNC_ENABLED": true,
+    "TEAM_ID": "",
+    "TEAM_ROLE": "user",
     "IDENTITY_SYNC_TIMEOUT_SECONDS": 10,
     "IDENTITY_SYNC_CACHE_SECONDS": 60,
     "IDENTITY_SYNC_CACHE_MAX_ENTRIES": 1000,

@@ -28,13 +28,30 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
   "UPSTREAM_URL": "http://localhost:4000",
   "UPSTREAM_ROOT_PATH": "/",
   "API_KEY": "replace-with-litellm-master-key",
-  "IDENTITY_SYNC_ENABLED": true
+  "IDENTITY_SYNC_ENABLED": true,
+  "TEAM_ID": "",
+  "TEAM_ROLE": "user"
 }
 ```
 
 For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
 Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
+
+### Provisioning users into an existing LiteLLM team
+
+With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteLLM team ID** and `TEAM_ROLE` to `"user"` (default) or `"admin"`. This assigns all provisioned DeputyDev users to that team and binds their backend-only virtual keys to it. `TEAM_ROLE` is the **team membership role**, not the global LiteLLM user role, which remains `internal_user`. Grant `admin` only if those users should manage the team.
+
+```json
+"TEAM_ID": "your-existing-litellm-team-id",
+"TEAM_ROLE": "user"
+```
+
+New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified DeputyDev team ID and creates that native team if needed.
+
+No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing user/team/key policies and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified DeputyDev `user_team_id`, and key metadata retains the original DeputyDev team ID even when the native LiteLLM team differs.
+
+Restart the backend after changing these settings. Changing `TEAM_ID` selects a different user/team key; it does not remove old memberships or revoke old keys. This is a provisioning setting only—the proxy allowlist and inference-body attribution are unchanged.
 
 ## Serving the console frontend
 
@@ -61,7 +78,7 @@ The mount is registered in `app/main.py` *after* the API routers, including `/in
 
 ### CLI client configuration
 
-`GET /api/v1/cli/config` requires `Authorization: Bearer <DeputyDev encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry settings, never backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
+`GET /api/v1/cli/config` requires `Authorization: Bearer <DeputyDev encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 
 The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-based telemetry unchanged. To manage it centrally, configure an approved collector, for example:
 
@@ -91,13 +108,36 @@ The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-b
 
 This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a DeputyDev credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
 
-Interactive online Pi fetches config best-effort with a 700 ms deadline and no disk cache. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved DeputyDev session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
+Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved DeputyDev session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
 
 The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=deputydev_auth`, and `deputydev.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
 
 `PROXY.UPSTREAM_URL` is a private collector base (optional path prefix), not a signal-specific URL. Its origin must be explicitly approved in `ALLOWED_TELEMETRY_ORIGINS`. HTTP is allowed for trusted private-network collectors; public CLI-to-backend traffic requires HTTPS except local development. `PROXY.HEADERS` stays server-side. Caller authorization/cookies/query parameters are never forwarded. Redirects are refused; OTLP response bodies/statuses/Retry-After are preserved. Gzip uploads are decoded with a bounded expansion limit; collector requests are sent as uncompressed protobuf. Wire/decoded payload, response, record-count, timeout, and concurrent-request limits are enforced. The per-user-team rate limit and concurrency limit are **per backend worker**; add ingress/global controls for multiple workers and unauthenticated abuse.
 
 Environment fallback retains standard HTTP/protobuf or gRPC exporters and environment-supplied headers/API keys. It never automatically attaches a DeputyDev session, and its Git-email/installation-UUID attribution remains unchanged. Collector access and retention must cover verified employee identity and private repository names.
+
+#### Pi startup defaults
+
+The template enables codemode for managed Pi launches through:
+
+```json
+"CLI_CLIENT_CONFIG": {
+  "PI": { "CODEMODE_ENABLED": true }
+}
+```
+
+The config API projects this as `"pi": { "codemodeEnabled": true }`. Before launching Pi,
+`ddcli` merges `"+codemode"` into `$DEPUTYDEV_HOME/pi/settings.json` (normally
+`~/.deputydev/pi/settings.json`), preserving other tool choices, packages, and unrelated settings.
+It leaves `codemode.inlineBudget` unset, so Pi uses its default of 3000 unless the user has configured it.
+Standalone `~/.pi/agent/settings.json` is never modified.
+
+These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
+`CODEMODE_ENABLED: false` sets a disabled codemode startup default. Omit `PI` or set it to null to stop
+managing the default; this leaves the last local settings untouched. Offline, administrative,
+unauthenticated, and failed config fetches do not change Pi settings. Defaults are persisted locally
+and reused offline. Unsafe settings or a busy settings lock are left untouched, without blocking launch.
+Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch.
 
 ### Backend recommender telemetry
 
