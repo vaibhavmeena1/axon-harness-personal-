@@ -155,9 +155,9 @@ describe("Pi package manifest", () => {
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@3.2.0",
+        installTarget: "npm:pi-provider-litellm@4.1.0",
         updateOwner: "deputydev",
-        versionPolicy: { kind: "exact", version: "3.2.0" },
+        versionPolicy: { kind: "exact", version: "4.1.0" },
       },
     ]);
   });
@@ -706,6 +706,7 @@ describe("package and resource locks", () => {
       "model-recommender.ts",
       "session-backup.mjs",
       "web-search.ts",
+      "compaction.ts",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

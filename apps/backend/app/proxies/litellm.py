@@ -1,6 +1,5 @@
 """Authenticated HTTP proxy for the privately hosted LiteLLM service."""
 
-import json
 import logging
 import re
 from collections.abc import AsyncIterator, Iterable
@@ -63,33 +62,12 @@ _PROTECTED_RESPONSE_HEADERS = {
     b"x-request-id",
     b"x-session-refresh-token",
 }
-_POST_PATHS = {
-    b"/v1/audio/speech",
-    b"/v1/audio/transcriptions",
-    b"/v1/audio/translations",
-    b"/v1/chat/completions",
-    b"/v1/completions",
-    b"/v1/embeddings",
-    b"/v1/images/edits",
-    b"/v1/images/generations",
-    b"/v1/messages",
-    b"/v1/moderations",
-    b"/v1/rerank",
-    b"/v1/responses",
-    b"/anthropic/v1/messages",
-}
-_GET_PATHS = {b"/v1/models", b"/model/info", b"/health"}
-_MULTIPART_PATHS = {b"/v1/audio/transcriptions", b"/v1/audio/translations", b"/v1/images/edits"}
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
-_MAX_JSON_BODY_BYTES = 10 * 1024 * 1024
 _BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
 _SERVICE_UNAVAILABLE_BODY = b'{"detail":"LiteLLM proxy is not ready"}'
 _IDENTITY_SYNC_UNAVAILABLE_BODY = b'{"detail":"LiteLLM user/team synchronization is unavailable"}'
 _ACCESS_DENIED_BODY = b'{"detail":"LiteLLM access denied"}'
 _UNAUTHORIZED_BODY = b'{"detail":"Authentication required"}'
-_INVALID_BODY = b'{"detail":"Invalid JSON request body"}'
-_TOO_LARGE_BODY = b'{"detail":"Request body is too large"}'
-_NOT_FOUND_BODY = b'{"detail":"LiteLLM endpoint is not available"}'
 logger = logging.getLogger(__name__)
 
 
@@ -235,50 +213,6 @@ def _safe_identifier(value: str | None, fallback: str) -> str:
     return fallback
 
 
-async def _json_body(
-    first_message: Message, receive: Receive, user: AuthenticatedUser, request_id: str, harness_id: str
-) -> bytes:
-    """Bound JSON memory use and overwrite all caller-controlled spend attribution."""
-    body = bytearray()
-    async for chunk in _request_body(first_message, receive):
-        body.extend(chunk)
-        if len(body) > _MAX_JSON_BODY_BYTES:
-            raise OverflowError("JSON body exceeds limit")
-    try:
-        payload = json.loads(body)
-    except (ValueError, UnicodeDecodeError) as exc:
-        raise ValueError("Invalid JSON body") from exc
-    if not isinstance(payload, dict):
-        raise ValueError("JSON body must be an object")
-
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {}
-    spend_logs_metadata = metadata.get("spend_logs_metadata")
-    if not isinstance(spend_logs_metadata, dict):
-        spend_logs_metadata = {}
-    identity_metadata = {
-        "request_id": request_id,
-        "user_id": str(user.user_team_id),
-        "user_team_id": str(user.user_team_id),
-        "team_id": str(user.team_id),
-        "user_email": user.user_email,
-        "user_name": user.user_name,
-        "organization_name": user.organization_name,
-        "role": user.role,
-        "harness_id": harness_id,
-    }
-    spend_logs_metadata.update(identity_metadata)
-    metadata.update(identity_metadata)
-    metadata["spend_logs_metadata"] = spend_logs_metadata
-    payload["metadata"] = metadata
-    payload["user"] = str(user.user_team_id)
-    encoded_body = json.dumps(payload, separators=(",", ":")).encode()
-    if len(encoded_body) > _MAX_JSON_BODY_BYTES:
-        raise OverflowError("Attributed JSON body exceeds limit")
-    return encoded_body
-
-
 async def authenticated_upstream_key(scope: Scope, settings: LiteLLMSettings, user: AuthenticatedUser) -> str:
     """Resolve a native user/team key for both proxy traffic and backend tools."""
     if not settings.identity_sync_enabled:
@@ -297,31 +231,16 @@ async def _forward_authenticated_request(
     client: httpx.AsyncClient,
     settings: LiteLLMSettings,
     strip_mount_path: bool,
-    path: bytes,
     user: AuthenticatedUser,
     request_id: str,
-    harness_id: str,
 ) -> None:
     first_message = await receive()
     if first_message["type"] == "http.disconnect":
         return
     method = str(scope.get("method", "GET"))
-    incoming = Request(scope)
     has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
-    content: bytes | AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
-    if method == "POST" and path not in _MULTIPART_PATHS:
-        content_type = incoming.headers.get("content-type", "").lower()
-        if "application/json" not in content_type or incoming.headers.get("content-encoding"):
-            await _send_error(send, 400, _INVALID_BODY)
-            return
-        try:
-            content = await _json_body(first_message, receive, user, request_id, harness_id)
-        except OverflowError:
-            await _send_error(send, 413, _TOO_LARGE_BODY)
-            return
-        except ValueError:
-            await _send_error(send, 400, _INVALID_BODY)
-            return
+    # Stream every path unchanged; LiteLLM owns payload validation and authorization.
+    content: AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
 
     try:
         upstream_api_key = await authenticated_upstream_key(scope, settings, user)
@@ -365,7 +284,7 @@ async def _forward_authenticated_request(
 
 
 class LiteLLMProxy:
-    """Authenticate and forward allow-listed LLM traffic without response buffering."""
+    """Authenticate and stream all LiteLLM HTTP paths without inspecting bodies."""
 
     def __init__(self, settings: LiteLLMSettings, *, strip_mount_path: bool = False) -> None:
         self.settings = settings
@@ -377,12 +296,6 @@ class LiteLLMProxy:
                 await send({"type": "websocket.close", "code": 1008})
             return
 
-        path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path)
-        method = str(scope.get("method", "GET"))
-        if not ((method == "POST" and path in _POST_PATHS) or (method == "GET" and path in _GET_PATHS)):
-            await _send_error(send, 404, _NOT_FOUND_BODY)
-            return
-
         app = scope.get("app")
         client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
         if client is None:
@@ -391,7 +304,6 @@ class LiteLLMProxy:
 
         incoming = Request(scope)
         request_id = _safe_identifier(incoming.headers.get("x-request-id"), str(uuid4()))
-        harness_id = _safe_identifier(incoming.headers.get("x-harness-id"), "unknown")
         user = getattr(incoming.state, "authenticated_user", None)
         encrypted_session = getattr(incoming.state, "encrypted_session_data", None)
         if not isinstance(user, AuthenticatedUser) or not isinstance(encrypted_session, str) or not encrypted_session:
@@ -406,10 +318,8 @@ class LiteLLMProxy:
             client=client,
             settings=self.settings,
             strip_mount_path=self.strip_mount_path,
-            path=path,
             user=user,
             request_id=request_id,
-            harness_id=harness_id,
         )
 
 
