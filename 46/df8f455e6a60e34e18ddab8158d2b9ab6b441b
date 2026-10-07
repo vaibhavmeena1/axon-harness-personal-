@@ -1,0 +1,72 @@
+apps/backend/README.md
+  s_9fd3a5da27293e::t_9ff16794f9b76b 31-33,41-54
+  s_a0c54a39640bce::t_2322c8fb97b7f1 81,111,119-140
+  s_9fd3a5da27293e::t_5dd8abe7699ad9 55
+  s_a0c54a39640bce::t_0b8fc23b9d8236 141
+apps/backend/tests/test_litellm_proxy.py
+  s_9fd3a5da27293e::t_d34a4eb8da3f9d 72
+  s_9fd3a5da27293e::t_47f175ad7cd5ba 51-71,73-88
+apps/backend/tests/test_litellm_identity.py
+  s_9fd3a5da27293e::t_d34a4eb8da3f9d 154
+  s_9fd3a5da27293e::t_02ee14c2b0898f 1-153,155-271
+apps/cli/tests/client-config.test.ts
+  s_a0c54a39640bce::t_d21d08801a1f87 54-71
+apps/cli/tests/pi-settings-defaults.test.ts
+  s_a0c54a39640bce::t_27e63689ed05d3 77
+  s_a0c54a39640bce::t_5248feb453e58b 1-76,78-124
+apps/backend/config_template.json
+  s_9fd3a5da27293e::t_da70876e1f2b44 85-86
+  s_a0c54a39640bce::t_b8a5e6f4b268f8 47-49
+apps/backend/app/core/cli_config.py
+  s_a0c54a39640bce::t_cb1469ab7fc4d6 1,24-42
+  s_a0c54a39640bce::t_39f9fa0aa0af97 43-44
+apps/cli/src/cli/client-config.ts
+  s_a0c54a39640bce::t_7ac0bcafa69ef0 27-29,32,38
+apps/backend/app/core/config.py
+  s_a0c54a39640bce::t_a327297e130e2f 187-191,667
+  s_9fd3a5da27293e::t_09db305eea5d86 24,231-240,530
+  s_a0c54a39640bce::t_e48316bf679c50 14-21,184,689
+  s_9fd3a5da27293e::t_9e36083b05f07d 101-102,531,534-535
+  s_a0c54a39640bce::t_29b7d2ecad4ee4 185-186
+apps/backend/app/routers/cli_config.py
+  s_a0c54a39640bce::t_71e7b1c16d65bf 9,19,26-30
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_a0c54a39640bce::t_5292e164423f85 29-31
+  s_a0c54a39640bce::t_5d99a3e9f0ddc8 1-28,32-40
+apps/cli/src/harnesses/pi/adapter.ts
+  s_a0c54a39640bce::t_550a70eb47d26d 19,22,24,73-74,79,97,102-103,106-112
+  s_a0c54a39640bce::t_0771ac736c1a0f 113
+apps/backend/app/clients/litellm.py
+  s_9fd3a5da27293e::t_46d70689040dc7 35,130-138,146,192-206,213,221-237,260,269,284
+apps/backend/tests/test_cli_config.py
+  s_a0c54a39640bce::t_d89ae060736a33 178-218
+  s_a0c54a39640bce::t_1ae04e254be8ef 1,14,51-53,61-66,70-72,161,163,169
+apps/cli/tests/pi-client-config.test.ts
+  s_a0c54a39640bce::t_27e63689ed05d3 101-102,215-219
+  s_a0c54a39640bce::t_e1f01dbf25e1c9 18-19,44,50,54,78-85,100,103,107,122,135-136,138-139,166-172,178-179,181,189,194,208-214,220-252
+  s_a0c54a39640bce::t_23bda3ad5e1040 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "46df8f455e6a60e34e18ddab8158d2b9ab6b441b",
+  "prompts": {},
+  "sessions": {
+    "s_9fd3a5da27293e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a114ca-1ca1-7760-8594-863afc875368",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_a0c54a39640bce": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1154e-9881-74ee-bf40-d86419a97c1e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
