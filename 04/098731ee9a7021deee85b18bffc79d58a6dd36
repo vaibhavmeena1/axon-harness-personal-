@@ -1,0 +1,73 @@
+apps/backend/app/routers/cli_config.py
+  c8eeb34bd758ad66 11,19,25
+apps/backend/config_template.json
+  c8eeb34bd758ad66 61-76
+apps/cli/src/harnesses/pi/resources/extensions/web-search.ts
+  e80fa781ff9645df 24-26
+  c8eeb34bd758ad66 1-23,27-411
+apps/backend/app/proxies/litellm.py
+  c8eeb34bd758ad66 282-283,327
+apps/backend/tests/test_cli_config.py
+  c8eeb34bd758ad66 16,48-49,51,59,63,65-66
+apps/cli/tests/launcher.test.ts
+  c8eeb34bd758ad66 298,335-336
+apps/cli/src/harnesses/pi/web-search-environment.ts
+  c8eeb34bd758ad66 1-50
+apps/cli/tests/pi-package-setup.test.ts
+  c8eeb34bd758ad66 708
+apps/cli/src/types/assets.d.ts
+  e80fa781ff9645df 5-10
+apps/cli/src/harnesses/pi/adapter.ts
+  c8eeb34bd758ad66 6,22,53,70,74,80,95,97-98,110-115,136
+apps/cli/tests/pi-client-config.test.ts
+  c8eeb34bd758ad66 163,172-176
+apps/cli/src/product/manifest.ts
+  c8eeb34bd758ad66 14-17,47-50,55,78,105-107
+apps/backend/app/services/web_search.py
+  c8eeb34bd758ad66 1-228,230-275
+apps/backend/app/routers/__init__.py
+  c8eeb34bd758ad66 14,26
+apps/cli/src/cli/auth/request-relay.ts
+  c8eeb34bd758ad66 201-202
+apps/backend/app/core/web_search.py
+  c8eeb34bd758ad66 1-68
+apps/backend/app/core/config.py
+  c8eeb34bd758ad66 16,172,425-431,628,649
+apps/cli/src/cli/client-config.ts
+  c8eeb34bd758ad66 16-26,30,35
+apps/backend/app/routers/web_search.py
+  c8eeb34bd758ad66 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "04098731ee9a7021deee85b18bffc79d58a6dd36",
+  "prompts": {
+    "c8eeb34bd758ad66": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "487618",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 1047,
+      "total_deletions": 126,
+      "accepted_lines": 936,
+      "overriden_lines": 1
+    },
+    "e80fa781ff9645df": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "488228",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
