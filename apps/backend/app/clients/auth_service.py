@@ -1,5 +1,7 @@
 """Private, pooled HTTP client for deputydev-auth session and identity lookups."""
 
+from typing import Literal
+
 import httpx
 from fastapi import Request
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -27,9 +29,10 @@ class AuthData(BaseModel):
 
 
 class AuthenticatedUser(AuthData):
-    """Additional identity fields required for LiteLLM spend attribution."""
+    """Verified identity; inherited user_team_id is LiteLLM's canonical user ID."""
 
-    user_id: int
+    # The account-level ID is optional and never determines LiteLLM ownership.
+    user_id: int | None = None
     team_id: int
     user_email: str
     user_name: str | None = None
@@ -40,6 +43,10 @@ class AuthenticatedUser(AuthData):
 class AuthDataResponse(BaseModel):
     auth_data: AuthData
     response_headers: dict[str, str]
+
+
+class AuthSessionVerification(BaseModel):
+    status: Literal["VERIFIED", "NOT_VERIFIED", "EXPIRED"]
 
 
 class AuthServiceClient:
@@ -95,7 +102,7 @@ class AuthServiceClient:
         return auth_data
 
     async def verify_identity(self, authorization: str) -> dict[str, object]:
-        """Existing auth-service verification API supplies email/name for minimal auth_data."""
+        """Obtain verified telemetry identity, preserving any refreshed session."""
         try:
             response = await self._client.post(
                 "verify-auth-token",
@@ -105,17 +112,32 @@ class AuthServiceClient:
             response.raise_for_status()
             payload = response.json()
         except httpx.HTTPStatusError as exc:
-            code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
-            raise AuthServiceError("Identity verification failed", status_code=code) from exc
+            status_code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
+            raise AuthServiceError("Identity verification failed", status_code=status_code) from exc
         except (httpx.HTTPError, ValueError) as exc:
-            raise AuthServiceError("Identity verification unavailable") from exc
-        if not isinstance(payload, dict) or not isinstance(payload.get("status"), str):
-            raise AuthServiceError("Auth service returned invalid identity")
+            raise AuthServiceError("Auth service identity verification failed") from exc
+
+        if not isinstance(payload, dict) or payload.get("status") not in ("VERIFIED", "EXPIRED", "NOT_VERIFIED"):
+            raise AuthServiceError("Auth service returned an invalid identity")
         if payload["status"] == "NOT_VERIFIED":
-            raise AuthServiceError("Identity verification failed", status_code=401)
-        if payload["status"] not in {"VERIFIED", "EXPIRED"}:
-            raise AuthServiceError("Auth service returned invalid identity")
+            raise AuthServiceError("Authentication failed", status_code=401)
         return payload
+
+    async def verify_auth_token(self, authorization: str) -> AuthSessionVerification:
+        """Check startup credentials without refreshing an expired session."""
+        try:
+            response = await self._client.post(
+                "verify-auth-token",
+                headers={"Authorization": authorization},
+                params={"refresh_expired": "false"},
+            )
+            response.raise_for_status()
+            return AuthSessionVerification.model_validate(response.json())
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
+            raise AuthServiceError("Session verification failed", status_code=status_code) from exc
+        except (httpx.HTTPError, ValueError, ValidationError) as exc:
+            raise AuthServiceError("Auth service session verification failed") from exc
 
     async def close(self) -> None:
         await self._client.aclose()

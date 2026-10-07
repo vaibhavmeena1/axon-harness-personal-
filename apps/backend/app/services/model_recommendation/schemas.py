@@ -1,5 +1,7 @@
 """API and domain schemas for task-based model recommendations."""
 
+from uuid import UUID, uuid4
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -67,6 +69,7 @@ class ModelRecommendationRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+    request_id: UUID = Field(default_factory=uuid4, alias="requestId")
     prompt: str = Field(min_length=1, max_length=100_000)
     has_images: bool = Field(default=False, alias="hasImages")
     current_model: str | None = Field(default=None, alias="currentModel")
@@ -114,5 +117,9 @@ class TaskAssessment(BaseModel):
 class ModelRecommendationResponse(BaseModel):
     """Ranked compatible models and the Jev assessment behind the ranking."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
+    request_id: UUID = Field(alias="requestId")
+    policy_version: str = Field(alias="policyVersion")
     recommendations: list[ModelRecommendation]
     assessment: TaskAssessment

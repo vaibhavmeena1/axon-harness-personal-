@@ -24,8 +24,8 @@ export const ATTR_RESPONSE_ID = "gen_ai.response.id";
 export const ATTR_PROVIDER_REQUEST_ID = "pi.provider.request_id";
 export const ATTR_INPUT_TOKENS = "gen_ai.usage.input_tokens";
 export const ATTR_OUTPUT_TOKENS = "gen_ai.usage.output_tokens";
-export const ATTR_CACHE_READ_TOKENS = "gen_ai.usage.cache_read_input_tokens";
-export const ATTR_CACHE_WRITE_TOKENS = "gen_ai.usage.cache_write_input_tokens";
+export const ATTR_CACHE_READ_TOKENS = "gen_ai.usage.cache_read.input_tokens";
+export const ATTR_CACHE_WRITE_TOKENS = "gen_ai.usage.cache_write.input_tokens";
 export const ATTR_REASONING_TOKENS = "gen_ai.usage.reasoning.output_tokens";
 export const ATTR_COST = "pi.cost.usd";
 export const ATTR_COST_INPUT = "pi.cost.input_usd";
@@ -48,11 +48,11 @@ export const ATTR_THINKING_LEVEL = "pi.thinking.level";
 export const ATTR_PROVIDER_THINKING_LEVEL = "pi.thinking.provider_level";
 export const ATTR_LLM_TRUNCATED = "pi.llm.truncated";
 
-export const SPAN_INTERACTION = "pi.interaction";
+export const SPAN_INTERACTION = "invoke_agent pi";
 export const SPAN_AGENT_RUN = "pi.agent.run";
 export const SPAN_TURN = "pi.turn";
-export const SPAN_LLM = "gen_ai.chat";
-export const SPAN_TOOL = "gen_ai.execute_tool";
+export const SPAN_LLM = "chat";
+export const SPAN_TOOL = "execute_tool";
 export const SPAN_USER_WAIT = "pi.user.wait";
 export const SPAN_COMPACTION = "pi.session.compaction";
 
@@ -64,7 +64,7 @@ export const COUNTER_UNITS: Readonly<Record<string, string>> = {
   "pi.user.intervention.count": "{intervention}",
   "pi.interaction.count": "{interaction}",
   "pi.agent.run.count": "{run}",
-  "pi.agent.retry.inferred": "{run}",
+  "pi.agent.run.repeated": "{run}",
   "pi.turn.count": "{turn}",
   "pi.llm.requests": "{request}",
   "pi.llm.errors": "{error}",

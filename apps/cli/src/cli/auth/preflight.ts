@@ -7,6 +7,7 @@ import {
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
+import { measureProductOperation } from "../../telemetry/product-events.ts";
 import { runAuthLogin } from "../commands/auth.ts";
 import { loadEncryptedSession } from "./session.ts";
 
@@ -18,7 +19,7 @@ export interface SessionPreflightOptions {
 }
 
 /** Local completion check only: API requests still validate the saved credential. */
-export async function ensureDeputyDevSession(
+async function ensureDeputyDevSessionInternal(
   paths: DeputyDevPaths,
   options: SessionPreflightOptions,
 ): Promise<void> {
@@ -52,6 +53,15 @@ export async function ensureDeputyDevSession(
       { remediation: "Run ddcli auth login, then retry." },
     );
   }
+}
+
+export async function ensureDeputyDevSession(
+  paths: DeputyDevPaths,
+  options: SessionPreflightOptions,
+): Promise<void> {
+  return measureProductOperation({ category: "auth", stage: "preflight" }, () =>
+    ensureDeputyDevSessionInternal(paths, options),
+  );
 }
 
 export async function runPiSessionPreflight(

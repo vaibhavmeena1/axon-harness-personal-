@@ -9,7 +9,7 @@ This is the current implementation and operations reference for DeputyDev sessio
 | Concern | Current behavior |
 | --- | --- |
 | Supported production adapter | `harness=pi`, `session_format=pi-jsonl`, `session_format_version="3"` |
-| Managed Pi runtime | **1.0.2**, pinned in [`apps/cli/pi-version.json`](../apps/cli/pi-version.json); restore loads that managed package, not global Pi |
+| Managed Pi runtime | **1.0.4**, pinned in [`apps/cli/pi-version.json`](../apps/cli/pi-version.json); restore loads that managed package, not global Pi |
 | Backup artifact | Complete original JSONL bytes: header, all branches, messages, tool calls/results, compactions, model changes, thinking, embedded media, and opaque fields |
 | Remote retention | One latest committed checkpoint per stream, not revision history |
 | Size limits | Raw: **100 MiB / 104,857,600 bytes**; stored: **101 MiB / 105,906,176 bytes** |

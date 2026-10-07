@@ -27,14 +27,14 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
 "LITELLM": {
   "UPSTREAM_URL": "http://localhost:4000",
   "UPSTREAM_ROOT_PATH": "/",
-  "SERVICE_TOKEN": "replace-with-litellm-service-token",
-  "IDENTITY_SECRET": "replace-with-a-random-shared-signing-secret"
+  "API_KEY": "replace-with-litellm-master-key",
+  "IDENTITY_SYNC_ENABLED": true
 }
 ```
 
-For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. Both credential fields are required non-empty strings and are read only from JSON, never environment variables. Restart the backend after changing them. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
+For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
-For local connectivity testing against an unmodified LiteLLM container, `SERVICE_TOKEN` can be its master key; this does not test custom user/team authorization or accounting. For the full integration, load `deployment/litellm/config.yaml` and `custom_auth.py` into LiteLLM and set its `LITELLM_SERVICE_TOKEN` and `LITELLM_IDENTITY_SECRET` environment variables to match the backend's JSON values. The separate LiteLLM container still uses environment variables; the backend proxy does not. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
+Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
 
 ## Serving the console frontend
 
@@ -99,6 +99,19 @@ The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v
 
 Environment fallback retains standard HTTP/protobuf or gRPC exporters and environment-supplied headers/API keys. It never automatically attaches a DeputyDev session, and its Git-email/installation-UUID attribution remains unchanged. Collector access and retention must cover verified employee identity and private repository names.
 
+### Backend recommender telemetry
+
+`OPEN_TELEMETRY` now optionally initializes app-owned OTLP/HTTP trace/metric providers for the model
+recommender. Set `ENABLED: true`, `SERVICE_NAME`, `ENDPOINT` (collector HTTP base, usually port 4318),
+`PROTOCOL: "http/protobuf"`, optional server-owned `HEADERS`, `SAMPLING_RATE` and
+`METRICS_EXPORT_INTERVAL_MILLIS`. `HEADERS: {}` works for unprotected in-cluster collectors.
+Providers are initialized/closed by the lifespan; no Vortex/event-loop monitor is installed.
+Request, assessment and ranking operations record only controlled metadata and numeric scores,
+never prompts or exception text. CLI response fields `requestId`/`policyVersion` correlate the
+picker with backend traces/logs. Backend and CLI metrics use `component` to avoid double counting.
+This does not automatically instrument every backend HTTP/DB operation. See
+[product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md). Restart after changing config.
+
 ### CLI releases (macOS arm64 only)
 
 Copy the `CLI_RELEASES` section from `config_template.json` into the ignored `config.json`. The checked-in example is **disabled**, with placeholder bucket, signing credentials, and hashes. Set a private S3 `BUCKET`, `REGION`, an immutable `KEY_PREFIX`, a random `UPLOAD_AUTH_KEY` of at least 32 characters, CloudFront `DISTRIBUTION_URL`, trusted `KEY_PAIR_ID` and RSA `PRIVATE_KEY` (PEM with newlines represented as JSON `\\n`). Supply each version's `s3_key`, compressed `archive_sha256`, and decompressed `binary_sha256` under `VERSIONS`, with `LATEST_VERSION` referencing an already published version (leave it empty while staging the very first release; public `latest` returns 503 until promotion). Set `ENABLED` to `true` only after real values are provided. The server validates enabled settings at startup. Settings are cached: **restart the backend** after staging a version or promoting `LATEST_VERSION`.
@@ -109,7 +122,7 @@ The private bucket should permit origin reads only through CloudFront Origin Acc
 
 Checksums obtained from the same backend detect corruption and mismatch, not compromise of that backend. Stronger independent artifact authentication would require a separately signed update manifest.
 
-A missing asset under `/assets/` and an unknown path under `/api/` both return a plain-text 404 instead of `index.html`. FastAPI handles other HTTP exceptions with its normal status codes and response bodies; Vortex's legacy error envelope and status remapping are no longer installed. Vortex's request-context middleware, structured logging, Sentry, and OpenTelemetry integrations are also no longer installed automatically.
+A missing asset under `/assets/` and an unknown path under `/api/` both return a plain-text 404 instead of `index.html`. FastAPI handles other HTTP exceptions with its normal status codes and response bodies; Vortex's legacy error envelope and status remapping are no longer installed. Vortex's request-context middleware, structured logging, Sentry, and OpenTelemetry integrations are not installed automatically; the optional backend-owned recommender telemetry above is separate.
 
 `FRONTEND_DIR` in `config.json` points at the build (default `static/`, relative to this directory). When it is absent the service starts normally and serves the API only — which is the usual local setup, where `vite dev` serves the console on port 8010 and proxies `/api` here.
 

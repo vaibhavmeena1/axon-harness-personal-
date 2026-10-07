@@ -13,6 +13,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
+from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
+from app.core.web_search import WebSearchSettings, parse_web_search
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -79,13 +81,16 @@ class LiteLLMSettings:
 
     upstream_url: str
     upstream_root_path: str
-    service_token: str = field(repr=False)
-    identity_secret: str = field(repr=False)
     connect_timeout_seconds: int
     pool_timeout_seconds: int
     max_connections: int
     max_keepalive_connections: int
     keepalive_expiry_seconds: int
+    api_key: str = field(default="", repr=False)
+    identity_sync_enabled: bool = False
+    identity_sync_timeout_seconds: int = 10
+    identity_sync_cache_seconds: int = 60
+    identity_sync_cache_max_entries: int = 1000
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +108,7 @@ class OpenRouterSettings:
     max_connections: int
     max_keepalive_connections: int
     keepalive_expiry_seconds: int
+    ca_bundle: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +170,15 @@ class Settings:
     cli_telemetry: CliTelemetryConfig | None
     otel_proxy: OtelProxySettings | None
     session_backups: SessionStorageSettings | None = None
+    web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
+    backend_telemetry: BackendTelemetrySettings | None = None
+
+
+def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetrySettings | None:
+    try:
+        return parse_backend_telemetry(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.OPEN_TELEMETRY contains invalid settings") from None
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -178,6 +193,22 @@ def _string(source: dict[str, Any], key: str, path: str, *, allow_empty: bool = 
     if not isinstance(value, str) or (not allow_empty and not value.strip()):
         raise ConfigurationError(f"{path}.{key} must be a non-empty string")
     return value.strip() if not allow_empty else value
+
+
+def _optional_string(source: dict[str, Any], key: str, path: str) -> str:
+    value = source.get(key, "")
+    if not isinstance(value, str):
+        raise ConfigurationError(f"{path}.{key} must be a string")
+    return value.strip()
+
+
+def _upstream_api_key(source: dict[str, Any], key: str, path: str) -> str:
+    value = _optional_string(source, key, path)
+    # A private stock LiteLLM deployment may not require its own API key.
+    # DeputyDev session authentication remains mandatory even when this is empty.
+    if any(not 33 <= ord(character) <= 126 for character in value):
+        raise ConfigurationError(f"{path}.{key} must contain only printable ASCII characters without spaces")
+    return value
 
 
 def _integer(
@@ -400,6 +431,13 @@ def _session_backups(raw: dict) -> SessionStorageSettings | None:
         raise ConfigurationError("config.SESSION_BACKUPS contains invalid settings") from None
 
 
+def _web_search(raw: dict[str, Any]) -> WebSearchSettings:
+    try:
+        return parse_web_search(raw)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.WEB_SEARCH contains invalid search settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -463,14 +501,23 @@ def get_settings() -> Settings:
     )
 
     litellm = LiteLLMSettings(
+        api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
+        identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
+        identity_sync_timeout_seconds=_integer(
+            litellm_config, "IDENTITY_SYNC_TIMEOUT_SECONDS", "config.LITELLM", default=10
+        ),
+        identity_sync_cache_seconds=_integer(
+            litellm_config, "IDENTITY_SYNC_CACHE_SECONDS", "config.LITELLM", default=60, minimum=0
+        ),
+        identity_sync_cache_max_entries=_integer(
+            litellm_config, "IDENTITY_SYNC_CACHE_MAX_ENTRIES", "config.LITELLM", default=1000
+        ),
         upstream_url=_http_origin(litellm_config, "UPSTREAM_URL", "config.LITELLM"),
         upstream_root_path=_url_path(
             litellm_config,
             "UPSTREAM_ROOT_PATH",
             "config.LITELLM",
         ),
-        service_token=_string(litellm_config, "SERVICE_TOKEN", "config.LITELLM"),
-        identity_secret=_string(litellm_config, "IDENTITY_SECRET", "config.LITELLM"),
         connect_timeout_seconds=_integer(
             litellm_config,
             "CONNECT_TIMEOUT_SECONDS",
@@ -506,6 +553,7 @@ def get_settings() -> Settings:
         raise ConfigurationError("config.LITELLM.MAX_KEEPALIVE_CONNECTIONS must not exceed MAX_CONNECTIONS")
 
     openrouter = OpenRouterSettings(
+        ca_bundle=_optional_string(openrouter_config, "CA_BUNDLE", "config.OPENROUTER"),
         api_key=_string(openrouter_config, "API_KEY", "config.OPENROUTER"),
         base_url=_http_base_url(openrouter_config, "BASE_URL", "config.OPENROUTER"),
         http_referer=_http_origin(openrouter_config, "HTTP_REFERER", "config.OPENROUTER"),
@@ -586,6 +634,8 @@ def get_settings() -> Settings:
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
     session_backups = _session_backups(raw_config)
+    web_search = _web_search(raw_config)
+    backend_telemetry = _backend_telemetry_settings(raw_config)
 
     return Settings(
         name=_string(raw_config, "NAME", "config"),
@@ -606,4 +656,6 @@ def get_settings() -> Settings:
         cli_telemetry=cli_telemetry,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
+        web_search=web_search,
+        backend_telemetry=backend_telemetry,
     )

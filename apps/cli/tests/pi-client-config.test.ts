@@ -92,6 +92,7 @@ async function launchSpec(
     "await adapter.prepare(context, args);",
     "const spec = await adapter.buildLaunchSpec(context, args);",
     "console.log(JSON.stringify(spec.environment));",
+    "spec.dispose?.();",
   ].join("\n");
   const child = Bun.spawn([process.execPath, "--no-env-file", "--eval", script], {
     cwd: projectRoot,
@@ -121,7 +122,7 @@ async function launchSpec(
 }
 
 describe("real Pi adapter client config integration", () => {
-  test("fetches once, applies remote precedence, and passes/persists the refreshed credential", async () => {
+  test("fetches once, applies remote precedence, and persists refresh without exposing it to Pi", async () => {
     requests = [];
     const environment = await launchSpec();
     expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
@@ -132,8 +133,18 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["PI_ORG_OTEL_MANAGED_HOME"]).toBe(root);
     expect(environment["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]).toBeUndefined();
     expect(environment["OTEL_EXPORTER_OTLP_HEADERS"]).toBeUndefined();
-    expect(environment["LITELLM_API_KEY"]).toBe("rotated-token");
-    expect(environment["PI_MODEL_RECOMMENDER_API_KEY"]).toBe("rotated-token");
+    const capability = environment["PI_DEPUTYDEV_AUTH_RELAY_KEY"];
+    expect(capability).toBeString();
+    expect(capability).not.toBe("rotated-token");
+    expect(environment["LITELLM_API_KEY"]).toBe(capability);
+    expect(environment["PI_MODEL_RECOMMENDER_API_KEY"]).toBe(capability);
+    const relayOrigin = environment["PI_DEPUTYDEV_AUTH_RELAY_URL"];
+    if (relayOrigin === undefined) throw new Error("Missing local auth relay origin");
+    expect(new URL(relayOrigin).hostname).toBe("127.0.0.1");
+    expect(environment["LITELLM_BASE_URL"]).toBe(`${relayOrigin}/litellm`);
+    expect(environment["PI_MODEL_RECOMMENDER_URL"]).toBe(
+      `${relayOrigin}/api/v1/model-recommendations`,
+    );
     expect(await loadEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: root }))).toBe(
       "rotated-token",
     );
@@ -149,7 +160,7 @@ describe("real Pi adapter client config integration", () => {
     mode = "valid";
   });
 
-  test("scripted, offline, disabled, and administrative launches do not fetch config", async () => {
+  test("search policy is fetched for scripted and telemetry-disabled launches, but not offline or admin", async () => {
     for (const options of [
       { interactive: false },
       { offline: true },
@@ -158,7 +169,11 @@ describe("real Pi adapter client config integration", () => {
     ]) {
       requests = [];
       const environment = await launchSpec(options);
-      expect(requests).not.toContain("/api/v1/cli/config");
+      if (options.offline || options.admin) {
+        expect(requests).not.toContain("/api/v1/cli/config");
+      } else {
+        expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
+      }
       if (options.offline || options.disabled)
         expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
     }

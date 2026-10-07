@@ -1,6 +1,7 @@
 """Backend orchestration for Jev-powered model recommendations."""
 
 from app.clients.openrouter import OpenRouterClient
+from app.services.model_recommendation.catalog import model_policy_version
 from app.services.model_recommendation.jev import (
     JevAssessmentError,
     build_jev_request,
@@ -12,6 +13,7 @@ from app.services.model_recommendation.schemas import (
     ModelRecommendationResponse,
     TaskAssessment,
 )
+from app.telemetry import ProductTelemetry, product_telemetry
 
 
 class ModelRecommendationError(RuntimeError):
@@ -27,16 +29,44 @@ class ModelRecommendationService:
     async def recommend(
         self,
         request: ModelRecommendationRequest,
+        telemetry: ProductTelemetry | None = None,
+        identity: dict | None = None,
     ) -> ModelRecommendationResponse:
         """Return compatible models ordered by task fit."""
-        jev_response = await self._openrouter_client.create_decision(build_jev_request(request.prompt))
+        telemetry = telemetry or product_telemetry()
+        policy = model_policy_version()
         try:
-            assessment = parse_jev_assessment(jev_response)
-            recommendations = rank_available_models(request, assessment)
+            with telemetry.operation(
+                "assessment", identity, **{"deputydev.recommendation.id": str(request.request_id)}
+            ):
+                jev_response = await self._openrouter_client.create_decision(build_jev_request(request.prompt))
+                assessment = parse_jev_assessment(jev_response)
+            with telemetry.operation("ranking", identity):
+                recommendations = rank_available_models(request, assessment)
         except (JevAssessmentError, ValueError) as exc:
             raise ModelRecommendationError(str(exc)) from exc
 
+        telemetry.event(
+            "assessed",
+            "success",
+            identity,
+            complexity=assessment.complexity,
+            confidence=assessment.complexity_confidence,
+            high_complexity_probability=assessment.high_complexity_probability,
+            needs_deep_reasoning=assessment.needs_deep_reasoning,
+            prioritizes_speed=assessment.prioritizes_speed,
+        )
+        telemetry.event(
+            "recommended",
+            "success",
+            identity,
+            model=f"{recommendations[0].provider}/{recommendations[0].id}" if recommendations else "none",
+            policy_version=policy,
+            candidate_count=len(recommendations),
+        )
         return ModelRecommendationResponse(
+            request_id=request.request_id,
+            policy_version=policy,
             recommendations=recommendations,
             assessment=TaskAssessment(
                 complexity=assessment.complexity,

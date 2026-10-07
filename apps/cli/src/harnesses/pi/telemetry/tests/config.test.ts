@@ -42,6 +42,49 @@ test("resolves managed OTLP settings with bounded values", () => {
   });
 });
 
+test("per-signal protocols override global defaults; unsupported protocols fail closed", () => {
+  const base = { OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9" };
+  assert.deepEqual(
+    resolveConfig({
+      ...base,
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc",
+      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf",
+    })?.signalProtocols,
+    { traces: "grpc", metrics: "grpc", logs: "http/protobuf" },
+  );
+  for (const protocol of ["http/json", "typo"]) {
+    assert.equal(resolveConfig({ ...base, OTEL_EXPORTER_OTLP_PROTOCOL: protocol }), undefined);
+    assert.equal(
+      resolveConfig({ ...base, OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: protocol }),
+      undefined,
+    );
+  }
+  assert.equal(
+    resolveConfig({
+      ...base,
+      PI_ORG_OTEL_MANAGED_ENDPOINT: "https://backend.test/api/v1/otel",
+      OTEL_EXPORTER_OTLP_PROTOCOL: "typo",
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: "grpc",
+    })?.signalProtocols?.traces,
+    "http/protobuf",
+  );
+});
+
+test("unused global protocol does not invalidate supported per-signal overrides", () => {
+  const config = resolveConfig({
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9",
+    OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: "grpc",
+    OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: "http/protobuf",
+    OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: "http/protobuf",
+  });
+  assert.deepEqual(config?.signalProtocols, {
+    traces: "grpc",
+    metrics: "http/protobuf",
+    logs: "http/protobuf",
+  });
+});
+
 test("resource attributes tolerate malformed encoding", () => {
   assert.deepEqual(parseResourceAttributes("team=dev%ZZ,broken,no-name"), { team: "dev%ZZ" });
 });

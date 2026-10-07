@@ -1,10 +1,12 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 export interface FileLockOptions {
   readonly retryDelayMs?: number;
   readonly staleAfterMs?: number;
   readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
 }
 
 interface LockOwner {
@@ -20,10 +22,6 @@ const OWNER_FILE = "owner.json";
 
 function isFileSystemError(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code;
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function readOwner(lockPath: string): Promise<LockOwner | undefined> {
@@ -105,6 +103,7 @@ async function acquireFileLock(
   await mkdir(dirname(lockPath), { recursive: true, mode: 0o700 });
 
   while (true) {
+    options.signal?.throwIfAborted();
     try {
       await mkdir(lockPath, { mode: 0o700 });
       try {
@@ -135,7 +134,7 @@ async function acquireFileLock(
     if (Date.now() - startedAt >= timeoutMs) {
       throw new Error(`timed out waiting for lock: ${lockPath}`);
     }
-    await delay(retryDelayMs);
+    await sleep(retryDelayMs, undefined, { signal: options.signal });
   }
 }
 
@@ -146,6 +145,7 @@ export async function withFileLock<T>(
 ): Promise<T> {
   const release = await acquireFileLock(lockPath, options);
   try {
+    options.signal?.throwIfAborted();
     return await operation();
   } finally {
     await release();

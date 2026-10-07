@@ -1,5 +1,6 @@
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
 import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { emitProductEvent } from "../telemetry/product-events.ts";
 import type { HarnessLaunchContext, HarnessRegistration, LaunchSpec } from "./contracts.ts";
 import { isTrue, printDebugLaunchPreview } from "./debug-preview.ts";
 import { createHarnessEnvironment } from "./environment.ts";
@@ -14,6 +15,7 @@ export async function launchRegisteredHarness(
   registration: HarnessRegistration,
   userArguments: readonly string[],
 ): Promise<never> {
+  const startedAt = Date.now();
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
   const paths = resolveDeputyDevPaths(inheritedEnvironment);
@@ -38,6 +40,13 @@ export async function launchRegisteredHarness(
   try {
     await adapter.prepare(context, userArguments);
   } catch (error) {
+    emitProductEvent({
+      category: "startup",
+      stage: "prepare",
+      outcome: "failed",
+      reason: "application_failed",
+      durationMs: Date.now() - startedAt,
+    });
     if (error instanceof LauncherError) {
       throw error;
     }
@@ -53,6 +62,13 @@ export async function launchRegisteredHarness(
   try {
     specification = await adapter.buildLaunchSpec(context, userArguments);
   } catch (error) {
+    emitProductEvent({
+      category: "startup",
+      stage: "prepare",
+      outcome: "failed",
+      reason: "application_failed",
+      durationMs: Date.now() - startedAt,
+    });
     if (error instanceof LauncherError) {
       throw error;
     }
@@ -65,6 +81,7 @@ export async function launchRegisteredHarness(
   }
 
   if (specification.executable !== executable) {
+    specification.dispose?.();
     throw new LauncherError(
       `${registration.id} adapter attempted to replace the allowlisted executable`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
@@ -81,8 +98,16 @@ export async function launchRegisteredHarness(
     });
   }
 
+  emitProductEvent({
+    category: "startup",
+    stage: "prepare",
+    outcome: "success",
+    durationMs: Date.now() - startedAt,
+  });
   return spawnHarness({
     ...specification,
-    environment: createHarnessEnvironment(specification.environment),
+    environment: createHarnessEnvironment(specification.environment, {
+      PI_DEPUTYDEV_LAUNCH_STARTED_AT: String(startedAt),
+    }),
   });
 }

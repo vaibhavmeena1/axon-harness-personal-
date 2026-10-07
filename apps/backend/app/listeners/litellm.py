@@ -5,6 +5,7 @@ import logging
 import httpx
 from fastapi import FastAPI
 
+from app.clients.litellm import LITELLM_IDENTITY_CLIENT_STATE_KEY, LiteLLMIdentityClient
 from app.core.config import get_settings
 from app.proxies.litellm import LITELLM_CLIENT_STATE_KEY
 
@@ -29,6 +30,11 @@ async def initialize_litellm_proxy(app: FastAPI) -> None:
         follow_redirects=False,
         trust_env=False,
     )
+    setattr(
+        app.state,
+        LITELLM_IDENTITY_CLIENT_STATE_KEY,
+        LiteLLMIdentityClient(settings, app.state.litellm_proxy_client),
+    )
     logger.info("LiteLLM proxy HTTP client initialized")
 
 
@@ -40,6 +46,7 @@ async def close_litellm_proxy(app: FastAPI) -> None:
         None,
     )
     setattr(app.state, LITELLM_CLIENT_STATE_KEY, None)
+    setattr(app.state, LITELLM_IDENTITY_CLIENT_STATE_KEY, None)
 
     if client is not None:
         await client.aclose()

@@ -1,6 +1,8 @@
 """Bounded, authenticated OTLP/HTTP ingestion with server-authoritative identity."""
 
 import asyncio
+import os
+import ssl
 import time
 import zlib
 from dataclasses import dataclass
@@ -55,6 +57,8 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
             if refreshed is None:
                 raise AuthServiceError("Identity verification returned no refreshed session")
             request.state.auth_response_headers["x-session-refresh-token"] = refreshed
+            # The response middleware must preserve this newest auth-issued rotation.
+            auth_data.session_refresh_token = refreshed
     if email is None or "@" not in email:
         raise AuthServiceError("Auth service returned incomplete telemetry identity")
     if auth_data.session_refresh_token and "x-session-refresh-token" not in request.state.auth_response_headers:
@@ -139,7 +143,12 @@ class OtelProxyRuntime:
 async def initialize_otel_proxy(app: FastAPI) -> None:
     settings = get_settings().otel_proxy
     if settings is not None:
+        # Honor operator CA trust without enabling ambient proxies or other HTTPX env settings.
+        cafile = os.environ.get("SSL_CERT_FILE") or None
+        capath = os.environ.get("SSL_CERT_DIR") or None
+        verify = ssl.create_default_context(cafile=cafile, capath=capath) if cafile or capath else True
         client = httpx.AsyncClient(
+            verify=verify,
             timeout=httpx.Timeout(settings.request_timeout_seconds, connect=settings.connect_timeout_seconds),
             limits=httpx.Limits(max_connections=settings.max_concurrent_requests),
             follow_redirects=False,

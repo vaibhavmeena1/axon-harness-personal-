@@ -58,7 +58,7 @@ function createLauncherProgram(): Command {
     });
   auth
     .command("status")
-    .description("check whether a local encrypted session is saved")
+    .description("verify the saved DeputyDev session with the auth service")
     .action(async () => {
       await runAuthStatus(resolveDeputyDevPaths());
     });

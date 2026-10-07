@@ -198,8 +198,12 @@ describe("Pi package manifest", () => {
     expect(actions).toEqual(["remove:npm:pi-mcp-adapter@2.34.0"]);
     expect(await Bun.file(installedPath).exists()).toBe(false);
     expect(await settingsPackages(context)).toEqual([]);
-    expect(Object.keys((await readPiPackageState(context.paths.piPackageState)).packages)).toEqual([]);
-    expect(normalizeManifestPackages(DEPUTYDEV_MANIFEST).some((entry) => entry.id === "pi-mcp-adapter")).toBe(false);
+    expect(Object.keys((await readPiPackageState(context.paths.piPackageState)).packages)).toEqual(
+      [],
+    );
+    expect(
+      normalizeManifestPackages(DEPUTYDEV_MANIFEST).some((entry) => entry.id === "pi-mcp-adapter"),
+    ).toBe(false);
   });
 
   test("normalizes exact, minimum, and floating npm install sources", () => {
@@ -701,6 +705,7 @@ describe("package and resource locks", () => {
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
       "session-backup.mjs",
+      "web-search.ts",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

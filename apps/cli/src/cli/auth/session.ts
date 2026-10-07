@@ -19,7 +19,19 @@ async function assertRegularDirectory(directory: string): Promise<void> {
   }
 }
 
-async function readSessionFile(destination: string): Promise<Record<string, unknown> | undefined> {
+export function isEncryptedSession(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length < MAX_SESSION_FILE_BYTES &&
+    /^[!-~]+$/.test(value)
+  );
+}
+
+async function readSessionFile(
+  destination: string,
+  recoverInvalidJson = false,
+): Promise<Record<string, unknown> | undefined> {
   try {
     const fileStatus = await lstat(destination);
     if (
@@ -29,8 +41,16 @@ async function readSessionFile(destination: string): Promise<Record<string, unkn
     ) {
       throw new Error("Saved session is not a regular file");
     }
-    const payload: unknown = JSON.parse(await readFile(destination, "utf8"));
+    const serialized = await readFile(destination, "utf8");
+    let payload: unknown;
+    try {
+      payload = JSON.parse(serialized);
+    } catch (error) {
+      if (recoverInvalidJson && error instanceof SyntaxError) return {};
+      throw error;
+    }
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      if (recoverInvalidJson) return {};
       throw new Error("Saved session file is not a JSON object");
     }
     return payload as Record<string, unknown>;
@@ -57,62 +77,67 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
   const payload = await readSessionFile(destination);
   const encryptedSession = payload?.[AUTH_TOKEN_KEY];
   if (encryptedSession === undefined) return undefined;
-  if (typeof encryptedSession !== "string" || !encryptedSession) {
+  if (!isEncryptedSession(encryptedSession)) {
     throw new Error("Saved session token is invalid");
   }
   return encryptedSession;
 }
 
-/** Caller holds the shared CLI writer lock. Retain unrelated VS Code keys. */
-async function writeEncryptedSession(
+/** Merge only our token into the shared session file and atomically set owner-only permissions. */
+async function persistEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
-): Promise<void> {
+  expectedSession?: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!isEncryptedSession(encryptedSession)) throw new Error("Invalid encrypted session");
   const destination = sessionPath(paths);
-
-  // The session file can be shared with the VS Code binary: retain unrelated keys.
-  // Replace permissive existing permissions with 0600 when saving a new token.
-  const existingData = await readSessionFile(destination);
-  const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
-  const serialized = `${JSON.stringify(data)}\n`;
-  if (Buffer.byteLength(serialized, "utf8") > MAX_SESSION_FILE_BYTES) {
-    throw new Error("Saved session file is too large");
-  }
-  const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
-    await rename(temporary, destination);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
-
-/** Merge our credential atomically with owner-only permissions and serialized CLI writes. */
-export async function saveEncryptedSession(
-  paths: DeputyDevPaths,
-  encryptedSession: string,
-): Promise<void> {
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await assertRegularDirectory(paths.home);
-  await withFileLock(join(paths.home, ".session.lock"), () =>
-    writeEncryptedSession(paths, encryptedSession),
+
+  return withFileLock(
+    join(paths.locks, "session.lock"),
+    async () => {
+      // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
+      const existingData = await readSessionFile(destination, expectedSession === undefined);
+      // A late response must not overwrite a newer login or another process's refresh.
+      if (expectedSession !== undefined && existingData?.[AUTH_TOKEN_KEY] !== expectedSession) {
+        return false;
+      }
+      signal?.throwIfAborted();
+      const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
+      const serialized = `${JSON.stringify(data)}\n`;
+      if (Buffer.byteLength(serialized) > MAX_SESSION_FILE_BYTES) {
+        throw new Error("Saved session is too large");
+      }
+      const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+      try {
+        await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
+        signal?.throwIfAborted();
+        await rename(temporary, destination);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      return true;
+    },
+    signal ? { signal } : {},
   );
 }
 
-/** A response to an older request must not overwrite a newer CLI login. */
+export async function saveEncryptedSession(
+  paths: DeputyDevPaths,
+  encryptedSession: string,
+  expectedSession?: string,
+): Promise<void> {
+  await persistEncryptedSession(paths, encryptedSession, expectedSession);
+}
+
+/** Rotate only the credential that produced this response, never a newer login. */
 export async function refreshEncryptedSession(
   paths: DeputyDevPaths,
   expectedSession: string,
   refreshedSession: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  await assertRegularDirectory(paths.home);
-  return withFileLock(
-    join(paths.home, ".session.lock"),
-    async () => {
-      if ((await loadEncryptedSession(paths)) !== expectedSession) return false;
-      await writeEncryptedSession(paths, refreshedSession);
-      return true;
-    },
-    { timeoutMs: 100 },
-  );
+  return persistEncryptedSession(paths, refreshedSession, expectedSession, signal);
 }

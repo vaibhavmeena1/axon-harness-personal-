@@ -161,7 +161,7 @@ function namedRaw(names: readonly string[]) {
   return Buffer.concat([
     raw,
     Buffer.from(
-      names
+      `${names
         .map((name, i) =>
           JSON.stringify({
             type: "session_info",
@@ -171,7 +171,7 @@ function namedRaw(names: readonly string[]) {
             name,
           }),
         )
-        .join("\n") + (names.length ? "\n" : ""),
+        .join("\n")}${names.length ? "\n" : ""}`,
     ),
   ]);
 }
@@ -184,7 +184,7 @@ describe("Pi archive and pinned native restore", () => {
     { names: [" \t\n\u00a0\ufeff"], expected: null },
     { names: ["  fix\nlogin\tflow\u2028now\x1b  "], expected: "fix login flow now" },
     { names: ["😀".repeat(257)], expected: "😀".repeat(256) },
-    { names: ["x".repeat(255) + " \nignored"], expected: "x".repeat(255) },
+    { names: [`${"x".repeat(255)} \nignored`], expected: "x".repeat(255) },
     { names: ["\ud800Title\udfff"], expected: "Title" },
   ])(
     "captures latest native display name without rewriting archive: %j",
@@ -193,11 +193,13 @@ describe("Pi archive and pinned native restore", () => {
       const bytes = namedRaw(names);
       await writeFile(file, bytes);
       const captured = await capturePiSession(paths.piSessions, file, directory, nativeId, resume);
-      expect(captured!.snapshot.display_name).toBe(expected);
-      expect(await readFile(captured!.rawFile)).toEqual(bytes);
+      if (!captured) throw new Error("Missing captured session");
+      expect(captured.snapshot.display_name).toBe(expected);
+      expect(await readFile(captured.rawFile)).toEqual(bytes);
       expect(await readFile(file)).toEqual(bytes);
-      if (names.length) expect(normalizeDisplayName(names[names.length - 1]!)).toBe(expected);
-      expect(snapshotSchema.safeParse(captured!.snapshot).success).toBe(true);
+      const latestName = names.at(-1);
+      if (latestName !== undefined) expect(normalizeDisplayName(latestName)).toBe(expected);
+      expect(snapshotSchema.safeParse(captured.snapshot).success).toBe(true);
     },
   );
   test("display names are required, bounded and normalized", () => {
@@ -234,9 +236,10 @@ describe("Pi archive and pinned native restore", () => {
     await mkdir(staging);
     const captured = await capturePiSession(paths.piSessions, file, staging, nativeId, resume);
     expect(captured).toBeDefined();
-    expect(await readFile(captured!.rawFile)).toEqual(raw);
-    expect(captured!.snapshot.raw_sha256).toBe(hash(raw));
-    expect((await stat(captured!.file)).mode & 0o777).toBe(0o600);
+    if (!captured) throw new Error("Missing captured session");
+    expect(await readFile(captured.rawFile)).toEqual(raw);
+    expect(captured.snapshot.raw_sha256).toBe(hash(raw));
+    expect((await stat(captured.file)).mode & 0o777).toBe(0o600);
     expect(await readFile(file)).toEqual(raw);
   });
   test("rejects incomplete/malformed records, unknown leaves and symlinks", async () => {
@@ -284,18 +287,21 @@ describe("Pi archive and pinned native restore", () => {
     const checkout = join(directory, "new-user-checkout");
     await mkdir(checkout);
     const session = remote();
-    session.snapshot!.resume_metadata = selection;
+    if (!session.snapshot) throw new Error("Missing session snapshot");
+    session.snapshot.resume_metadata = selection;
     const fork = await forkArchive(file, checkout, paths.piSessions, session, SessionManager);
     const restored = SessionManager.open(fork);
     expect(restored.getSessionId()).not.toBe(nativeId);
     expect(restored.getCwd()).toBe(await realpath(checkout));
     expect(restored.getEntries().slice(0, entries.length)).toEqual(entries);
     expect(await readFile(file)).toEqual(raw);
-    if (selection.leaf_known)
-      expect(restored.getLeafEntry()!.parentId).toBe(selection.selected_leaf_id);
-    else expect(restored.getLeafId()).toBe("e");
+    if (selection.leaf_known) {
+      const leaf = restored.getLeafEntry();
+      if (!leaf) throw new Error("Missing restored leaf entry");
+      expect(leaf.parentId).toBe(selection.selected_leaf_id);
+    } else expect(restored.getLeafId()).toBe("e");
     restored.appendCustomEntry("new-turn", { synthetic: true });
-    expect(SessionManager.open(fork).getLeafEntry()!.type).toBe("custom");
+    expect(SessionManager.open(fork).getLeafEntry()?.type).toBe("custom");
     expect((await stat(fork)).mode & 0o777).toBe(0o600);
   });
   test.skipIf(process.env["SESSION_BACKUP_LOAD_TESTS"] !== "1")(
@@ -321,7 +327,8 @@ describe("Pi archive and pinned native restore", () => {
         await handle.close();
       }
       const captured = await capturePiSession(paths.piSessions, file, directory, nativeId, resume);
-      expect(captured!.snapshot.raw_size_bytes).toBe(MAX_RAW_BYTES);
+      if (!captured) throw new Error("Missing captured session");
+      expect(captured.snapshot.raw_size_bytes).toBe(MAX_RAW_BYTES);
       await writeFile(file, "x", { flag: "a" });
       await expect(
         capturePiSession(paths.piSessions, file, directory, nativeId, resume),
@@ -381,7 +388,8 @@ class FakeBackend {
     if (url.hostname === "objects.example.test") {
       expect(headers.has("authorization")).toBe(false);
       expect(headers.get("if-none-match")).toBe("*");
-      await new Response(init!.body).arrayBuffer();
+      if (!init?.body) throw new Error("Missing upload body");
+      await new Response(init.body).arrayBuffer();
       this.uploads++;
       return new Response(null, { status: 200 });
     }
@@ -389,7 +397,8 @@ class FakeBackend {
       return Response.json({ enabled: true, owner_user_team_id: this.owner });
     if (url.pathname === "/api/v1/sessions") return Response.json(this.remote);
     if (url.pathname.endsWith("backup-upload")) {
-      const body = JSON.parse(String(init!.body)) as { request_id: string; snapshot: Snapshot };
+      if (!init?.body) throw new Error("Missing backup request body");
+      const body = JSON.parse(String(init.body)) as { request_id: string; snapshot: Snapshot };
       if (
         this.remote.snapshot?.display_name === body.snapshot.display_name &&
         this.remote.snapshot?.raw_sha256 === body.snapshot.raw_sha256 &&
@@ -404,8 +413,9 @@ class FakeBackend {
       });
     }
     if (url.pathname.endsWith("backup-finalize")) {
-      this.remote.snapshot = this.reserved!.snapshot;
-      this.remote.display_name = this.reserved!.snapshot.display_name;
+      if (!this.reserved) throw new Error("Missing reserved snapshot");
+      this.remote.snapshot = this.reserved.snapshot;
+      this.remote.display_name = this.reserved.snapshot.display_name;
       this.remote.update_token = crypto.randomUUID();
       this.remote.last_backup_at = timestamp;
       if (this.failFinalizeOnce) {
@@ -500,7 +510,8 @@ test("CLI lists quoted names and explicit untitled labels", async () => {
   await saveEncryptedSession(paths, "synthetic-token");
   const named = remote();
   named.display_name = 'Fix "login" flow';
-  named.snapshot!.display_name = named.display_name;
+  if (!named.snapshot) throw new Error("Missing named session snapshot");
+  named.snapshot.display_name = named.display_name;
   const unnamed = remote();
   const previousHome = process.env["DEPUTYDEV_HOME"];
   process.env["DEPUTYDEV_HOME"] = directory;
@@ -515,10 +526,11 @@ test("CLI lists quoted names and explicit untitled labels", async () => {
   }) as typeof fetch);
   try {
     await runSessions("list");
-    expect(output.mock.calls[0]![0]).toContain(
+    expect(output.mock.calls).toHaveLength(2);
+    expect(output.mock.calls[0]?.[0]).toContain(
       `${named.id}\t${JSON.stringify(named.display_name)}\t`,
     );
-    expect(output.mock.calls[1]![0]).toContain(`${unnamed.id}\t(untitled)\t`);
+    expect(output.mock.calls[1]?.[0]).toContain(`${unnamed.id}\t(untitled)\t`);
   } finally {
     fetcher.mockRestore();
     output.mockRestore();
@@ -551,7 +563,8 @@ describe("Owner-bound extension queue", () => {
     await writeFile(file, namedRaw(["Original", "Renamed", ""]));
     expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
     expect(backend.remote.display_name).toBeNull();
-    expect(backend.remote.snapshot!.display_name).toBeNull();
+    if (!backend.remote.snapshot) throw new Error("Missing committed snapshot");
+    expect(backend.remote.snapshot.display_name).toBeNull();
     expect(backend.uploads).toBe(3);
     await controller.boundary(file, nativeId, resume, "manual");
     expect(backend.uploads).toBe(3);

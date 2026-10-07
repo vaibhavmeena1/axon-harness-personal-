@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { fetchClientConfig, parseClientConfig } from "../src/cli/client-config.ts";
 import { createTelemetryOverrides } from "../src/harnesses/pi/telemetry-environment.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
+import { takeProductEvents } from "../src/telemetry/product-events.ts";
 
 const policy = {
   enabled: true,
@@ -92,7 +93,7 @@ describe("protected client config", () => {
       Response.json({ schemaVersion: 100 }),
       new Response("<html>SPA</html>"),
       Response.json({ schemaVersion: 1 }, { headers: { "content-length": "100000" } }),
-      new Response('"' + "x".repeat(17000) + '"', {
+      new Response(`"${"x".repeat(17000)}"`, {
         headers: { "content-type": "application/json" },
       }),
     ])
@@ -117,17 +118,29 @@ describe("protected client config", () => {
             },
           }),
           {
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              "x-session-refresh-token": "rotated-after-headers",
+            },
           },
         );
       },
     });
     try {
+      takeProductEvents();
       const started = Date.now();
       expect(
         await fetchClientConfig("token", { serviceOrigin: server.url.origin, timeoutMs: 30 }),
-      ).toEqual({});
+      ).toEqual({ sessionRefreshToken: "rotated-after-headers" });
       expect(Date.now() - started).toBeLessThan(1000);
+      expect(takeProductEvents()).toEqual([
+        expect.objectContaining({
+          category: "config",
+          stage: "fetch",
+          outcome: "failed",
+          reason: "timeout",
+        }),
+      ]);
     } finally {
       server.stop(true);
     }

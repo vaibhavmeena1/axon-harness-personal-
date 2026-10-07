@@ -19,6 +19,13 @@ import type { SessionManager as PiSessionManager } from "@earendil-works/pi-codi
 
 import piVersion from "../../pi-version.json";
 import type { DeputyDevPaths } from "../product/paths.ts";
+import {
+  emitProductEvent,
+  measureProductOperation,
+  observeProductEvent,
+  type ProductEventObserver,
+  productFailureReason,
+} from "../telemetry/product-events.ts";
 import { type BackupApi, storageUrl } from "./api.ts";
 import {
   assertPiAdapter,
@@ -162,9 +169,10 @@ export async function forkArchive(
 export interface RestoreOptions {
   readonly manager?: PiManagerClass;
   readonly inspect?: (session: RemoteSession) => Promise<boolean>;
+  readonly observer?: ProductEventObserver;
 }
 
-export async function restoreSession(
+async function restoreSessionInternal(
   api: BackupApi,
   id: string,
   cwd: string,
@@ -190,18 +198,30 @@ export async function restoreSession(
   try {
     const stored = join(archive, "payload");
     const raw = join(archive, "original.jsonl");
-    const response = await api.fetcher(storageUrl(download.url), {
-      redirect: "error",
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!response.ok || !response.body) throw new Error("Archive download failed");
-    await pipeline(
-      Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
-      byteLimit(snapshot.stored_size_bytes),
-      createWriteStream(stored, { flags: "wx", mode: 0o600 }),
+    await measureProductOperation(
+      { category: "restore", stage: "download", bytes: snapshot.stored_size_bytes },
+      async () => {
+        const response = await api.fetcher(storageUrl(download.url), {
+          redirect: "error",
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!response.ok || !response.body) throw new Error("Archive download failed");
+        await pipeline(
+          Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
+          byteLimit(snapshot.stored_size_bytes),
+          createWriteStream(stored, { flags: "wx", mode: 0o600 }),
+        );
+      },
+      options.observer,
     );
-    await verifyArchive(stored, raw, snapshot);
-    await validatePiJsonl(raw, download.session.harness_session_id, resume);
+    await measureProductOperation(
+      { category: "restore", stage: "verify", bytes: snapshot.raw_size_bytes },
+      async () => {
+        await verifyArchive(stored, raw, snapshot);
+        await validatePiJsonl(raw, download.session.harness_session_id, resume);
+      },
+      options.observer,
+    );
     await atomicJson(join(archive, "provenance.json"), {
       owner,
       backend: api.origin,
@@ -212,12 +232,10 @@ export async function restoreSession(
     verified = true; // Keep the original verified archive even if native restore fails.
     await privateDirectory(api.paths.pi);
     await privateDirectory(api.paths.piSessions);
-    const published = await forkArchive(
-      raw,
-      checkout,
-      api.paths.piSessions,
-      download.session,
-      Manager,
+    const published = await measureProductOperation(
+      { category: "restore", stage: "fork" },
+      () => forkArchive(raw, checkout, api.paths.piSessions, download.session, Manager),
+      options.observer,
     );
     // No remote client stream identity is reused. First capture allocates a destination-device stream.
     await atomicJson(join(archive, "local-fork.json"), {
@@ -229,5 +247,34 @@ export async function restoreSession(
     return published;
   } finally {
     if (!verified) await rm(archive, { recursive: true, force: true });
+  }
+}
+
+export async function restoreSession(
+  api: BackupApi,
+  id: string,
+  cwd: string,
+  options: RestoreOptions = {},
+): Promise<string | undefined> {
+  const startedAt = Date.now();
+  const observer = options.observer ?? emitProductEvent;
+  try {
+    const result = await restoreSessionInternal(api, id, cwd, options);
+    observeProductEvent(observer, {
+      category: "restore",
+      stage: "request",
+      outcome: result ? "success" : "cancelled",
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    observeProductEvent(observer, {
+      category: "restore",
+      stage: "request",
+      outcome: "failed",
+      reason: productFailureReason(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
   }
 }

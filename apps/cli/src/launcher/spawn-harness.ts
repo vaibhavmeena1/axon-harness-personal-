@@ -1,3 +1,6 @@
+import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { flushProductTelemetry } from "../telemetry/client.ts";
+import { emitProductEvent } from "../telemetry/product-events.ts";
 import { scheduleBackgroundUpdate } from "../updater/update.ts";
 import type { LaunchSpec } from "./contracts.ts";
 import { LauncherError } from "./errors.ts";
@@ -8,6 +11,7 @@ const FORWARDED_SIGNALS = ["SIGTERM", "SIGHUP"] as const;
 export async function spawnHarness(specification: LaunchSpec): Promise<never> {
   let subprocess: Bun.Subprocess<"inherit", "inherit", "inherit">;
   let spawnError: Error | undefined;
+  const startedAt = Date.now();
 
   try {
     subprocess = Bun.spawn([specification.executable, ...specification.arguments], {
@@ -21,6 +25,14 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
       },
     });
   } catch (error) {
+    emitProductEvent({
+      category: "startup",
+      stage: "spawn",
+      outcome: "failed",
+      reason: "application_failed",
+      durationMs: Date.now() - startedAt,
+    });
+    specification.dispose?.();
     throw new LauncherError(
       `failed to start harness executable: ${specification.executable}`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
@@ -28,6 +40,12 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     );
   }
 
+  emitProductEvent({
+    category: "startup",
+    stage: "spawn",
+    outcome: "success",
+    durationMs: Date.now() - startedAt,
+  });
   // The terminal sends SIGINT to the whole foreground process group, including the
   // harness. Catch it in the wrapper so the harness can restore terminal state; do
   // not forward it and accidentally deliver the signal twice.
@@ -53,6 +71,11 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
+    await flushProductTelemetry(
+      resolveDeputyDevPaths(),
+      specification.environment["PI_ORG_OTEL_ENABLED"] === "false",
+    );
+    specification.dispose?.();
   }
 
   if (spawnError !== undefined) {

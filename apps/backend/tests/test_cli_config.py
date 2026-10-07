@@ -13,6 +13,7 @@ from app.clients.auth_service import AuthDataResponse, AuthServiceError
 from app.core import config as config_module
 from app.core.cli_config import CliTelemetryConfig, parse_cli_telemetry
 from app.core.config import ConfigurationError, get_settings
+from app.core.web_search import WebSearchSettings
 from app.routers.cli_config import router
 
 POLICY = {
@@ -44,8 +45,10 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     monkeypatch.setattr(authentication, "get_auth_service_client", lambda _request: AuthClient())
     app = FastAPI()
     app.include_router(router)
+    web_search = WebSearchSettings()
+    public_search = web_search.cli_config().model_dump(by_alias=True, mode="json")
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        cli_telemetry=CliTelemetryConfig.model_validate(POLICY)
+        cli_telemetry=CliTelemetryConfig.model_validate(POLICY), web_search=web_search
     )
     client = TestClient(app)
     denied = client.get("/api/v1/cli/config")
@@ -53,13 +56,14 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert denied.headers["cache-control"] == "no-store"
     response = client.get("/api/v1/cli/config", headers={"Authorization": "Bearer saved-secret"})
     assert seen == ["Bearer saved-secret"]
-    assert response.json() == {"schemaVersion": 1, "telemetry": POLICY}
+    assert response.json() == {"schemaVersion": 1, "telemetry": POLICY, "webSearch": public_search}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-session-refresh-token"] == "rotated-secret"
     assert "secret" not in response.text
-    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cli_telemetry=None)
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cli_telemetry=None, web_search=web_search)
     assert client.get("/api/v1/cli/config", headers={"Authorization": "Bearer second-user"}).json() == {
-        "schemaVersion": 1
+        "schemaVersion": 1,
+        "webSearch": public_search,
     }
 
 

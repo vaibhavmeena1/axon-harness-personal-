@@ -39,7 +39,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_interaction_count_total{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
+          "expr": "sum(increase(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
           "legendFormat": "Interactions"
         }
       ],
@@ -57,7 +57,7 @@
     },
     {
       "type": "stat",
-      "title": "Inferred retries",
+      "title": "Repeated agent runs",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -71,8 +71,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_agent_retry_inferred_total{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
-          "legendFormat": "Retries"
+          "expr": "sum(increase(pi_agent_run_repeated_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
+          "legendFormat": "Repeated runs"
         }
       ],
       "options": {
@@ -103,7 +103,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_llm_errors_total{user_id=~\"$user\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(pi_llm_errors_total{user_email=~\"$user\"}[$__range])) or vector(0)",
           "legendFormat": "LLM errors"
         }
       ],
@@ -135,7 +135,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_tool_errors_total{user_id=~\"$user\"}[$__range])) or vector(0)",
+          "expr": "sum(increase(pi_tool_errors_total{user_email=~\"$user\"}[$__range])) or vector(0)",
           "legendFormat": "Tool errors"
         }
       ],
@@ -167,7 +167,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_tokens_input_total{user_id=~\"$user\"}[$__range]))",
+          "expr": "sum(increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]))",
           "legendFormat": "Input tokens"
         }
       ],
@@ -199,7 +199,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_tokens_output_total{user_id=~\"$user\"}[$__range]))",
+          "expr": "sum(increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]))",
           "legendFormat": "Output tokens"
         }
       ],
@@ -231,18 +231,18 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(pi_interaction_count_total{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (user_id)",
-          "legendFormat": "{{user_id}} interactions"
+          "expr": "sum(rate(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (user_email)",
+          "legendFormat": "{{user_email}} interactions"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(pi_turn_count_total{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (user_id)",
-          "legendFormat": "{{user_id}} turns"
+          "expr": "sum(rate(pi_turn_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (user_email)",
+          "legendFormat": "{{user_email}} turns"
         },
         {
           "refId": "C",
-          "expr": "sum(rate(pi_tool_calls_total{user_id=~\"$user\"}[5m])) by (user_id)",
-          "legendFormat": "{{user_id}} tools"
+          "expr": "sum(rate(pi_tool_calls_total{user_email=~\"$user\"}[5m])) by (user_email)",
+          "legendFormat": "{{user_email}} tools"
         }
       ],
       "fieldConfig": {
@@ -274,17 +274,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_interaction_duration_seconds_bucket{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_interaction_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (le))",
           "legendFormat": "Interaction"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_llm_duration_seconds_bucket{user_id=~\"$user\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_llm_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
           "legendFormat": "LLM"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_tool_duration_seconds_bucket{user_id=~\"$user\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_tool_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
           "legendFormat": "Tool"
         }
       ],
@@ -317,7 +317,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_user_intervention_count_total{user_id=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range])) by (kind)",
+          "expr": "sum(increase(pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range])) by (kind)",
           "legendFormat": "{{kind}}"
         }
       ],
@@ -351,7 +351,7 @@
         {
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ name = \"pi.interaction\" && resource.\"user.id\" =~ \"$user\" && span.\"pi.repo.slug\" =~ \"$repo\" }",
+          "query": "{ name = \"invoke_agent pi\" && resource.\"user.email\" =~ \"$user\" && span.\"pi.repo.slug\" =~ \"$repo\" }",
           "limit": 50
         }
       ],
@@ -375,7 +375,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(pi_context_utilization_percent_bucket{user_id=~\"$user\"}[5m])) by (le, gen_ai_request_model))",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_context_utilization_percent_bucket{user_email=~\"$user\"}[5m])) by (le, gen_ai_request_model))",
           "legendFormat": "{{gen_ai_request_model}}"
         }
       ],
@@ -408,7 +408,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_cost_USD_total{user_id=~\"$user\"}[$__range])) by (gen_ai_response_model, pi_usage_source)",
+          "expr": "sum(increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range])) by (gen_ai_response_model, pi_usage_source)",
           "legendFormat": "{{gen_ai_response_model}} ({{pi_usage_source}})"
         }
       ],
@@ -441,22 +441,22 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(pi_tokens_input_total{user_id=~\"$user\"}[5m]))",
+          "expr": "sum(rate(pi_tokens_input_total{user_email=~\"$user\"}[5m]))",
           "legendFormat": "input"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(pi_tokens_output_total{user_id=~\"$user\"}[5m]))",
+          "expr": "sum(rate(pi_tokens_output_total{user_email=~\"$user\"}[5m]))",
           "legendFormat": "output"
         },
         {
           "refId": "C",
-          "expr": "sum(rate(pi_tokens_reasoning_total{user_id=~\"$user\"}[5m]))",
+          "expr": "sum(rate(pi_tokens_reasoning_total{user_email=~\"$user\"}[5m]))",
           "legendFormat": "reasoning"
         },
         {
           "refId": "D",
-          "expr": "sum(rate(pi_tokens_cache_read_total{user_id=~\"$user\"}[5m]))",
+          "expr": "sum(rate(pi_tokens_cache_read_total{user_email=~\"$user\"}[5m]))",
           "legendFormat": "cache read"
         }
       ],
@@ -489,17 +489,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(pi_telemetry_export_errors_total[5m])) by (otel_signal) or vector(0)",
+          "expr": "sum(increase(pi_telemetry_export_errors_total{user_email=~\"$user\"}[5m])) by (otel_signal) or vector(0)",
           "legendFormat": "export errors {{otel_signal}}"
         },
         {
           "refId": "B",
-          "expr": "sum(increase(pi_telemetry_dropped_total[5m])) by (otel_signal, reason) or vector(0)",
+          "expr": "sum(increase(pi_telemetry_dropped_total{user_email=~\"$user\"}[5m])) by (otel_signal, reason) or vector(0)",
           "legendFormat": "dropped {{otel_signal}} {{reason}}"
         },
         {
           "refId": "C",
-          "expr": "sum(increase(pi_llm_truncated_total{user_id=~\"$user\"}[5m])) or vector(0)",
+          "expr": "sum(increase(pi_llm_truncated_total{user_email=~\"$user\"}[5m])) or vector(0)",
           "legendFormat": "truncated responses"
         }
       ],
@@ -515,6 +515,711 @@
           "placement": "bottom"
         }
       }
+    },
+    {
+      "type": "stat",
+      "title": "Active users",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(sum by (user_email) (increase(pi_interaction_count_total{user_email=~\"$user\"}[$__range])) > 0) or vector(0)",
+          "legendFormat": "Active users"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Session starts",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_session_started_total{user_email=~\"$user\"}[$__range])) or vector(0)",
+          "legendFormat": "Session starts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total estimated cost",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range])) or vector(0)",
+          "legendFormat": "Estimated cost"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Cache hit ratio",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__rate_interval])) / (sum(rate(pi_tokens_input_total{user_email=~\"$user\"}[$__rate_interval])) + sum(rate(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__rate_interval])) + sum(rate(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__rate_interval])))",
+          "legendFormat": "Cache hit ratio"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Top users by estimated cost",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (user_email) (increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "{{user_email}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "CLI version adoption",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (deputydev_cli_version) (max by (user_email, deputydev_cli_version) (max_over_time(deputydev_release_events_total{user_email=~\"$user\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
+          "legendFormat": "{{deputydev_cli_version}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Model recommender funnel",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, outcome) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "{{stage}} · {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Model recommender selections",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model, selected_rank, outcome) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]))",
+          "legendFormat": "{{model}} · rank {{selected_rank}} · {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Model recommender request p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 69
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, component) (rate(deputydev_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__rate_interval])))",
+          "legendFormat": "{{component}} request"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Task assessment distributions",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(deputydev_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "legendFormat": "Complexity p50 (0–3)"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(deputydev_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "legendFormat": "Confidence p50 (0–1)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recommender skips and failures",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 77
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, reason) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]))",
+          "legendFormat": "{{stage}} · {{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Recommended model overrides",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 77
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (model) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]))",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Backup outcomes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 85
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, outcome) (increase(deputydev_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "{{stage}} · {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Restore outcomes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 85
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, outcome) (increase(deputydev_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "{{stage}} · {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Backup and restore latency p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 93
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "legendFormat": "Backup {{stage}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "legendFormat": "Restore {{stage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Transferred archive size p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 93
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(deputydev_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "Uploaded archive"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(deputydev_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "Downloaded archive"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Startup latency p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 101
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "legendFormat": "{{stage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth and config outcomes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 101
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, outcome) (increase(deputydev_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "Auth {{stage}} · {{outcome}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (outcome, reason) (increase(deputydev_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "Config {{outcome}} · {{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Update outcomes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 109
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, outcome, reason) (increase(deputydev_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "legendFormat": "{{stage}} · {{outcome}} · {{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "User behavior",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 109
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (increase(pi_user_intervention_count_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Recent recommender traces",
+      "datasource": {
+        "type": "tempo",
+        "uid": "${DS_TEMPO}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 117
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "traceql",
+          "query": "{ name = \"deputydev.recommender.request\" && (resource.\"user.email\" =~ \"$user\" || span.\"user.email\" =~ \"$user\") }",
+          "limit": 50
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
     }
   ],
   "refresh": "30s",
@@ -524,16 +1229,16 @@
     "list": [
       {
         "name": "user",
-        "label": "User",
+        "label": "User email",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values(pi_interaction_count_total, user_id)",
-        "definition": "label_values(pi_interaction_count_total, user_id)",
+        "query": "label_values({__name__=~\"pi_interaction_count_total|deputydev_.*_events_total\",user_email!=\"\"}, user_email)",
+        "definition": "label_values({__name__=~\"pi_interaction_count_total|deputydev_.*_events_total\",user_email!=\"\"}, user_email)",
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1
       },
@@ -545,8 +1250,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values(pi_interaction_count_total{user_id=~\"$user\"}, pi_repo_slug)",
-        "definition": "label_values(pi_interaction_count_total{user_id=~\"$user\"}, pi_repo_slug)",
+        "query": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
+        "definition": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
         "includeAll": true,
         "allValue": ".*",
         "multi": true,
