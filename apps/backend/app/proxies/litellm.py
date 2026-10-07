@@ -63,14 +63,13 @@ _PROTECTED_RESPONSE_HEADERS = {
     b"x-request-id",
     b"x-session-refresh-token",
 }
-_POST_PATHS = {
+# These inference endpoints need JSON spend attribution, not route authorization.
+# All other HTTP paths and methods pass through for LiteLLM to authorize.
+_ATTRIBUTED_JSON_PATHS = {
     b"/v1/audio/speech",
-    b"/v1/audio/transcriptions",
-    b"/v1/audio/translations",
     b"/v1/chat/completions",
     b"/v1/completions",
     b"/v1/embeddings",
-    b"/v1/images/edits",
     b"/v1/images/generations",
     b"/v1/messages",
     b"/v1/moderations",
@@ -78,8 +77,6 @@ _POST_PATHS = {
     b"/v1/responses",
     b"/anthropic/v1/messages",
 }
-_GET_PATHS = {b"/v1/models", b"/model/info", b"/health"}
-_MULTIPART_PATHS = {b"/v1/audio/transcriptions", b"/v1/audio/translations", b"/v1/images/edits"}
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
 _MAX_JSON_BODY_BYTES = 10 * 1024 * 1024
 _BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
@@ -89,7 +86,6 @@ _ACCESS_DENIED_BODY = b'{"detail":"LiteLLM access denied"}'
 _UNAUTHORIZED_BODY = b'{"detail":"Authentication required"}'
 _INVALID_BODY = b'{"detail":"Invalid JSON request body"}'
 _TOO_LARGE_BODY = b'{"detail":"Request body is too large"}'
-_NOT_FOUND_BODY = b'{"detail":"LiteLLM endpoint is not available"}'
 logger = logging.getLogger(__name__)
 
 
@@ -309,7 +305,7 @@ async def _forward_authenticated_request(
     incoming = Request(scope)
     has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
     content: bytes | AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
-    if method == "POST" and path not in _MULTIPART_PATHS:
+    if method == "POST" and path in _ATTRIBUTED_JSON_PATHS:
         content_type = incoming.headers.get("content-type", "").lower()
         if "application/json" not in content_type or incoming.headers.get("content-encoding"):
             await _send_error(send, 400, _INVALID_BODY)
@@ -365,7 +361,7 @@ async def _forward_authenticated_request(
 
 
 class LiteLLMProxy:
-    """Authenticate and forward allow-listed LLM traffic without response buffering."""
+    """Authenticate and forward LiteLLM HTTP traffic without response buffering."""
 
     def __init__(self, settings: LiteLLMSettings, *, strip_mount_path: bool = False) -> None:
         self.settings = settings
@@ -378,10 +374,6 @@ class LiteLLMProxy:
             return
 
         path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path)
-        method = str(scope.get("method", "GET"))
-        if not ((method == "POST" and path in _POST_PATHS) or (method == "GET" and path in _GET_PATHS)):
-            await _send_error(send, 404, _NOT_FOUND_BODY)
-            return
 
         app = scope.get("app")
         client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
