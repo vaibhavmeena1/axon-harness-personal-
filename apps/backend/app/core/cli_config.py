@@ -1,4 +1,4 @@
-"""Managed CLI telemetry always targets our authenticated OTLP/HTTP proxy."""
+"""Validated CLI defaults and telemetry for our authenticated config endpoint."""
 
 from dataclasses import dataclass, field
 from typing import Literal
@@ -19,6 +19,27 @@ class CliTelemetryConfig(BaseModel):
     metric_export_interval_ms: int = Field(
         default=10000, alias="metricExportIntervalMs", ge=1000, le=300000, strict=True
     )
+
+
+class CliPiConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    codemode_enabled: bool = Field(alias="codemodeEnabled", strict=True)
+
+
+def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
+    """An absent/null PI section leaves existing local Pi defaults unchanged."""
+    section = raw.get("CLI_CLIENT_CONFIG")
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise ValueError("CLI_CLIENT_CONFIG must be an object")
+    pi = section.get("PI")
+    if pi is None:
+        return None
+    if not isinstance(pi, dict) or set(pi) - {"CODEMODE_ENABLED"}:
+        raise ValueError("PI must contain only supported Pi defaults")
+    return CliPiConfig.model_validate({"codemodeEnabled": pi.get("CODEMODE_ENABLED")})
 
 
 @dataclass(frozen=True, slots=True)

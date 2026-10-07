@@ -15,7 +15,8 @@ let root: string;
 let server: ReturnType<typeof Bun.serve>;
 let requests: string[] = [];
 let authorization: string | null;
-let mode: "valid" | "failed" = "valid";
+let mode: "valid" | "failed" | "switched" = "valid";
+let codemodeEnabled: boolean | undefined = true;
 const projectRoot = resolve(import.meta.dir, "..");
 
 beforeAll(async () => {
@@ -40,15 +41,17 @@ beforeAll(async () => {
   );
   server = Bun.serve({
     port: 0,
-    fetch(request) {
+    async fetch(request) {
       const path = new URL(request.url).pathname;
       requests.push(path);
       if (path === "/api/v1/cli/config") {
         authorization = request.headers.get("authorization");
         if (mode === "failed") return new Response("unavailable", { status: 503 });
+        if (mode === "switched") await saveEncryptedSession(paths, "different-account-token");
         return Response.json(
           {
             schemaVersion: 1,
+            ...(codemodeEnabled === undefined ? {} : { pi: { codemodeEnabled } }),
             telemetry: {
               enabled: true,
               endpoint: "/api/v1/otel",
@@ -72,7 +75,14 @@ afterAll(async () => {
 });
 
 async function launchSpec(
-  options: { interactive?: boolean; offline?: boolean; disabled?: boolean; admin?: boolean } = {},
+  options: {
+    interactive?: boolean;
+    offline?: boolean;
+    disabled?: boolean;
+    searchDisabled?: boolean;
+    admin?: boolean;
+    userArguments?: readonly string[];
+  } = {},
 ) {
   const script = [
     'import { createPiAdapter } from "./src/harnesses/pi/adapter.ts";',
@@ -87,11 +97,14 @@ async function launchSpec(
     'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveDeputyDevPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused" };',
     "const adapter = createPiAdapter();",
     "const args = " +
-      JSON.stringify(options.admin ? ["--help"] : options.offline ? ["--offline"] : ["hello"]) +
+      JSON.stringify(
+        options.userArguments ??
+          (options.admin ? ["--help"] : options.offline ? ["--offline"] : ["hello"]),
+      ) +
       ";",
     "await adapter.prepare(context, args);",
     "const spec = await adapter.buildLaunchSpec(context, args);",
-    "console.log(JSON.stringify(spec.environment));",
+    "console.log(JSON.stringify({ environment: spec.environment, arguments: spec.arguments }));",
     "spec.dispose?.();",
   ].join("\n");
   const child = Bun.spawn([process.execPath, "--no-env-file", "--eval", script], {
@@ -106,6 +119,7 @@ async function launchSpec(
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://env.example.test/v1/traces",
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
       PI_ORG_OTEL_ENABLED: options.disabled ? "false" : "true",
+      PI_WEB_SEARCH_ENABLED: options.searchDisabled ? "false" : "true",
     },
     stdin: "ignore",
     stdout: "pipe",
@@ -118,7 +132,11 @@ async function launchSpec(
   ]);
   expect(status).toBe(0);
   expect(stderr).not.toContain("token");
-  return JSON.parse(stdout) as Record<string, string>;
+  const spec = JSON.parse(stdout) as { environment: Record<string, string>; arguments: string[] };
+  if (options.userArguments) {
+    expect(spec.arguments.slice(-options.userArguments.length)).toEqual([...options.userArguments]);
+  }
+  return spec.environment;
 }
 
 describe("real Pi adapter client config integration", () => {
@@ -145,14 +163,22 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["PI_MODEL_RECOMMENDER_URL"]).toBe(
       `${relayOrigin}/api/v1/model-recommendations`,
     );
-    expect(await loadEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: root }))).toBe(
-      "rotated-token",
+    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+    expect(await loadEncryptedSession(paths)).toBe("rotated-token");
+    const settings = await Bun.file(join(paths.pi, "settings.json")).json();
+    expect(settings.defaultTools).toEqual(["+codemode"]);
+    expect(settings.codemode).toBeUndefined();
+    expect(settings.packages).toEqual(
+      normalizeManifestPackages(DEPUTYDEV_MANIFEST).map((entry) => entry.configuredSource),
     );
   });
 
   test("config outage preserves env fallback without breaking the launch", async () => {
     mode = "failed";
+    const settingsPath = join(root, "pi", "settings.json");
+    const settings = await Bun.file(settingsPath).text();
     const environment = await launchSpec();
+    expect(await Bun.file(settingsPath).text()).toBe(settings);
     expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe("https://env.example.test");
     expect(environment["OTEL_EXPORTER_OTLP_HEADERS"]).toBe("authorization=env-secret");
     expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBeUndefined();
@@ -160,11 +186,12 @@ describe("real Pi adapter client config integration", () => {
     mode = "valid";
   });
 
-  test("search policy is fetched for scripted and telemetry-disabled launches, but not offline or admin", async () => {
+  test("defaults are fetched even with both features disabled, but not offline or admin", async () => {
     for (const options of [
       { interactive: false },
       { offline: true },
       { disabled: true },
+      { disabled: true, searchDisabled: true },
       { admin: true },
     ]) {
       requests = [];
@@ -176,6 +203,51 @@ describe("real Pi adapter client config integration", () => {
       }
       if (options.offline || options.disabled)
         expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
+    }
+  });
+
+  test("backend config edits change startup defaults without checking or blocking CLI overrides", async () => {
+    const settingsPath = join(root, "pi", "settings.json");
+    codemodeEnabled = false;
+    await launchSpec({ userArguments: ["--tools", "read,bash", "hello"] });
+    expect((await Bun.file(settingsPath).json()).defaultTools).toEqual(["-codemode"]);
+    codemodeEnabled = true;
+    await launchSpec({
+      disabled: true,
+      searchDisabled: true,
+      userArguments: ["--no-tools", "hello"],
+    });
+    expect((await Bun.file(settingsPath).json()).defaultTools).toEqual(["+codemode"]);
+  });
+
+  test("missing defaults, offline and administrative launches keep the last local default", async () => {
+    const settingsPath = join(root, "pi", "settings.json");
+    const settings = await Bun.file(settingsPath).text();
+    codemodeEnabled = undefined;
+    await launchSpec();
+    expect(await Bun.file(settingsPath).text()).toBe(settings);
+    codemodeEnabled = false;
+    for (const options of [{ offline: true }, { admin: true }]) {
+      await launchSpec(options);
+      expect(await Bun.file(settingsPath).text()).toBe(settings);
+    }
+    codemodeEnabled = true;
+  });
+
+  test("does not persist defaults fetched for an account that changed during the request", async () => {
+    mode = "switched";
+    codemodeEnabled = false;
+    const settingsPath = join(root, "pi", "settings.json");
+    const settings = await Bun.file(settingsPath).text();
+    try {
+      await launchSpec();
+      expect(await Bun.file(settingsPath).text()).toBe(settings);
+      expect(await loadEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: root }))).toBe(
+        "different-account-token",
+      );
+    } finally {
+      mode = "valid";
+      codemodeEnabled = true;
     }
   });
 });

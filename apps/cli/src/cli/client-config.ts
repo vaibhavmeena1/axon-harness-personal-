@@ -24,13 +24,18 @@ const webSearchSchema = z.object({
   maxOutputTokens: z.number().int().min(1).max(65_536),
   maxSources: z.number().int().min(1).max(100),
 });
+const piSchema = z.strictObject({
+  codemodeEnabled: z.boolean(),
+});
 const configSchema = z.object({
   schemaVersion: z.literal(1),
+  pi: piSchema.optional(),
   telemetry: telemetrySchema.optional(),
   webSearch: webSearchSchema.optional(),
 });
 
 export type ClientConfig = z.infer<typeof configSchema>;
+export type PiConfig = z.infer<typeof piSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
 export type WebSearchConfig = z.infer<typeof webSearchSchema>;
 

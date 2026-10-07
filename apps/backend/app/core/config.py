@@ -11,10 +11,17 @@ from urllib.parse import quote, urlsplit
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
+from app.core.cli_config import (
+    CliPiConfig,
+    CliTelemetryConfig,
+    OtelProxySettings,
+    parse_cli_pi,
+    parse_cli_telemetry,
+    parse_otel_proxy,
+)
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
-from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
 from app.core.web_search import WebSearchSettings, parse_web_search
+from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
 DATABASE_TABLE_PREFIX = "META_HARNESS_"
@@ -91,6 +98,8 @@ class LiteLLMSettings:
     identity_sync_timeout_seconds: int = 10
     identity_sync_cache_seconds: int = 60
     identity_sync_cache_max_entries: int = 1000
+    team_id: str = ""
+    team_role: str = "user"
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +181,14 @@ class Settings:
     session_backups: SessionStorageSettings | None = None
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
+    cli_pi: CliPiConfig | None = None
+
+
+def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
+    try:
+        return parse_cli_pi(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG.PI contains invalid Pi defaults") from None
 
 
 def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetrySettings | None:
@@ -209,6 +226,16 @@ def _upstream_api_key(source: dict[str, Any], key: str, path: str) -> str:
     if any(not 33 <= ord(character) <= 126 for character in value):
         raise ConfigurationError(f"{path}.{key} must contain only printable ASCII characters without spaces")
     return value
+
+
+def _litellm_team_assignment(source: dict[str, Any]) -> tuple[str, str]:
+    team_id = _optional_string(source, "TEAM_ID", "config.LITELLM")
+    if any(not 33 <= ord(character) <= 126 for character in team_id):
+        raise ConfigurationError("config.LITELLM.TEAM_ID must contain only printable ASCII characters without spaces")
+    team_role = _optional_string(source, "TEAM_ROLE", "config.LITELLM") if "TEAM_ROLE" in source else "user"
+    if team_role not in {"user", "admin"}:
+        raise ConfigurationError("config.LITELLM.TEAM_ROLE must be user or admin")
+    return team_id, team_role
 
 
 def _integer(
@@ -500,8 +527,12 @@ def get_settings() -> Settings:
         minimum=pool_min_size,
     )
 
+    litellm_team_id, litellm_team_role = _litellm_team_assignment(litellm_config)
+
     litellm = LiteLLMSettings(
         api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
+        team_id=litellm_team_id,
+        team_role=litellm_team_role,
         identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
         identity_sync_timeout_seconds=_integer(
             litellm_config, "IDENTITY_SYNC_TIMEOUT_SECONDS", "config.LITELLM", default=10
@@ -633,6 +664,7 @@ def get_settings() -> Settings:
         # Suppress chained validation inputs, including credentials in invalid URLs.
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
+    cli_pi = _cli_pi_settings(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
     backend_telemetry = _backend_telemetry_settings(raw_config)
@@ -654,6 +686,7 @@ def get_settings() -> Settings:
         openrouter=openrouter,
         auth_service=auth_service,
         cli_telemetry=cli_telemetry,
+        cli_pi=cli_pi,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,

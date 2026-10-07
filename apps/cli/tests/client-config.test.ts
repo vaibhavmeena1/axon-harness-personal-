@@ -51,6 +51,24 @@ describe("protected client config", () => {
     ).toEqual({ schemaVersion: 1 });
   });
 
+  test("validates optional Pi defaults without accepting arbitrary settings", () => {
+    for (const codemodeEnabled of [true, false]) {
+      expect(parseClientConfig({ schemaVersion: 1, pi: { codemodeEnabled } }).pi).toEqual({
+        codemodeEnabled,
+      });
+    }
+    for (const pi of [
+      {},
+      null,
+      { codemodeEnabled: "true" },
+      { codemodeEnabled: 1 },
+      { codemodeEnabled: true, shellCommandPrefix: "unsafe" },
+      { codemodeEnabled: true, codemode: { inlineBudget: 3000 } },
+    ]) {
+      expect(() => parseClientConfig({ schemaVersion: 1, pi })).toThrow();
+    }
+  });
+
   test("rejects wrong versions, invalid bounds, and missing endpoints", () => {
     for (const payload of [
       { schemaVersion: 2 },

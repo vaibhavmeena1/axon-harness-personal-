@@ -16,11 +16,12 @@ import {
   resolveConfiguredPiVersion,
   resolvePiExecutable,
 } from "./installation.ts";
+import { applyPiDefaults } from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
-import { createTelemetryOverrides, isTelemetryDisabled } from "./telemetry-environment.ts";
+import { createTelemetryOverrides } from "./telemetry-environment.ts";
 import { resolvePiVersion } from "./version.ts";
-import { createWebSearchOverrides, isWebSearchDisabled } from "./web-search-environment.ts";
+import { createWebSearchOverrides } from "./web-search-environment.ts";
 
 export function createPiAdapter(): HarnessAdapter {
   let setup: PiSetupResult | undefined;
@@ -69,15 +70,13 @@ export function createPiAdapter(): HarnessAdapter {
           setup.offline,
         );
         let webSearch: WebSearchConfig | undefined;
-        if (
-          encryptedSession &&
-          !setup.offline &&
-          (!isTelemetryDisabled(context.environment) || !isWebSearchDisabled(context.environment))
-        ) {
+        // Pi defaults are independent of local telemetry and web-search switches.
+        if (encryptedSession && !setup.offline) {
           const result = await fetchClientConfig(encryptedSession);
           // Persist rotation before passing the credential to the child. Config is
           // optional, so a failed local rotation must not prevent Pi launch.
           let telemetry = result.config?.telemetry;
+          let piDefaults = result.config?.pi;
           webSearch = result.config?.webSearch;
           try {
             if (
@@ -95,11 +94,22 @@ export function createPiAdapter(): HarnessAdapter {
             // Discard preferences obtained under the old credential in that case.
             if (currentSession !== encryptedSession) {
               telemetry = undefined;
+              piDefaults = undefined;
               webSearch = undefined;
             }
             encryptedSession = currentSession;
           } catch {
+            // Do not persist preferences if we could not verify the current account.
+            piDefaults = undefined;
             /* Preserve the previous credential; no token diagnostics. */
+          }
+          if (piDefaults !== undefined) {
+            try {
+              await applyPiDefaults(context.paths, piDefaults);
+            } catch {
+              // Optional defaults must not overwrite unsafe settings or block Pi launch.
+              console.error(`${PRODUCT_IDENTITY.command}: could not apply managed Pi defaults`);
+            }
           }
           telemetryOverrides = createTelemetryOverrides(context.environment, telemetry, false, {
             home: context.paths.home,
