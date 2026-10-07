@@ -1,6 +1,7 @@
 export interface ResourceEnvironment {
   readonly extensionVersion: string;
   readonly piVersion?: string;
+  readonly cliVersion?: string;
   readonly osType: string;
   readonly hostArch: string;
   readonly runtimeName: string;
@@ -9,7 +10,7 @@ export interface ResourceEnvironment {
 
 export type PiModuleImporter = () => Promise<{ VERSION?: unknown }>;
 
-export const PI_ORG_TELEMETRY_VERSION = "0.3.0-deputydev.1";
+export const PI_ORG_TELEMETRY_VERSION = "0.5.0-deputydev.1";
 
 const OS_TYPES: Readonly<Record<string, string>> = {
   win32: "windows",
@@ -56,6 +57,10 @@ export function describeEnvironment(
   return {
     extensionVersion,
     ...(piVersion ? { piVersion } : {}),
+    ...(process.env["PI_DEPUTYDEV_CLI_VERSION"] &&
+    /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_DEPUTYDEV_CLI_VERSION"])
+      ? { cliVersion: process.env["PI_DEPUTYDEV_CLI_VERSION"] }
+      : {}),
     osType: OS_TYPES[platform] ?? platform,
     hostArch: HOST_ARCHS[arch] ?? arch,
     runtimeName: bun ? "bun" : "node",

@@ -8,6 +8,13 @@ import { loadEncryptedSession } from "../cli/auth/session.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import type { DeputyDevPaths } from "../product/paths.ts";
+import {
+  emitProductEvent,
+  observeProductEvent,
+  type ProductEvent,
+  type ProductEventObserver,
+  productFailureReason,
+} from "../telemetry/product-events.ts";
 import { type BackupApi, BackupApiError, storageUrl } from "./api.ts";
 import {
   type CaptureReason,
@@ -75,8 +82,13 @@ export class SessionBackups {
   constructor(
     readonly paths: DeputyDevPaths,
     readonly api: BackupApi,
+    private readonly observer: ProductEventObserver = emitProductEvent,
   ) {
     this.root = join(paths.home, "session-backups");
+  }
+
+  private observed(event: Omit<ProductEvent, "category">): void {
+    observeProductEvent(this.observer, { category: "backup", ...event });
   }
 
   async initialize(): Promise<void> {
@@ -101,6 +113,7 @@ export class SessionBackups {
         credentialHash: this.api.credentialFingerprint(),
       }),
     );
+    this.observed({ stage: "consent", outcome: "success", reason: "consent" });
   }
 
   private async rememberCredential(owner: string): Promise<void> {
@@ -169,6 +182,7 @@ export class SessionBackups {
       if (settings)
         await atomicJson(join(this.root, "settings.json"), { ...settings, enabled: false });
     });
+    this.observed({ stage: "consent", outcome: "skipped", reason: "disabled" });
   }
 
   private scope(owner: string): string {
@@ -195,10 +209,19 @@ export class SessionBackups {
     cancellation?: AbortSignal,
   ): Promise<string> {
     const settings = await this.settings();
-    if (!settings?.enabled) return "Backups disabled (opt-in required)";
-    if (settings.origin !== this.api.origin) return "Backup paused: backend origin changed";
+    if (!settings?.enabled) {
+      this.observed({ stage: "capture", outcome: "skipped", reason: "disabled" });
+      return "Backups disabled (opt-in required)";
+    }
+    if (settings.origin !== this.api.origin) {
+      this.observed({ stage: "capture", outcome: "skipped", reason: "origin_changed" });
+      return "Backup paused: backend origin changed";
+    }
     const token = await loadEncryptedSession(this.paths);
-    if (!token) return "Backup paused: login required";
+    if (!token) {
+      this.observed({ stage: "capture", outcome: "skipped", reason: "login_required" });
+      return "Backup paused: login required";
+    }
     const deadline = AbortSignal.timeout(15_000);
     const signal = cancellation ? AbortSignal.any([deadline, cancellation]) : deadline;
     if (digest(token) !== settings.credentialHash) {
@@ -209,6 +232,7 @@ export class SessionBackups {
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
     let message = "No persisted session to back up";
+    if (!source) this.observed({ stage: "capture", outcome: "skipped", reason: "no_session" });
     if (source) {
       const directory = join(scope, digest(`${source}\n${nativeId}`));
       await privateDirectory(directory);
@@ -229,6 +253,7 @@ export class SessionBackups {
               : streamSchema.parse(saved);
           this.assertScope(state, settings.owner);
           let capture: Awaited<ReturnType<typeof capturePiSession>>;
+          const captureStartedAt = Date.now();
           try {
             capture = await capturePiSession(
               this.paths.piSessions,
@@ -238,6 +263,12 @@ export class SessionBackups {
               resume,
             );
           } catch (error) {
+            this.observed({
+              stage: "capture",
+              outcome: "failed",
+              reason: "validation",
+              durationMs: Date.now() - captureStartedAt,
+            });
             const transient =
               error instanceof Error && /Incomplete|changed while/.test(error.message);
             if (!transient)
@@ -248,6 +279,12 @@ export class SessionBackups {
               : `Backup paused: ${state.error}`;
           }
           if (capture) {
+            this.observed({
+              stage: "capture",
+              outcome: "success",
+              bytes: capture.snapshot.raw_size_bytes,
+              durationMs: Date.now() - captureStartedAt,
+            });
             const key = contentKey(capture.snapshot);
             if (
               key === state.lastDigest ||
@@ -310,6 +347,7 @@ export class SessionBackups {
     signal: AbortSignal,
   ): Promise<string> {
     const path = join(directory, "state.json");
+    const commitStartedAt = Date.now();
     if (state.error) return `Backup paused: ${state.error}`;
     if (!state.pending && !state.next)
       return state.lastCommitted
@@ -400,6 +438,7 @@ export class SessionBackups {
           throw new Error("Account changed before upload; snapshot remains paused");
         const bytes = createReadStream(join(directory, pending.file));
         let put: Response;
+        const uploadStartedAt = Date.now();
         try {
           put = await this.api.fetcher(storageUrl(response.upload.url), {
             method: "PUT",
@@ -409,6 +448,23 @@ export class SessionBackups {
             body: Readable.toWeb(bytes) as ReadableStream<Uint8Array>,
             duplex: "half",
           } as RequestInit);
+          this.observed({
+            stage: "upload",
+            outcome: put.ok || put.status === 412 ? "success" : "failed",
+            bytes: integrity.size,
+            durationMs: Date.now() - uploadStartedAt,
+            ...(put.ok || put.status === 412
+              ? {}
+              : { reason: put.status >= 500 ? "http_5xx" : "http_4xx" }),
+          });
+        } catch (error) {
+          this.observed({
+            stage: "upload",
+            outcome: signal.aborted ? "cancelled" : "failed",
+            reason: signal.aborted ? "cancelled" : productFailureReason(error),
+            durationMs: Date.now() - uploadStartedAt,
+          });
+          throw error;
         } finally {
           bytes.destroy();
         }
@@ -431,9 +487,26 @@ export class SessionBackups {
       delete state.pending;
       await atomicJson(path, state);
       await rm(join(directory, pending.file), { force: true });
+      this.observed({
+        stage: "commit",
+        outcome: "success",
+        bytes: pending.snapshot.stored_size_bytes,
+        durationMs: Date.now() - commitStartedAt,
+      });
       // Do not block Pi on a second full upload. The coalesced latest snapshot retries next time.
       return state.next ? "Backup committed; newer checkpoint pending" : "Backup committed";
     } catch (error) {
+      this.observed({
+        stage: "commit",
+        outcome:
+          error instanceof BackupApiError && [401, 403, 409, 422].includes(error.status)
+            ? "failed"
+            : signal.aborted
+              ? "cancelled"
+              : "pending",
+        reason: signal.aborted ? "cancelled" : productFailureReason(error),
+        durationMs: Date.now() - commitStartedAt,
+      });
       if (error instanceof BackupApiError && [401, 403, 409, 422].includes(error.status)) {
         state.error =
           error.status === 409

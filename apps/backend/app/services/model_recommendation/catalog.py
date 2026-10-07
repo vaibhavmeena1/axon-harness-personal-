@@ -1,6 +1,7 @@
 """Validated static model catalog for controlled recommendation policy."""
 
 from functools import cache
+from hashlib import sha256
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -25,6 +26,11 @@ def get_model_catalog() -> ModelCatalog:
         raise RuntimeError(f"Duplicate activation keys in recommendation catalog at {_MODEL_CATALOG_PATH}")
 
     return catalog
+
+
+def model_policy_version() -> str:
+    """Content-address the controlled policy, not user input or available-model payloads."""
+    return sha256(get_model_catalog().model_dump_json().encode()).hexdigest()[:12]
 
 
 def is_model_recommendation_enabled(current_model: str | None) -> bool:

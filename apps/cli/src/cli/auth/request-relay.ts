@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
-import { loadEncryptedSession, saveEncryptedSession } from "./session.ts";
+import { emitProductEvent } from "../../telemetry/product-events.ts";
+import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 import { createSessionRecovery, type SessionRecovery } from "./session-recovery.ts";
 import { verifyEncryptedSession } from "./verification.ts";
 
@@ -129,8 +130,20 @@ async function forwardManagedRequest(
     if (refreshedSession) {
       try {
         // Conditional atomic persistence prevents a late response replacing a newer login.
-        await saveEncryptedSession(paths, refreshedSession, encryptedSession);
+        const saved = await refreshEncryptedSession(paths, encryptedSession, refreshedSession);
+        emitProductEvent({
+          category: "auth",
+          stage: "refresh",
+          outcome: saved ? "success" : "skipped",
+          ...(saved ? {} : { reason: "account_changed" }),
+        });
       } catch {
+        emitProductEvent({
+          category: "auth",
+          stage: "refresh",
+          outcome: "failed",
+          reason: "rotation_failed",
+        });
         await upstream.body?.cancel();
         return relayError(503, "Your refreshed DeputyDev session could not be saved safely.");
       }

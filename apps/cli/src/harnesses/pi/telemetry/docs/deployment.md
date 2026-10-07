@@ -18,6 +18,18 @@ bun run telemetry:build
 bun run telemetry:check
 ```
 
+Users must install the updated DeputyDev CLI release and start a new `ddcli pi` process.
+The resource manifest derives its checksum from the rebuilt bundle, so the next launch materializes
+that content-addressed revision; already-running Pi processes are not hot-updated. No release,
+commit, deployment, or live collector validation is performed by the build commands above.
+
+Schema 4 changes span names, cache attributes and inclusive standard input totals, response-ID/model
+fallback behavior, repeated-run naming, and exception logs. Apply the
+[schema migration](telemetry-schema.md#migration-from-schema-version-3) to collector filters and
+queries. The bundled Grafana repeated-run query uses `pi_agent_run_repeated_total`; disjoint custom
+Pi token counters remain compatible. Standard call distributions are owned by each invocation,
+not sums of nested/subagent executions.
+
 ## Client config (preferred for interactive DeputyDev sessions)
 
 The CLI fetches authenticated `/api/v1/cli/config` before launching interactive online Pi. Configure `CLI_CLIENT_CONFIG.TELEMETRY`, private `PROXY.UPSTREAM_URL`/`HEADERS`, and the collector origin in `ALLOWED_TELEMETRY_ORIGINS`; see [backend setup](../../../../../../backend/README.md#cli-client-configuration). Managed config advertises only `/api/v1/otel`, resolved against the CLI’s compiled service origin, and `http/protobuf`. The extension makes no config request itself.
@@ -27,6 +39,13 @@ Managed sampling/interval policy takes priority over environment values, except 
 Managed exporters always POST protobuf to the pinned backend’s `/api/v1/otel/v1/{traces,metrics,logs}`. They read the shared DeputyDev session safely for each batch, refuse redirects, and persist bounded response refresh tokens using the same compare-and-swap writer as CLI config. Retryable failures get bounded retries honoring Retry-After; auth failures are not retried or made interactive. No session is placed in OTEL attributes or config JSON. Export remains best-effort and bounded.
 
 The backend verifies subscription/session auth, resolves verified email/name through auth data or `/verify-auth-token`, and replaces all canonical user identity before forwarding to the private collector. Managed extension identity is a placeholder; local Git email is not read. Collector credentials are backend-owned and never sent to the CLI. See [Data policy](data-policy.md). Environment fallback never automatically attaches a DeputyDev session and retains standard env headers and Git/installation attribution.
+
+## Product telemetry
+
+The launcher and managed extensions now observe recommender, backup/restore, startup, auth/config,
+update and CLI-version operations. Launcher observations use an enabled managed policy; standalone
+commands may fetch config best-effort at completion. Backend recommender stats require separately
+enabling `OPEN_TELEMETRY` with HTTP/protobuf exporters. See [Product telemetry](product-telemetry.md).
 
 ## Environment fallback
 
@@ -64,7 +83,9 @@ OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://otel.example.com/v1/logs
 ```
 
 When neither form is configured, the extension stays loaded but performs no telemetry network
-activity.
+activity. Each signal protocol overrides the global protocol; only effective protocols are
+validated. Supported protocols are `http/protobuf` and `grpc`; unsupported effective protocols
+fail closed rather than silently changing transport.
 
 ## Collector requirements
 
@@ -98,3 +119,13 @@ Export queues are memory-only and bounded; data can be dropped during collector 
 batch sizes follow the standard `OTEL_BSP_*` / `OTEL_BLRP_*` variables within bounded ranges.
 `PI_ORG_OTEL_DIAGNOSTICS=false` suppresses rate-limited local stderr diagnostics; diagnostics are
 never written while Pi renders the TUI.
+
+Shutdown waiting is idempotent and bounded to two seconds. Managed exports abort at the shutdown
+deadline and race the complete batch operation against its abort signal; response size is capped
+at 64 KiB and cleanup cancellation is not awaited indefinitely. Session persistence is cooperatively
+cancelled with CAS and abort checks, not rollback of an already-started filesystem syscall.
+Environment HTTP/gRPC exporters can continue in-flight work after shutdown waiting finishes until
+the SDK timeout (bounded to 60 seconds); the two-second deadline does not forcibly terminate those
+transports. See [limitations](limitations.md). Raw prompt/completion/system text, tool payloads,
+provider stream data, and shell command text remain OFF; these events do not provide streaming,
+process, skill, workflow, or plan telemetry.

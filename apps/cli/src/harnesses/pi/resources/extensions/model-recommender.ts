@@ -23,6 +23,7 @@ type AnyModel = NonNullable<ExtensionContext["model"]>;
 type RankedModel = {
   model: AnyModel;
   reason: string;
+  confidence?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -98,10 +99,15 @@ type ApiRecommendation = {
 };
 
 type RemoteRecommendationResult =
-  | { kind: "success"; ranked: RankedModel[] }
+  | {
+      kind: "success";
+      ranked: RankedModel[];
+      assessment?: Record<string, unknown>;
+      policyVersion?: string;
+    }
   | { kind: "cancelled" }
   | { kind: "disabled" }
-  | { kind: "failed"; message: string };
+  | { kind: "failed"; message: string; reason: string };
 
 function clampConfidence(raw: unknown): number | undefined {
   return typeof raw === "number" && Number.isFinite(raw)
@@ -149,6 +155,7 @@ function parseRecommendations(payload: unknown, candidates: readonly AnyModel[])
 
     ranked.push({
       model,
+      ...(confidence !== undefined ? { confidence } : {}),
       reason:
         confidence !== undefined
           ? `${apiReason} (${Math.round(confidence * 100)}% match)`
@@ -169,6 +176,7 @@ async function requestRemoteRecommendations(
   prompt: string,
   hasImages: boolean,
   candidates: readonly AnyModel[],
+  requestId: string,
 ): Promise<RemoteRecommendationResult | undefined> {
   const url = config.url;
   if (!url) return undefined;
@@ -179,6 +187,7 @@ async function requestRemoteRecommendations(
     let settled = false;
     let cancelled = false;
     let timedOut = false;
+    let failureReason = "network";
 
     const finish = (result: RemoteRecommendationResult) => {
       if (settled) return;
@@ -208,6 +217,7 @@ async function requestRemoteRecommendations(
       signal: controller.signal,
       body: JSON.stringify({
         prompt,
+        requestId,
         hasImages,
         currentModel: ctx.model ? modelKey(ctx.model) : null,
         availableModels: candidates.map((model) => ({
@@ -227,11 +237,24 @@ async function requestRemoteRecommendations(
           return;
         }
         if (!response.ok) {
+          failureReason = response.status >= 500 ? "http_5xx" : "http_4xx";
           throw new Error(`API returned HTTP ${response.status}`);
         }
+        failureReason = "invalid_response";
+        const raw = await response.json();
+        const payload = (raw && typeof raw === "object" ? raw : {}) as {
+          assessment?: Record<string, unknown>;
+          policyVersion?: string;
+        };
         finish({
           kind: "success",
-          ranked: parseRecommendations(await response.json(), candidates),
+          ranked: parseRecommendations(raw, candidates),
+          ...(payload.assessment && typeof payload.assessment === "object"
+            ? { assessment: payload.assessment }
+            : {}),
+          ...(typeof payload.policyVersion === "string"
+            ? { policyVersion: payload.policyVersion }
+            : {}),
         });
       })
       .catch((error: unknown) => {
@@ -241,7 +264,7 @@ async function requestRemoteRecommendations(
           : error instanceof Error
             ? error.message
             : String(error);
-        finish({ kind: "failed", message });
+        finish({ kind: "failed", message, reason: timedOut ? "timeout" : failureReason });
       });
 
     return loader;
@@ -302,7 +325,11 @@ async function showModelSelector(
   ctx: ExtensionContext,
   config: RecommenderConfig,
   ranked: readonly RankedModel[],
-): Promise<AnyModel | undefined> {
+): Promise<{
+  model?: AnyModel | undefined;
+  outcome: "selected" | "auto_selected" | "kept_current" | "dismissed";
+}> {
+  let automaticallySelected = false;
   const byKey = new Map(ranked.map((entry) => [modelKey(entry.model), entry.model]));
   const items = buildItems(ranked, ctx.model);
 
@@ -358,6 +385,7 @@ async function showModelSelector(
     timer = setInterval(() => {
       remainingSeconds -= 1;
       if (remainingSeconds <= 0) {
+        automaticallySelected = true;
         finish(items[0]?.value ?? null);
         return;
       }
@@ -378,92 +406,207 @@ async function showModelSelector(
     };
   });
 
-  if (!result || result === KEEP_CURRENT_VALUE) return undefined;
-  return byKey.get(result);
+  if (!result) return { outcome: "dismissed" };
+  if (result === KEEP_CURRENT_VALUE) return { model: ctx.model, outcome: "kept_current" };
+  return {
+    model: byKey.get(result),
+    outcome: automaticallySelected ? "auto_selected" : "selected",
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Extension
 // ---------------------------------------------------------------------------
 
-export default function modelRecommender(pi: ExtensionAPI): void {
-  let shouldOfferRecommendation = false;
-  let recommendationOffered = false;
+export function createModelRecommender(
+  overrides: {
+    request?: typeof requestRemoteRecommendations;
+    select?: typeof showModelSelector;
+  } = {},
+): (pi: ExtensionAPI) => void {
+  return function modelRecommender(pi: ExtensionAPI): void {
+    let shouldOfferRecommendation = false;
+    let recommendationOffered = false;
+    let appliedModel: string | undefined;
+    let appliedRequestId: string | undefined;
+    const emit = (stage: string, outcome: string, details: Record<string, unknown> = {}): void => {
+      try {
+        pi.events.emit("deputydev:telemetry", {
+          category: "recommender",
+          stage,
+          outcome,
+          ...details,
+        });
+      } catch {
+        /* Observability must never affect routing. */
+      }
+    };
+    pi.on("model_select", (event) => {
+      const selected = modelKey(event.model);
+      if (appliedModel && event.source !== "restore" && selected !== appliedModel) {
+        emit("override", "success", {
+          model: selected,
+          previousModel: appliedModel,
+          recommendationId: appliedRequestId,
+        });
+        appliedModel = undefined;
+      }
+    });
 
-  pi.on("session_start", (_event, ctx) => {
-    const alreadyHasTask = ctx.sessionManager
-      .getBranch()
-      .some((entry) => entry.type === "message" && entry.message.role === "user");
-    shouldOfferRecommendation = !alreadyHasTask;
-    recommendationOffered = false;
-  });
+    pi.on("session_start", (_event, ctx) => {
+      const alreadyHasTask = ctx.sessionManager
+        .getBranch()
+        .some((entry) => entry.type === "message" && entry.message.role === "user");
+      shouldOfferRecommendation = !alreadyHasTask;
+      recommendationOffered = false;
+      appliedModel = undefined;
+      appliedRequestId = undefined;
+      if (alreadyHasTask) emit("eligible", "skipped", { reason: "resumed_session" });
+    });
 
-  pi.on("input", async (event, ctx) => {
-    const config = readConfig();
-    if (
-      !config.enabled ||
-      !shouldOfferRecommendation ||
-      recommendationOffered ||
-      ctx.mode !== "tui" ||
-      event.source !== "interactive" ||
-      event.streamingBehavior !== undefined ||
-      event.text.trim() === ""
-    ) {
-      return { action: "continue" };
-    }
+    pi.on("input", async (event, ctx) => {
+      const config = readConfig();
+      if (
+        !shouldOfferRecommendation ||
+        recommendationOffered ||
+        ctx.mode !== "tui" ||
+        event.source !== "interactive" ||
+        event.streamingBehavior !== undefined ||
+        event.text.trim() === ""
+      ) {
+        return { action: "continue" };
+      }
 
-    // Mark it before opening UI so duplicate submissions cannot open two pickers.
-    recommendationOffered = true;
+      // Mark it before opening UI so duplicate submissions cannot open two pickers.
+      recommendationOffered = true;
+      if (!config.enabled) {
+        emit("eligible", "skipped", { reason: "disabled" });
+        return { action: "continue" };
+      }
+      const recommendationId = crypto.randomUUID();
+      const previousModel = ctx.model ? modelKey(ctx.model) : undefined;
+      emit("eligible", "success", { recommendationId, previousModel });
 
-    const availableModels =
-      ctx.scopedModels.length > 0
-        ? ctx.scopedModels.map((entry) => entry.model)
-        : ctx.modelRegistry.getAvailable();
-    const hasImages = (event.images?.length ?? 0) > 0;
-    const candidates = hasImages ? availableModels.filter(acceptsImages) : availableModels;
+      const availableModels =
+        ctx.scopedModels.length > 0
+          ? ctx.scopedModels.map((entry) => entry.model)
+          : ctx.modelRegistry.getAvailable();
+      const hasImages = (event.images?.length ?? 0) > 0;
+      const candidates = hasImages ? availableModels.filter(acceptsImages) : availableModels;
 
-    if (candidates.length === 0) {
-      ctx.ui.notify("No compatible models available; keeping the current model", "warning");
-      return { action: "continue" };
-    }
+      if (candidates.length === 0) {
+        emit("request", "skipped", { reason: "no_candidates", recommendationId });
+        ctx.ui.notify("No compatible models available; keeping the current model", "warning");
+        return { action: "continue" };
+      }
 
-    const remote = await requestRemoteRecommendations(
-      ctx,
-      config,
-      event.text,
-      hasImages,
-      candidates,
-    );
-    if (remote?.kind === "cancelled" || remote?.kind === "disabled") {
-      return { action: "continue" };
-    }
-    if (!remote) {
-      ctx.ui.notify(
-        "Model recommendation API is not configured; keeping the current model",
-        "warning",
+      const requestStartedAt = Date.now();
+      const remote = await (overrides.request ?? requestRemoteRecommendations)(
+        ctx,
+        config,
+        event.text,
+        hasImages,
+        candidates,
+        recommendationId,
       );
-      return { action: "continue" };
-    }
-    if (remote.kind === "failed") {
-      ctx.ui.notify(
-        `Model recommendation API failed (${remote.message}); keeping the current model`,
-        "warning",
-      );
-      return { action: "continue" };
-    }
+      const requestDetails = {
+        recommendationId,
+        candidateCount: candidates.length,
+        durationMs: Date.now() - requestStartedAt,
+      };
+      if (remote?.kind === "cancelled" || remote?.kind === "disabled") {
+        emit("request", remote.kind === "cancelled" ? "cancelled" : "skipped", {
+          ...requestDetails,
+          reason: remote.kind === "disabled" ? "policy_disabled" : "cancelled",
+        });
+        return { action: "continue" };
+      }
+      if (!remote) {
+        emit("request", "skipped", { ...requestDetails, reason: "not_configured" });
+        ctx.ui.notify(
+          "Model recommendation API is not configured; keeping the current model",
+          "warning",
+        );
+        return { action: "continue" };
+      }
+      if (remote.kind === "failed") {
+        emit("request", "failed", { ...requestDetails, reason: remote.reason });
+        ctx.ui.notify(
+          `Model recommendation API failed (${remote.message}); keeping the current model`,
+          "warning",
+        );
+        return { action: "continue" };
+      }
 
-    const selected = await showModelSelector(ctx, config, remote.ranked);
-    if (!selected || (ctx.model && modelKey(selected) === modelKey(ctx.model))) {
+      emit("request", "success", requestDetails);
+      const details = { recommendationId, policyVersion: remote.policyVersion, previousModel };
+      if (remote.assessment)
+        emit("assessed", "success", {
+          ...details,
+          complexity: remote.assessment["complexity"],
+          confidence: remote.assessment["complexityConfidence"],
+          highComplexityProbability: remote.assessment["highComplexityProbability"],
+          needsDeepReasoning: remote.assessment["needsDeepReasoning"],
+          prioritizesSpeed: remote.assessment["prioritizesSpeed"],
+        });
+      emit("recommended", "success", {
+        ...details,
+        model: remote.ranked[0] ? modelKey(remote.ranked[0].model) : undefined,
+        candidateCount: remote.ranked.length,
+      });
+      emit("shown", "success", details);
+      const decisionStartedAt = Date.now();
+      const decision = await (overrides.select ?? showModelSelector)(ctx, config, remote.ranked);
+      const selected = decision.model;
+      const rank = selected
+        ? remote.ranked.findIndex((entry) => modelKey(entry.model) === modelKey(selected)) + 1
+        : undefined;
+      const selectedDetails = {
+        ...details,
+        model: selected ? modelKey(selected) : undefined,
+        rank: rank && rank > 0 ? rank : undefined,
+        durationMs: Date.now() - decisionStartedAt,
+      };
+      emit("decision", decision.outcome, selectedDetails);
+      if (!selected) return { action: "continue" };
+      if (ctx.model && modelKey(selected) === modelKey(ctx.model)) {
+        emit("apply", "kept_current", selectedDetails);
+        return { action: "continue" };
+      }
+      const applyStartedAt = Date.now();
+      try {
+        if (await pi.setModel(selected)) {
+          emit("apply", "success", { ...selectedDetails, durationMs: Date.now() - applyStartedAt });
+          appliedModel = modelKey(selected);
+          appliedRequestId = recommendationId;
+          ctx.ui.notify(`Using ${modelKey(selected)} for this task`, "info");
+        } else {
+          emit("apply", "failed", {
+            ...selectedDetails,
+            durationMs: Date.now() - applyStartedAt,
+            reason: "application_failed",
+          });
+          ctx.ui.notify(
+            `Could not use ${modelKey(selected)}; keeping the current model`,
+            "warning",
+          );
+        }
+      } catch {
+        emit("apply", "failed", {
+          ...selectedDetails,
+          durationMs: Date.now() - applyStartedAt,
+          reason: "application_failed",
+        });
+        ctx.ui.notify(
+          "Could not apply the recommended model; keeping the current model",
+          "warning",
+        );
+      }
+
+      // The original user message now continues through pi using the selected model.
       return { action: "continue" };
-    }
-
-    if (await pi.setModel(selected)) {
-      ctx.ui.notify(`Using ${modelKey(selected)} for this task`, "info");
-    } else {
-      ctx.ui.notify(`Could not use ${modelKey(selected)}; keeping the current model`, "warning");
-    }
-
-    // The original user message now continues through pi using the selected model.
-    return { action: "continue" };
-  });
+    });
+  };
 }
+
+export default createModelRecommender();

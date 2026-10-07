@@ -4,9 +4,9 @@ import type { Attributes } from "@opentelemetry/api";
 
 const MAX_SUMMARY_LENGTH = 256;
 const SECRET_ASSIGNMENT =
-  /\b(api[_-]?key|access[_-]?token|auth(?:orization)?|password|passwd|secret|token)\s*([=:])\s*([^\s,;]+)/gi;
+  /["']?\b(api[_-]?key|access[_-]?token|auth(?:orization)?|password|passwd|secret|token)["']?\s*([=:])\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}]+)/gi;
 const SECRET_FLAG =
-  /(--(?:api[_-]?key|access[_-]?token|auth(?:orization)?|password|passwd|secret|token))(?:=|\s+)\S+/gi;
+  /(--(?:api[_-]?key|access[_-]?token|auth(?:orization)?|password|passwd|secret|token))(?:=|\s+)(?:"[^"]*"|'[^']*'|\S+)/gi;
 const BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const CREDENTIAL_URL = /(https?:\/\/)[^\s/@:]+:[^\s/@]+@/gi;
 const PRIVATE_KEY = /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi;
@@ -82,21 +82,9 @@ function stringField(record: Record<string, unknown>, name: string): string | un
   return typeof value === "string" ? value : undefined;
 }
 
-function commandExecutable(command: string): string | undefined {
-  const withoutAssignments = command
-    .trim()
-    .split(/\s+/)
-    .find((part) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(part));
-  return withoutAssignments ? basename(withoutAssignments.replace(/^['"]|['"]$/g, "")) : undefined;
-}
-
-export function summarizeShellCommand(command: string, cwd: string): Attributes {
-  const executable = commandExecutable(command);
-  return {
-    ...(executable ? { "pi.command.executable": truncate(executable, 64) } : {}),
-    "pi.command.summary": sanitizeText(command, cwd),
-    "pi.command.length": command.length,
-  };
+export function summarizeShellCommand(command: string, _cwd: string): Attributes {
+  // Arbitrary shell text is neither process metadata nor safe content to export.
+  return { "pi.command.length": command.length };
 }
 
 export function summarizeToolInput(toolName: string, input: unknown, cwd: string): Attributes {
@@ -139,30 +127,46 @@ export interface ToolOutputSummary {
   readonly textLength: number;
   readonly imageCount: number;
   readonly partCount: number;
+  readonly exitCode?: number;
+  readonly wallTimeSeconds?: number;
 }
 
 /**
  * Measure a tool result without retaining it: text lengths and image counts only. Image bytes and
  * structured `details` are never read, and the result is never serialized.
  */
-export function summarizeToolOutput(result: unknown): ToolOutputSummary {
-  const content = objectRecord(result)?.content;
-  if (!Array.isArray(content)) return { textLength: 0, imageCount: 0, partCount: 0 };
+export function summarizeToolOutput(result: unknown, builtinBash = false): ToolOutputSummary {
+  const record = objectRecord(result);
+  const structured = builtinBash ? objectRecord(record?.["structuredContent"]) : undefined;
+  const exitCode = structured?.["exit_code"];
+  const wallTime = structured?.["wall_time_seconds"];
+  const metadata = {
+    ...(typeof exitCode === "number" && Number.isSafeInteger(exitCode) ? { exitCode } : {}),
+    ...(typeof wallTime === "number" && Number.isFinite(wallTime) && wallTime >= 0
+      ? { wallTimeSeconds: wallTime }
+      : {}),
+  };
+  const content = record?.["content"];
+  if (!Array.isArray(content)) return { textLength: 0, imageCount: 0, partCount: 0, ...metadata };
   let textLength = 0;
   let imageCount = 0;
   for (const part of content) {
     const record = objectRecord(part);
-    if (record?.type === "text" && typeof record.text === "string")
-      textLength += record.text.length;
-    else if (record?.type === "image") imageCount += 1;
+    if (record?.["type"] === "text" && typeof record["text"] === "string")
+      textLength += record["text"].length;
+    else if (record?.["type"] === "image") imageCount += 1;
   }
-  return { textLength, imageCount, partCount: content.length };
+  return { textLength, imageCount, partCount: content.length, ...metadata };
 }
 
 export function sanitizeError(error: unknown, cwd: string): { type: string; message?: string } {
   if (error instanceof Error) {
     return {
-      type: error.name || "Error",
+      type: ["Error", "TypeError", "RangeError", "TimeoutError", "tool_execution_error"].includes(
+        error.name,
+      )
+        ? error.name
+        : "Error",
       ...(error.message ? { message: sanitizeText(error.message, cwd) } : {}),
     };
   }

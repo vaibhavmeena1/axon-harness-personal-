@@ -322,6 +322,39 @@ def test_invalid_private_proxy_config(patch: dict) -> None:
         parse_otel_proxy(raw)
 
 
+@pytest.mark.parametrize("custom_ca", [False, True])
+def test_proxy_honors_ca_trust_without_enabling_environment_proxies(
+    monkeypatch: pytest.MonkeyPatch, custom_ca: bool
+) -> None:
+    settings = OtelProxySettings(upstream_url="https://collector.test", headers={})
+    monkeypatch.setattr(otel, "get_settings", lambda: SimpleNamespace(otel_proxy=settings))
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    if custom_ca:
+        monkeypatch.setenv("SSL_CERT_FILE", "/operator/ca.pem")
+        monkeypatch.setenv("SSL_CERT_DIR", "/operator/certs")
+    context = object()
+    ca_calls = []
+    client_calls = []
+
+    def create_context(**kwargs: object) -> object:
+        ca_calls.append(kwargs)
+        return context
+
+    def create_client(**kwargs: object) -> SimpleNamespace:
+        client_calls.append(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(otel.ssl, "create_default_context", create_context)
+    monkeypatch.setattr(otel.httpx, "AsyncClient", create_client)
+    app = FastAPI()
+    asyncio.run(otel.initialize_otel_proxy(app))
+    assert ca_calls == ([{"cafile": "/operator/ca.pem", "capath": "/operator/certs"}] if custom_ca else [])
+    assert client_calls[0]["verify"] is (context if custom_ca else True)
+    assert client_calls[0]["trust_env"] is False
+    assert client_calls[0]["follow_redirects"] is False
+
+
 def test_managed_policy_requires_proxy_and_cannot_select_external_destination() -> None:
     raw = {"CLI_CLIENT_CONFIG": {"TELEMETRY": {"ENABLED": True}}}
     with pytest.raises(ValueError):

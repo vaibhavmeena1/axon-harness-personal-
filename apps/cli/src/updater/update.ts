@@ -18,6 +18,7 @@ import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { type DeputyDevPaths, resolveDeputyDevPaths } from "../product/paths.ts";
+import { emitProductEvent, productFailureReason } from "../telemetry/product-events.ts";
 import {
   assertReleaseVersion,
   downloadVerifiedRelease,
@@ -128,8 +129,30 @@ async function latest(context: UpdateContext): Promise<string> {
 export async function checkForUpdate(
   context: UpdateContext = updateContext(),
 ): Promise<string | undefined> {
-  const version = await latest(context);
-  return Bun.semver.order(version, context.build.version) > 0 ? version : undefined;
+  const startedAt = Date.now();
+  try {
+    const version = await latest(context);
+    const available = Bun.semver.order(version, context.build.version) > 0;
+    emitProductEvent({
+      category: "update",
+      stage: "check",
+      outcome: "success",
+      reason: available ? undefined : "up_to_date",
+      version: context.build.version,
+      durationMs: Date.now() - startedAt,
+    });
+    return available ? version : undefined;
+  } catch (error) {
+    emitProductEvent({
+      category: "update",
+      stage: "check",
+      outcome: "failed",
+      reason: productFailureReason(error),
+      version: context.build.version,
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
 async function performUpdate(context: UpdateContext): Promise<string | undefined> {
@@ -165,13 +188,31 @@ async function performUpdate(context: UpdateContext): Promise<string | undefined
 export async function installUpdate(
   context: UpdateContext = updateContext(),
 ): Promise<string | undefined> {
+  const startedAt = Date.now();
   try {
     assertSupported(context);
     await assertManagedInstallation(context);
-    return await withFileLock(join(context.paths.locks, "update.lock"), () =>
+    const installed = await withFileLock(join(context.paths.locks, "update.lock"), () =>
       performUpdate(context),
     );
+    emitProductEvent({
+      category: "update",
+      stage: "install",
+      outcome: installed ? "success" : "skipped",
+      reason: installed ? undefined : "up_to_date",
+      version: installed ?? context.build.version,
+      durationMs: Date.now() - startedAt,
+    });
+    return installed;
   } catch (error) {
+    emitProductEvent({
+      category: "update",
+      stage: "install",
+      outcome: "failed",
+      reason: productFailureReason(error),
+      version: context.build.version,
+      durationMs: Date.now() - startedAt,
+    });
     throw new LauncherError("could not update ddcli", LAUNCHER_EXIT_STATUS.updateFailure, {
       cause: error,
       remediation: "Keep using the current installation and retry ddcli update.",
@@ -220,7 +261,28 @@ export async function runBackgroundUpdate(context: UpdateContext = updateContext
       async () => {
         if (Date.now() < (await nextCheckAt(context.paths.updateState))) return;
         await recordNextCheck(context.paths.updateState, FAILED_CHECK_INTERVAL_MS);
-        await performUpdate(context);
+        const startedAt = Date.now();
+        try {
+          const installed = await performUpdate(context);
+          emitProductEvent({
+            category: "update",
+            stage: "install",
+            outcome: installed ? "success" : "skipped",
+            reason: installed ? undefined : "up_to_date",
+            version: installed ?? context.build.version,
+            durationMs: Date.now() - startedAt,
+          });
+        } catch (error) {
+          emitProductEvent({
+            category: "update",
+            stage: "install",
+            outcome: "failed",
+            reason: productFailureReason(error),
+            version: context.build.version,
+            durationMs: Date.now() - startedAt,
+          });
+          throw error;
+        }
         await recordNextCheck(context.paths.updateState, BACKGROUND_CHECK_INTERVAL_MS);
       },
       { timeoutMs: 100 },

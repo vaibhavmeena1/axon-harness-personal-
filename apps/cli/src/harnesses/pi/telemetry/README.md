@@ -17,7 +17,15 @@ metadata. DeputyDev changes include:
 - deterministic bundling of OpenTelemetry dependencies into one standalone ESM extension;
 - embedding and checksum-protected materialization through DeputyDev's Pi resource manifest;
 - authenticated managed HTTP/protobuf export through DeputyDev, with live session reads/rotation
-  and backend-authoritative user identity, separate from standard environment exporters.
+  and backend-authoritative user identity, separate from standard environment exporters;
+- schema 4 GenAI development semantics: INTERNAL `invoke_agent pi`, observed CLIENT inference,
+  INTERNAL `execute_tool {name}`, inclusive standard input tokens, separate gateway/response IDs,
+  and invocation-owned direct-call histograms;
+- transcript-owned inference attribution (not cache warming), finalized top-level tool usage once,
+  cancellation without invented exceptions, and content collection kept OFF.
+
+The upstream snapshot metadata remains archival; current adapted source and the generated bundle
+are authoritative. The adapted runtime version is `0.5.0-deputydev.1` with schema version 4; the archival upstream package version is unchanged.
 
 ## Build
 
@@ -41,7 +49,29 @@ export always uses HTTP/protobuf to the pinned DeputyDev backend proxy and reads
 for each batch; the backend replaces user identity with verified auth-service data. Configure
 `OTEL_EXPORTER_OTLP_ENDPOINT`, or all three per-signal endpoints, as environment fallback; standard
 headers/API keys and HTTP/protobuf or gRPC remain supported there. Offline Pi disables export.
-See [Deployment](docs/deployment.md).
+See [Deployment](docs/deployment.md). Users receive this bundle by installing an updated DeputyDev
+CLI release and starting a new `ddcli pi` process; existing processes retain their loaded extension.
+See the [schema migration](docs/telemetry-schema.md#migration-from-schema-version-3) before updating
+collector span filters or token totals. No skill/workflow/plan, streaming, or process observations
+are invented from these public events.
+
+## Grafana dashboard
+
+Import [`grafana.json`](grafana.json) and select the org Prometheus and Tempo datasources.
+The **User email** selector, dependent repository options, panel filters, and per-user legends
+use `user_email` for metrics and `user.email` for traces. Managed exports receive verified email
+from DD auth; `user.id` remains unchanged in the telemetry schema. Multi-select and **All** are
+supported. **All** includes only records with a non-empty email;
+environment-fallback records without email are not shown. Repository filtering applies only to
+activity metrics and traces, not token, cost, LLM, tool, or telemetry-health metrics.
+
+## Product tracking
+
+Content-free recommender, backup/restore, startup, auth/config, update and release-version
+observations now use the same managed OTel path. The dashboard adds adoption, cost/cache,
+recommender funnel/decisions, transfer reliability and CLI operational panels. Feedback is not
+collected. See [Product telemetry](docs/product-telemetry.md) for producer ownership, schema,
+backend configuration and best-effort monitoring limitations.
 
 Read these documents before changing exported data:
 

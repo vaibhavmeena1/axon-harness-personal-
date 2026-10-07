@@ -28,23 +28,31 @@ import { resolveDeputyDevPaths } from "../../../../../product/paths.ts";
 const MAX_RESPONSE_BYTES = 65536;
 const RETRYABLE = new Set([429, 502, 503, 504]);
 
-async function boundedBody(response: Response): Promise<Uint8Array> {
+async function boundedBody(response: Response, signal: AbortSignal): Promise<Uint8Array> {
+  signal.throwIfAborted();
   if (Number(response.headers.get("content-length")) > MAX_RESPONSE_BYTES)
     throw new Error("Managed telemetry response too large");
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
+  const abort = (): void => {
+    void reader.cancel().catch(() => {});
+  };
+  signal.addEventListener("abort", abort, { once: true });
   const chunks: Uint8Array[] = [];
   let length = 0;
   try {
     while (true) {
+      signal.throwIfAborted();
       const item = await reader.read();
+      signal.throwIfAborted();
       if (item.done) break;
       length += item.value.byteLength;
       if (length > MAX_RESPONSE_BYTES) throw new Error("Managed telemetry response too large");
       chunks.push(item.value);
     }
   } finally {
-    await reader.cancel().catch(() => {});
+    signal.removeEventListener("abort", abort);
+    void reader.cancel().catch(() => {});
   }
   const body = new Uint8Array(length);
   let offset = 0;
@@ -73,9 +81,35 @@ export class ManagedOtlpTransport implements IExporterTransport {
       this.stop.signal,
       AbortSignal.timeout(Math.max(1, Math.ceil(timeoutMillis))),
     ]);
+    let abort: (() => void) | undefined;
+    try {
+      signal.throwIfAborted();
+      return await Promise.race([
+        this.sendOperation(data, deadline, signal),
+        new Promise<ExportResponse>((resolve) => {
+          abort = () =>
+            resolve({ status: "failure", error: new Error("Managed telemetry export failed") });
+          signal.addEventListener("abort", abort, { once: true });
+          if (signal.aborted) abort();
+        }),
+      ]);
+    } catch {
+      return { status: "failure", error: new Error("Managed telemetry export failed") };
+    } finally {
+      if (abort) signal.removeEventListener("abort", abort);
+    }
+  }
+
+  private async sendOperation(
+    data: Uint8Array,
+    deadline: number,
+    signal: AbortSignal,
+  ): Promise<ExportResponse> {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
+        signal.throwIfAborted();
         const session = await loadEncryptedSession(this.paths);
+        signal.throwIfAborted();
         if (!session) throw new Error("Missing managed session");
         const response = await fetch(this.url, {
           method: "POST",
@@ -89,10 +123,12 @@ export class ManagedOtlpTransport implements IExporterTransport {
           // Only our trusted backend is contacted. A stale batch cannot overwrite a new login.
           const refreshed = response.headers.get("x-session-refresh-token");
           if (refreshed && refreshed.length <= 16384 && /^[\x21-\x7e]+$/.test(refreshed)) {
-            await refreshEncryptedSession(this.paths, session, refreshed).catch(() => false);
+            await refreshEncryptedSession(this.paths, session, refreshed, signal).catch(
+              () => false,
+            );
           }
           if (response.status === 200) {
-            return { status: "success", data: await boundedBody(response) };
+            return { status: "success", data: await boundedBody(response, signal) };
           }
           if (!RETRYABLE.has(response.status) || attempt === 2) {
             return {
@@ -114,10 +150,10 @@ export class ManagedOtlpTransport implements IExporterTransport {
               status: "failure",
               error: new Error("Managed telemetry retry exceeds deadline"),
             };
-          await response.body?.cancel().catch(() => {});
+          void response.body?.cancel().catch(() => {});
           await sleep(delay, undefined, { signal });
         } finally {
-          await response.body?.cancel().catch(() => {});
+          void response.body?.cancel().catch(() => {});
         }
       }
     } catch {
@@ -132,9 +168,17 @@ export class ManagedOtlpTransport implements IExporterTransport {
   }
 }
 
-function managedDestination(signal: string): { url: string; home: string } | undefined {
-  const endpoint = process.env.PI_ORG_OTEL_MANAGED_ENDPOINT;
-  const home = process.env.PI_ORG_OTEL_MANAGED_HOME;
+export interface ManagedDestinationOptions {
+  readonly endpoint: string;
+  readonly home: string;
+}
+
+function managedDestination(
+  signal: string,
+  options?: ManagedDestinationOptions,
+): { url: string; home: string } | undefined {
+  const endpoint = options?.endpoint ?? process.env["PI_ORG_OTEL_MANAGED_ENDPOINT"];
+  const home = options?.home ?? process.env["PI_ORG_OTEL_MANAGED_HOME"];
   if (!endpoint && !home) return undefined;
   if (!endpoint || !home || !isAbsolute(home))
     throw new Error("Invalid managed telemetry configuration");
@@ -157,8 +201,10 @@ function exporter<Internal, Result>(
   serializer: ISerializer<Internal, Result>,
   metricsHelper: IExporterMetricsHelper<Internal>,
   timeoutMillis: number,
+  registerAbort?: (abort: () => void) => void,
+  options?: ManagedDestinationOptions,
 ): OTLPExporterBase<Internal> | undefined {
-  const destination = managedDestination(signal);
+  const destination = managedDestination(signal, options);
   if (!destination) return undefined;
   const metrics = new ExporterMetrics({
     componentType: "otlp_http",
@@ -167,30 +213,59 @@ function exporter<Internal, Result>(
     meterProvider: undefined,
     responseAttributesFromError: () => ({}),
   });
+  const transport = new ManagedOtlpTransport(destination.url, destination.home);
+  registerAbort?.(() => transport.shutdown());
   return new OTLPExporterBase(
     createOtlpNetworkExportDelegate(
       { timeoutMillis, concurrencyLimit: 2, compression: "none" },
       serializer,
       metrics,
-      new ManagedOtlpTransport(destination.url, destination.home),
+      transport,
     ),
   );
 }
 
 export function managedTraceExporter(
   timeout: number,
+  registerAbort?: (abort: () => void) => void,
+  options?: ManagedDestinationOptions,
 ): OTLPExporterBase<ReadableSpan[]> | undefined {
-  return exporter("traces", ProtobufTraceSerializer, TraceExporterMetricsHelper, timeout);
+  return exporter(
+    "traces",
+    ProtobufTraceSerializer,
+    TraceExporterMetricsHelper,
+    timeout,
+    registerAbort,
+    options,
+  );
 }
 
 export function managedMetricExporter(
   timeout: number,
+  registerAbort?: (abort: () => void) => void,
+  options?: ManagedDestinationOptions,
 ): OTLPExporterBase<ResourceMetrics> | undefined {
-  return exporter("metrics", ProtobufMetricsSerializer, MetricsExporterMetricsHelper, timeout);
+  return exporter(
+    "metrics",
+    ProtobufMetricsSerializer,
+    MetricsExporterMetricsHelper,
+    timeout,
+    registerAbort,
+    options,
+  );
 }
 
 export function managedLogExporter(
   timeout: number,
+  registerAbort?: (abort: () => void) => void,
+  options?: ManagedDestinationOptions,
 ): OTLPExporterBase<ReadableLogRecord[]> | undefined {
-  return exporter("logs", ProtobufLogsSerializer, LogsExporterMetricsHelper, timeout);
+  return exporter(
+    "logs",
+    ProtobufLogsSerializer,
+    LogsExporterMetricsHelper,
+    timeout,
+    registerAbort,
+    options,
+  );
 }

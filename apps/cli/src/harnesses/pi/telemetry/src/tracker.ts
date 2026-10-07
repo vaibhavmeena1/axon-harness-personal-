@@ -48,11 +48,11 @@ import {
   SPAN_AGENT_RUN,
   SPAN_COMPACTION,
   SPAN_INTERACTION,
-  SPAN_LLM,
   SPAN_TOOL,
   SPAN_TURN,
   SPAN_USER_WAIT,
 } from "./attributes.ts";
+import { recordProductEvent } from "./product.ts";
 import { sanitizeError, type ToolOutputSummary } from "./sanitization.ts";
 import type { TelemetryRuntime } from "./telemetry-types.ts";
 
@@ -68,6 +68,7 @@ interface ToolSlot extends SpanSlot {
 
 interface LlmSlot extends SpanSlot {
   readonly synthesized: boolean;
+  readonly operation?: string;
   providerError?: string;
   provider?: string;
   requestModel?: string;
@@ -109,7 +110,8 @@ export type UsageSource = "assistant" | "tool" | "compaction" | "branch_summary"
 
 export interface AssistantDetails {
   readonly provider?: string;
-  readonly model?: string;
+  readonly model?: string; // Only provider-reported response model.
+  readonly requestModel?: string;
   readonly responseId?: string;
   readonly providerThinkingLevel?: string;
   readonly stopReason?: string;
@@ -121,6 +123,8 @@ export interface LlmStartDetails {
   readonly provider?: string;
   readonly model?: string;
   readonly synthesized?: boolean;
+  readonly operation?: string;
+  readonly startedAt?: number;
   readonly contextTokens?: number;
   readonly contextWindow?: number;
   readonly contextPercent?: number;
@@ -133,6 +137,7 @@ export interface ProviderResponseDetails {
 }
 
 export interface ToolStartDetails {
+  readonly parentToolCallId?: string;
   readonly source?: string;
   readonly scope?: string;
 }
@@ -149,7 +154,11 @@ function durationSeconds(startedAt: number, endedAt: number): number {
 
 function applyUsage(span: Span, usage: UsageDetails | undefined): void {
   if (!usage) return;
-  if (usage.input !== undefined) span.setAttribute(ATTR_INPUT_TOKENS, usage.input);
+  if (usage.input !== undefined || usage.cacheRead !== undefined || usage.cacheWrite !== undefined)
+    span.setAttribute(
+      ATTR_INPUT_TOKENS,
+      (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0),
+    );
   if (usage.output !== undefined) span.setAttribute(ATTR_OUTPUT_TOKENS, usage.output);
   if (usage.cacheRead !== undefined) span.setAttribute(ATTR_CACHE_READ_TOKENS, usage.cacheRead);
   if (usage.cacheWrite !== undefined) span.setAttribute(ATTR_CACHE_WRITE_TOKENS, usage.cacheWrite);
@@ -164,13 +173,7 @@ function applyUsage(span: Span, usage: UsageDetails | undefined): void {
 }
 
 function errorOutcome(stopReason: string | undefined): boolean {
-  return (
-    stopReason === "error" ||
-    stopReason === "aborted" ||
-    stopReason === "incomplete" ||
-    stopReason === "interrupted" ||
-    stopReason === "superseded"
-  );
+  return stopReason === "error";
 }
 
 export class AgentTelemetryTracker {
@@ -189,6 +192,8 @@ export class AgentTelemetryTracker {
   private runCount = 0;
   private lastStopReason: string | undefined;
   private turnTruncated = false;
+  private inferenceCalls = 0;
+  private toolCalls = 0;
 
   constructor(runtime: TelemetryRuntime, now: () => number = Date.now) {
     this.runtime = runtime;
@@ -236,13 +241,14 @@ export class AgentTelemetryTracker {
     kind: SpanKind,
     attributes: Attributes,
     parent: Context,
+    startedAt = this.now(),
   ): SpanSlot {
     const span = this.runtime.tracer.startSpan(
       name,
-      { kind, attributes: { ...this.baseAttributes(), ...attributes } },
+      { kind, startTime: startedAt, attributes: { ...this.baseAttributes(), ...attributes } },
       parent,
     );
-    return { span, context: trace.setSpan(parent, span), startedAt: this.now() };
+    return { span, context: trace.setSpan(parent, span), startedAt };
   }
 
   private activeParent(): Context {
@@ -255,20 +261,18 @@ export class AgentTelemetryTracker {
 
   /** Close every child slot that may still be open, innermost first. */
   private drainChildren(reason: string): void {
-    this.endCompaction({
-      outcome: "interrupted",
-      error: new Error(`Compaction interrupted by ${reason}`),
-    });
+    this.endCompaction({ outcome: "interrupted" });
     this.endWait("interrupted");
     this.endLlm({ stopReason: "interrupted" });
-    for (const toolCallId of [...this.tools.keys()]) {
-      this.endTool(toolCallId, true, new Error(`Tool span closed by ${reason}`));
+    for (const toolCallId of [...this.tools.keys()].reverse()) {
+      this.endTool(toolCallId, false, undefined, undefined, reason);
     }
     this.endTurn("interrupted");
     this.endRun("interrupted");
   }
 
   startSession(details: SessionDetails): void {
+    if (this.session) this.endSession("replaced");
     this.session = details;
     this.sessionStartedAt = this.now();
     const attributes = this.activityMetricAttributes({
@@ -284,6 +288,7 @@ export class AgentTelemetryTracker {
   }
 
   endSession(reason: string): void {
+    if (!this.session) return;
     const endedAt = this.now();
     if (this.interaction) this.endInteraction("session_shutdown");
     else this.drainChildren("session_shutdown");
@@ -338,16 +343,18 @@ export class AgentTelemetryTracker {
     else this.pendingInput = details;
   }
 
-  startInteraction(promptLength: number, imageCount: number): void {
+  startInteraction(promptLength?: number, imageCount?: number): void {
     if (this.interaction) this.endInteraction("superseded");
     this.runCount = 0;
+    this.inferenceCalls = 0;
+    this.toolCalls = 0;
     this.lastStopReason = undefined;
     const pending = this.pendingInput;
     const attributes: Attributes = {
       "gen_ai.operation.name": "invoke_agent",
       "gen_ai.agent.name": "pi",
-      "pi.prompt.length": promptLength,
-      "pi.prompt.image_count": imageCount,
+      ...(promptLength !== undefined ? { "pi.prompt.length": promptLength } : {}),
+      ...(imageCount !== undefined ? { "pi.prompt.image_count": imageCount } : {}),
       ...(pending
         ? {
             "pi.input.source": pending.source,
@@ -372,16 +379,40 @@ export class AgentTelemetryTracker {
     this.drainChildren(outcome === "settled" ? "interaction end" : outcome);
 
     const endedAt = this.now();
-    const failed = errorOutcome(this.lastStopReason) || outcome !== "settled";
+    const failed = errorOutcome(this.lastStopReason);
     this.interaction.span.setAttributes({
       "pi.interaction.outcome": outcome,
       "pi.agent.run_count": this.runCount,
       ...(this.lastStopReason ? { "pi.stop_reason": this.lastStopReason } : {}),
     });
     this.interaction.span.setStatus(
-      failed ? { code: SpanStatusCode.ERROR } : { code: SpanStatusCode.OK },
+      failed ? { code: SpanStatusCode.ERROR } : { code: SpanStatusCode.UNSET },
     );
+    if (failed) this.interaction.span.setAttribute(ATTR_ERROR_TYPE, "agent_error");
     this.interaction.span.end();
+    const invocationAttributes = this.metricAttributes({
+      [ATTR_OPERATION]: "invoke_agent",
+      "gen_ai.agent.name": "pi",
+      ...(failed ? { [ATTR_ERROR_TYPE]: "agent_error" } : {}),
+    });
+    this.runtime.metrics.record(
+      "gen_ai.invoke_agent.duration",
+      durationSeconds(this.interaction.startedAt, endedAt),
+      "s",
+      invocationAttributes,
+    );
+    this.runtime.metrics.record(
+      "gen_ai.invoke_agent.inference_calls",
+      this.inferenceCalls,
+      "{inference_call}",
+      invocationAttributes,
+    );
+    this.runtime.metrics.record(
+      "gen_ai.invoke_agent.tool_calls",
+      this.toolCalls,
+      "{tool_call}",
+      invocationAttributes,
+    );
     this.runtime.metrics.record(
       "pi.interaction.duration",
       durationSeconds(this.interaction.startedAt, endedAt),
@@ -404,7 +435,7 @@ export class AgentTelemetryTracker {
   }
 
   startRun(): void {
-    if (!this.interaction) return;
+    if (!this.interaction) this.startInteraction();
     if (this.run) this.endRun("superseded");
     this.runCount += 1;
     const repeated = this.runCount > 1;
@@ -415,12 +446,12 @@ export class AgentTelemetryTracker {
         "pi.agent.run_index": this.runCount,
         "pi.agent.run_repeated": repeated,
       },
-      this.interaction.context,
+      this.interaction?.context ?? ROOT_CONTEXT,
     );
     this.runtime.metrics.count("pi.agent.run.count", 1, this.activityMetricAttributes());
     if (repeated) {
-      this.runtime.metrics.count("pi.agent.retry.inferred", 1, this.activityMetricAttributes());
-      this.addInteractionEvent("pi.agent.retry.inferred", { "pi.agent.run_index": this.runCount });
+      this.runtime.metrics.count("pi.agent.run.repeated", 1, this.activityMetricAttributes());
+      this.addInteractionEvent("pi.agent.run.repeated", { "pi.agent.run_index": this.runCount });
     }
   }
 
@@ -428,13 +459,17 @@ export class AgentTelemetryTracker {
     if (!this.run) return;
     this.endLlm({ stopReason: "incomplete" });
     this.endTurn("incomplete");
+    this.endWait("interrupted");
+    for (const id of [...this.tools.keys()].reverse())
+      this.endTool(id, false, undefined, undefined, "run_end");
     const endedAt = this.now();
     if (stopReason) this.lastStopReason = stopReason;
     if (stopReason === "aborted")
       this.userAction("abort_inferred", { "pi.abort.source": "agent_stop_reason" });
     const failed = errorOutcome(stopReason);
     this.run.span.setAttributes({ ...(stopReason ? { "pi.stop_reason": stopReason } : {}) });
-    this.run.span.setStatus(failed ? { code: SpanStatusCode.ERROR } : { code: SpanStatusCode.OK });
+    if (failed) this.run.span.setAttribute(ATTR_ERROR_TYPE, "agent_error");
+    this.run.span.setStatus({ code: failed ? SpanStatusCode.ERROR : SpanStatusCode.UNSET });
     this.run.span.end();
     this.runtime.metrics.record(
       "pi.agent.run.duration",
@@ -462,8 +497,8 @@ export class AgentTelemetryTracker {
     if (!this.turn) return;
     this.endWait("interrupted");
     this.endLlm(assistant ?? { stopReason: "incomplete" });
-    for (const toolCallId of [...this.tools.keys()]) {
-      this.endTool(toolCallId, true, new Error("Tool span closed before turn completion"));
+    for (const toolCallId of [...this.tools.keys()].reverse()) {
+      this.endTool(toolCallId, false, undefined, undefined, "turn_end");
     }
     const endedAt = this.now();
     const stopReason = assistant?.stopReason;
@@ -475,10 +510,9 @@ export class AgentTelemetryTracker {
       ...(toolResultCount !== undefined ? { "pi.turn.tool_result_count": toolResultCount } : {}),
     });
     this.turn.span.setStatus(
-      errorOutcome(stopReason) || outcome !== "ok"
-        ? { code: SpanStatusCode.ERROR }
-        : { code: SpanStatusCode.OK },
+      errorOutcome(stopReason) ? { code: SpanStatusCode.ERROR } : { code: SpanStatusCode.UNSET },
     );
+    if (errorOutcome(stopReason)) this.turn.span.setAttribute(ATTR_ERROR_TYPE, "agent_error");
     this.turn.span.end();
     this.runtime.metrics.record(
       "pi.turn.duration",
@@ -496,8 +530,10 @@ export class AgentTelemetryTracker {
 
   startLlm(details: LlmStartDetails): void {
     if (this.llm) this.endLlm({ stopReason: "superseded" });
+    const synthesized = details.synthesized === true || !details.provider || !details.model;
+    const operation = synthesized ? undefined : (details.operation ?? "chat");
     const attributes: Attributes = {
-      [ATTR_OPERATION]: "chat",
+      ...(operation ? { [ATTR_OPERATION]: operation } : {}),
       ...(details.provider ? { [ATTR_PROVIDER]: details.provider } : {}),
       ...(details.model ? { [ATTR_REQUEST_MODEL]: details.model } : {}),
       ...(details.contextTokens !== undefined
@@ -510,12 +546,20 @@ export class AgentTelemetryTracker {
         ? { [ATTR_CONTEXT_PERCENT]: details.contextPercent }
         : {}),
       ...(details.thinkingLevel ? { [ATTR_THINKING_LEVEL]: details.thinkingLevel } : {}),
-      "pi.llm.synthesized": details.synthesized ?? false,
+      "pi.llm.synthesized": synthesized,
     };
-    const slot = this.startSpan(SPAN_LLM, SpanKind.CLIENT, attributes, this.activeParent());
+    const slot = this.startSpan(
+      synthesized ? "pi.assistant.lifecycle" : `${operation} ${details.model}`,
+      synthesized ? SpanKind.INTERNAL : SpanKind.CLIENT,
+      attributes,
+      this.activeParent(),
+      details.startedAt,
+    );
+    if (!synthesized && this.interaction) this.inferenceCalls += 1;
     this.llm = {
       ...slot,
-      synthesized: details.synthesized ?? false,
+      synthesized,
+      ...(operation ? { operation } : {}),
       ...(details.provider ? { provider: details.provider } : {}),
       ...(details.model ? { requestModel: details.model } : {}),
     };
@@ -542,7 +586,7 @@ export class AgentTelemetryTracker {
       ...(details.requestId ? { [ATTR_PROVIDER_REQUEST_ID]: details.requestId } : {}),
     });
     if (details.status >= 400) {
-      this.llm.providerError = `http_${details.status}`;
+      this.llm.providerError = details.status === 429 ? "rate_limit" : "http_error";
       this.llm.span.setAttribute(ATTR_ERROR_TYPE, this.llm.providerError);
       this.llm.span.setStatus({ code: SpanStatusCode.ERROR });
     }
@@ -553,17 +597,34 @@ export class AgentTelemetryTracker {
     const endedAt = this.now();
     const provider = assistant.provider ?? this.llm.provider;
     const model = assistant.model;
+    const observed = !this.llm.synthesized;
     const failed = errorOutcome(assistant.stopReason) || this.llm.providerError !== undefined;
     const truncated = assistant.stopReason === "length";
-    const errorType = this.llm.providerError ?? assistant.stopReason ?? "error";
+    const errorType = this.llm.providerError ?? "provider_error";
+    if (["stop", "length", "toolUse", "error", "aborted"].includes(assistant.stopReason ?? ""))
+      this.lastStopReason = assistant.stopReason;
+    const requestModel = assistant.requestModel ?? this.llm.requestModel;
+    if (requestModel) {
+      this.llm.span.setAttribute(ATTR_REQUEST_MODEL, requestModel);
+      if (observed) this.llm.span.updateName(`${this.llm.operation} ${requestModel}`);
+    }
     if (provider) this.llm.span.setAttribute(ATTR_PROVIDER, provider);
     if (model) this.llm.span.setAttribute(ATTR_RESPONSE_MODEL, model);
-    const responseId = assistant.responseId ?? this.llm.requestId;
+    const responseId = assistant.responseId;
     if (responseId) this.llm.span.setAttribute(ATTR_RESPONSE_ID, responseId);
     if (assistant.providerThinkingLevel)
       this.llm.span.setAttribute(ATTR_PROVIDER_THINKING_LEVEL, assistant.providerThinkingLevel);
-    if (assistant.stopReason)
-      this.llm.span.setAttribute("gen_ai.response.finish_reasons", [assistant.stopReason]);
+    const normalFinish = ["stop", "length", "toolUse"].includes(assistant.stopReason ?? "");
+    this.llm.span.setAttribute("gen_ai.response.finish_reasons", [
+      failed || !normalFinish
+        ? "error"
+        : assistant.stopReason === "toolUse"
+          ? "tool_calls"
+          : assistant.stopReason === "length"
+            ? "length"
+            : "stop",
+    ]);
+    if (assistant.stopReason) this.llm.span.setAttribute("pi.stop_reason", assistant.stopReason);
     if (truncated) this.llm.span.setAttribute(ATTR_LLM_TRUNCATED, true);
     applyUsage(this.llm.span, assistant.usage);
     const modelAttributes: Attributes = {
@@ -573,28 +634,38 @@ export class AgentTelemetryTracker {
     if (failed) {
       this.llm.span.setAttribute(ATTR_ERROR_TYPE, errorType);
       this.llm.span.setStatus({ code: SpanStatusCode.ERROR });
-      this.runtime.metrics.count(
-        "pi.llm.errors",
-        1,
-        this.metricAttributes({
-          ...(provider ? { [ATTR_PROVIDER]: provider } : {}),
-          [ATTR_ERROR_TYPE]: errorType,
-        }),
-      );
-      this.runtime.logs.emit(
-        "error",
-        "pi.llm.error",
-        "LLM request failed",
-        {
-          ...this.baseAttributes(),
-          ...modelAttributes,
-          [ATTR_ERROR_TYPE]: errorType,
-          ...(assistant.errorMessage ? { "error.message": assistant.errorMessage } : {}),
-        },
-        this.llm.context,
-      );
+      if (observed)
+        this.runtime.metrics.count(
+          "pi.llm.errors",
+          1,
+          this.metricAttributes({
+            ...(provider ? { [ATTR_PROVIDER]: provider } : {}),
+            [ATTR_ERROR_TYPE]: errorType,
+          }),
+        );
+      if (observed)
+        this.runtime.logs.emit(
+          "warn",
+          "gen_ai.client.operation.exception",
+          "LLM request failed",
+          {
+            ...this.baseAttributes(),
+            ...modelAttributes,
+            [ATTR_ERROR_TYPE]: errorType,
+            "exception.type": this.llm.providerError ? "HTTPError" : "Error",
+            "exception.message":
+              sanitizeError(
+                assistant.errorMessage ??
+                  (this.llm.providerError
+                    ? "Provider returned an unsuccessful HTTP response"
+                    : "Provider operation failed"),
+                this.session?.cwd ?? process.cwd(),
+              ).message ?? "Provider operation failed",
+          },
+          this.llm.context,
+        );
     } else {
-      this.llm.span.setStatus({ code: SpanStatusCode.OK });
+      this.llm.span.setStatus({ code: normalFinish ? SpanStatusCode.OK : SpanStatusCode.UNSET });
     }
     if (truncated) {
       this.turnTruncated = true;
@@ -612,7 +683,20 @@ export class AgentTelemetryTracker {
         "pi.llm.synthesized": this.llm.synthesized,
       }),
     );
-    this.recordUsageMetrics(assistant.usage, "assistant", provider, model);
+    if (observed)
+      this.runtime.metrics.record(
+        "gen_ai.client.operation.duration",
+        durationSeconds(this.llm.startedAt, endedAt),
+        "s",
+        this.metricAttributes({
+          [ATTR_OPERATION]: this.llm.operation ?? "chat",
+          ...(provider ? { [ATTR_PROVIDER]: provider } : {}),
+          ...(requestModel ? { [ATTR_REQUEST_MODEL]: requestModel } : {}),
+          ...(model ? { [ATTR_RESPONSE_MODEL]: model } : {}),
+          ...(failed ? { [ATTR_ERROR_TYPE]: errorType } : {}),
+        }),
+      );
+    this.recordUsageMetrics(assistant.usage, "assistant", provider, model, requestModel);
     this.llm = undefined;
   }
 
@@ -625,19 +709,22 @@ export class AgentTelemetryTracker {
     if (this.tools.has(toolCallId))
       this.endTool(toolCallId, true, new Error("Duplicate tool start"));
     const slot = this.startSpan(
-      SPAN_TOOL,
+      `${SPAN_TOOL} ${toolName}`,
       SpanKind.INTERNAL,
       {
         [ATTR_OPERATION]: "execute_tool",
         [ATTR_TOOL_NAME]: toolName,
         [ATTR_TOOL_CALL_ID]: toolCallId,
+        ...(details.parentToolCallId ? { "pi.tool.parent_call_id": details.parentToolCallId } : {}),
         ...(details.source ? { [ATTR_TOOL_SOURCE]: details.source } : {}),
         ...(details.scope ? { [ATTR_TOOL_SCOPE]: details.scope } : {}),
         ...(this.turnTruncated ? { [ATTR_TOOL_TRUNCATED_CALL]: true } : {}),
         ...inputAttributes,
       },
-      this.activeParent(),
+      (details.parentToolCallId ? this.tools.get(details.parentToolCallId)?.context : undefined) ??
+        this.activeParent(),
     );
+    if (this.interaction && !details.parentToolCallId) this.toolCalls += 1;
     this.tools.set(toolCallId, { ...slot, name: toolName });
     this.runtime.metrics.count(
       "pi.tool.calls",
@@ -649,19 +736,36 @@ export class AgentTelemetryTracker {
     );
   }
 
-  endTool(toolCallId: string, isError: boolean, error?: unknown, output?: ToolOutputSummary): void {
+  endTool(
+    toolCallId: string,
+    isError: boolean,
+    error?: unknown,
+    output?: ToolOutputSummary,
+    cleanupReason?: string,
+    aborted = false,
+  ): void {
     const slot = this.tools.get(toolCallId);
     if (!slot) return;
     const endedAt = this.now();
-    slot.span.setAttribute("pi.tool.is_error", isError);
+    const outcome = aborted ? "aborted" : cleanupReason ? "interrupted" : isError ? "error" : "ok";
+    slot.span.setAttribute("pi.tool.outcome", outcome);
+    if (cleanupReason) slot.span.setAttribute("pi.telemetry.closure_reason", cleanupReason);
+    else slot.span.setAttribute("pi.tool.is_error", isError);
     if (output) {
       slot.span.setAttributes({
         [ATTR_TOOL_OUTPUT_SIZE]: output.textLength,
         [ATTR_TOOL_OUTPUT_IMAGES]: output.imageCount,
+        ...(output.exitCode !== undefined ? { "pi.command.exit_code": output.exitCode } : {}),
+        ...(output.wallTimeSeconds !== undefined
+          ? { "pi.command.wall_time_seconds": output.wallTimeSeconds }
+          : {}),
       });
     }
     if (isError) {
-      const sanitized = sanitizeError(error, this.session?.cwd ?? process.cwd());
+      const sanitized = {
+        ...sanitizeError(error, this.session?.cwd ?? process.cwd()),
+        type: "tool_execution_error",
+      };
       slot.span.setAttribute(ATTR_ERROR_TYPE, sanitized.type);
       if (sanitized.message) slot.span.setAttribute("error.message", sanitized.message);
       slot.span.setStatus({ code: SpanStatusCode.ERROR });
@@ -687,15 +791,27 @@ export class AgentTelemetryTracker {
         slot.context,
       );
     } else {
-      slot.span.setStatus({ code: SpanStatusCode.OK });
+      slot.span.setStatus({
+        code: cleanupReason || aborted ? SpanStatusCode.UNSET : SpanStatusCode.OK,
+      });
     }
     slot.span.end();
+    this.runtime.metrics.record(
+      "gen_ai.execute_tool.duration",
+      durationSeconds(slot.startedAt, endedAt),
+      "s",
+      this.metricAttributes({
+        [ATTR_OPERATION]: "execute_tool",
+        [ATTR_TOOL_NAME]: slot.name,
+        ...(isError ? { [ATTR_ERROR_TYPE]: "tool_execution_error" } : {}),
+      }),
+    );
     this.tools.delete(toolCallId);
     this.runtime.metrics.record(
       "pi.tool.duration",
       durationSeconds(slot.startedAt, endedAt),
       "s",
-      this.metricAttributes({ [ATTR_TOOL_NAME]: slot.name, outcome: isError ? "error" : "ok" }),
+      this.metricAttributes({ [ATTR_TOOL_NAME]: slot.name, outcome }),
     );
   }
 
@@ -722,7 +838,7 @@ export class AgentTelemetryTracker {
     const endedAt = this.now();
     this.wait.span.setAttribute("pi.user.wait.outcome", outcome);
     this.wait.span.setStatus(
-      outcome === "completed" ? { code: SpanStatusCode.OK } : { code: SpanStatusCode.ERROR },
+      outcome === "completed" ? { code: SpanStatusCode.OK } : { code: SpanStatusCode.UNSET },
     );
     this.wait.span.end();
     this.runtime.metrics.record(
@@ -752,6 +868,10 @@ export class AgentTelemetryTracker {
       this.interaction?.context,
     );
     this.addInteractionEvent("pi.user.intervention", eventAttributes);
+  }
+
+  productEvent(event: unknown): void {
+    recordProductEvent(this.runtime, event, this.baseAttributes());
   }
 
   operationalEvent(eventName: string, attributes: Attributes = {}): void {
@@ -810,7 +930,7 @@ export class AgentTelemetryTracker {
         : {}),
     });
     applyUsage(this.compaction.span, details.usage);
-    if (details.error || details.outcome === "failed" || details.outcome === "aborted") {
+    if (details.outcome === "failed") {
       const sanitized = sanitizeError(details.error, this.session?.cwd ?? process.cwd());
       this.compaction.span.setAttribute(ATTR_ERROR_TYPE, sanitized.type);
       if (sanitized.message) this.compaction.span.setAttribute("error.message", sanitized.message);
@@ -828,7 +948,9 @@ export class AgentTelemetryTracker {
         this.compaction.context,
       );
     } else {
-      this.compaction.span.setStatus({ code: SpanStatusCode.OK });
+      this.compaction.span.setStatus({
+        code: details.outcome === "ok" ? SpanStatusCode.OK : SpanStatusCode.UNSET,
+      });
     }
     this.compaction.span.end();
     this.runtime.metrics.record(
@@ -857,10 +979,12 @@ export class AgentTelemetryTracker {
     source: UsageSource,
     provider?: string,
     model?: string,
+    requestModel?: string,
   ): void {
     if (!usage) return;
     const attributes: Attributes = {
       [ATTR_USAGE_SOURCE]: source,
+      ...(requestModel ? { [ATTR_REQUEST_MODEL]: requestModel } : {}),
       ...(provider ? { [ATTR_PROVIDER]: provider } : {}),
       ...(model ? { [ATTR_RESPONSE_MODEL]: model } : {}),
     };

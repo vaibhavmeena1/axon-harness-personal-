@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.cli_config import CliTelemetryConfig, OtelProxySettings, parse_cli_telemetry, parse_otel_proxy
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
+from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
 from app.core.web_search import WebSearchSettings, parse_web_search
 
 DATABASE_CONFIG_NAME = "DEFAULT_DATABASE"
@@ -170,6 +171,14 @@ class Settings:
     otel_proxy: OtelProxySettings | None
     session_backups: SessionStorageSettings | None = None
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
+    backend_telemetry: BackendTelemetrySettings | None = None
+
+
+def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetrySettings | None:
+    try:
+        return parse_backend_telemetry(raw_config)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.OPEN_TELEMETRY contains invalid settings") from None
 
 
 def _mapping(source: dict[str, Any], key: str, path: str) -> dict[str, Any]:
@@ -626,6 +635,7 @@ def get_settings() -> Settings:
 
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
+    backend_telemetry = _backend_telemetry_settings(raw_config)
 
     return Settings(
         name=_string(raw_config, "NAME", "config"),
@@ -647,4 +657,5 @@ def get_settings() -> Settings:
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,
+        backend_telemetry=backend_telemetry,
     )

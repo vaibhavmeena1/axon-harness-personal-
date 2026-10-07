@@ -4,6 +4,7 @@ import type { DeputyDevPaths } from "../../product/paths.ts";
 
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
+  PI_DEPUTYDEV_CLI_VERSION: BUILD_INFO.version,
   // PI_* markers survive the launcher's final DeputyDev-control-variable filter.
   PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
   PI_MODEL_RECOMMENDER_URL: new URL(

@@ -52,7 +52,7 @@ const WEB_SEARCH_RESOURCE = Object.freeze({
 
 export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
   schemaVersion: 1,
-  revision: "7",
+  revision: "8",
   pi: {
     packages: [
       {
@@ -66,15 +66,16 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "3.2.0" },
+        versionPolicy: { kind: "exact", version: "4.1.0" },
         install: { action: "pi.install" },
       },
     ],
     resources: [
       DEPUTYDEV_CORE_RESOURCE,
-      PI_ORG_TELEMETRY_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
+      // Close telemetry after backup shutdown has emitted its final outcomes.
+      PI_ORG_TELEMETRY_RESOURCE,
       WEB_SEARCH_RESOURCE,
     ],
   },

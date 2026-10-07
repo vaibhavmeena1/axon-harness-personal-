@@ -3,7 +3,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.authentication import require_authenticated_user
 from app.clients.openrouter import OpenRouterError
@@ -15,6 +15,7 @@ from app.services.model_recommendation import (
     get_model_recommendation_service,
 )
 from app.services.model_recommendation.catalog import is_model_recommendation_enabled
+from app.telemetry import product_telemetry, verified_telemetry_identity
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ async def recommend_model(
         Depends(get_model_recommendation_service),
     ],
     response: Response,
+    http_request: Request,
 ) -> ModelRecommendationResponse | Response:
     """Recommend models available to the caller for a new coding task."""
     # The prompt may contain user content, so log only metadata Pi supplied for routing.
@@ -45,18 +47,20 @@ async def recommend_model(
         request.model_dump(by_alias=True, exclude={"prompt"}),
     )
 
-    if not is_model_recommendation_enabled(request.current_model):
-        logger.info(
-            "Model recommendation skipped for current model %s",
-            request.current_model,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT, headers=dict(response.headers))
-
+    telemetry = product_telemetry(http_request.app)
+    identity = await verified_telemetry_identity(http_request)
     try:
-        return await service.recommend(request)
+        with telemetry.operation(
+            "request", identity, **{"deputydev.recommendation.id": str(request.request_id)}
+        ) as operation:
+            if not is_model_recommendation_enabled(request.current_model):
+                operation.skipped = True
+                telemetry.event("eligible", "skipped", identity, reason="policy_disabled")
+                return Response(status_code=status.HTTP_204_NO_CONTENT, headers=dict(response.headers))
+            return await service.recommend(request, telemetry, identity)
     except (OpenRouterError, ModelRecommendationError) as exc:
-        # Do not log traceback locals here: they include the user's prompt.
-        logger.warning("Model recommendation failed: %s", exc)
+        # Do not export exception text or traceback locals: they can include the prompt.
+        logger.warning("Model recommendation failed (%s)", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Model recommendation is temporarily unavailable",
