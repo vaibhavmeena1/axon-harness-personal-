@@ -208,6 +208,9 @@ async def _read_completion(response: httpx.Response) -> dict[str, Any]:
         raise WebSearchError("LiteLLM search access denied", 403)
     if response.status_code == 429:
         raise WebSearchError("Search rate or budget limit reached", 429)
+    if response.status_code in {400, 404}:
+        # Keep upstream details private while making model/tool setup failures actionable.
+        raise WebSearchError("LiteLLM search configuration is invalid; check the model alias and search tools")
     if not response.is_success:
         raise WebSearchError("LiteLLM search request failed")
     body = bytearray()
