@@ -42,7 +42,7 @@ const MODEL_RECOMMENDER_RESOURCE = Object.freeze({
 
 export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
   schemaVersion: 1,
-  revision: "6",
+  revision: "7",
   pi: {
     packages: [
       {
@@ -62,9 +62,10 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
     ],
     resources: [
       DEPUTYDEV_CORE_RESOURCE,
-      PI_ORG_TELEMETRY_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
+      // Close telemetry after backup shutdown has emitted its final outcomes.
+      PI_ORG_TELEMETRY_RESOURCE,
     ],
   },
 });

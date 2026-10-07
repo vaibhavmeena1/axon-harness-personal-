@@ -1,10 +1,13 @@
 #!/usr/bin/env bun
 
 import { dispatch } from "./cli/dispatch.ts";
+import { isPiOffline } from "./harnesses/pi/setup/packages/invocation.ts";
 import { isTrue } from "./launcher/debug-preview.ts";
 import { LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "./product/identity.ts";
+import { resolveDeputyDevPaths } from "./product/paths.ts";
+import { flushProductTelemetry } from "./telemetry/client.ts";
 
 const DEBUG_ENVIRONMENT_VARIABLE = "DEPUTYDEV_DEBUG";
 
@@ -37,6 +40,8 @@ export async function main(
 
     printUnexpectedError(error);
     process.exitCode = LAUNCHER_EXIT_STATUS.profileFailure;
+  } finally {
+    await flushProductTelemetry(resolveDeputyDevPaths(), isPiOffline(process.env, argumentsVector));
   }
 }
 

@@ -9,6 +9,7 @@ import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
+import { closeProductTelemetry, initializeProductTelemetry } from "../../telemetry/client.ts";
 import { createPiEnvironment } from "./environment.ts";
 import {
   inspectPiRuntime,
@@ -97,6 +98,7 @@ export function createPiAdapter(): HarnessAdapter {
           telemetryOverrides = createTelemetryOverrides(context.environment, telemetry, false, {
             home: context.paths.home,
           });
+          if (telemetry?.enabled) await initializeProductTelemetry(context.paths, telemetry);
         }
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
@@ -123,7 +125,14 @@ export function createPiAdapter(): HarnessAdapter {
           telemetryOverrides,
         ),
         cwd: context.cwd,
-        ...(relay === undefined ? {} : { dispose: relay.dispose }),
+        ...(relay === undefined
+          ? {}
+          : {
+              dispose: () => {
+                relay.dispose();
+                void closeProductTelemetry();
+              },
+            }),
       });
     },
     doctor: async (context) => [

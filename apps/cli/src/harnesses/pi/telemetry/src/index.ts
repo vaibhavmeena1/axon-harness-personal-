@@ -1,5 +1,10 @@
 import { basename } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import {
+  PRODUCT_EVENT_CHANNEL,
+  type ProductEvent,
+  sanitizeProductEvent,
+} from "../../../../telemetry/product-events.ts";
 import { resolveConfig as defaultResolveConfig, type OrgTelemetryConfig } from "./config.ts";
 import {
   readPiVersion as defaultReadPiVersion,
@@ -24,6 +29,7 @@ import {
   AgentTelemetryTracker,
   type AssistantDetails,
   type LlmStartDetails,
+  type ProviderResponseDetails,
   type ToolStartDetails,
   type UsageDetails,
 } from "./tracker.ts";
@@ -80,16 +86,11 @@ function finiteNumber(
 function summarizeUsage(value: unknown): UsageDetails | undefined {
   const usage = asRecord(value);
   if (!usage) return undefined;
-  const input = finiteNumber(usage, "input", "inputTokens", "input_tokens");
-  const output = finiteNumber(usage, "output", "outputTokens", "output_tokens");
-  const cacheRead = finiteNumber(usage, "cacheRead", "cacheReadTokens", "cache_read_input_tokens");
-  const cacheWrite = finiteNumber(
-    usage,
-    "cacheWrite",
-    "cacheWriteTokens",
-    "cache_creation_input_tokens",
-  );
-  const reasoning = finiteNumber(usage, "reasoning", "reasoningTokens", "reasoning_tokens");
+  const input = finiteNumber(usage, "input");
+  const output = finiteNumber(usage, "output");
+  const cacheRead = finiteNumber(usage, "cacheRead");
+  const cacheWrite = finiteNumber(usage, "cacheWrite");
+  const reasoning = finiteNumber(usage, "reasoning");
   const costValue = usage.cost;
   const costRecord = asRecord(costValue);
   const cost =
@@ -120,7 +121,8 @@ function summarizeAssistant(value: unknown, cwd: string): AssistantDetails {
   if (message?.role !== "assistant") return {};
   const provider = stringValue(message, "provider");
   // `responseModel` is the provider-reported model; `model` is the requested one.
-  const model = stringValue(message, "responseModel") ?? stringValue(message, "model");
+  const model = stringValue(message, "responseModel");
+  const requestModel = stringValue(message, "model");
   const responseId = stringValue(message, "responseId");
   const providerThinkingLevel = stringValue(message, "providerThinkingLevel");
   const stopReason = stringValue(message, "stopReason", "finishReason", "finish_reason");
@@ -129,6 +131,7 @@ function summarizeAssistant(value: unknown, cwd: string): AssistantDetails {
   return {
     ...(provider ? { provider } : {}),
     ...(model ? { model } : {}),
+    ...(requestModel ? { requestModel } : {}),
     ...(responseId ? { responseId } : {}),
     ...(providerThinkingLevel ? { providerThinkingLevel } : {}),
     ...(stopReason ? { stopReason } : {}),
@@ -145,8 +148,22 @@ function lastAssistant(messages: readonly unknown[], cwd: string): AssistantDeta
   return {};
 }
 
-function requestModel(payload: unknown): string | undefined {
-  return stringValue(asRecord(payload), "model", "modelId", "modelName");
+// Only APIs whose operation is known from the pinned Pi implementation.
+function inferenceOperation(api: string | undefined): string | undefined {
+  if (["google-generative-ai", "google-vertex"].includes(api ?? "")) return "generate_content";
+  if (
+    [
+      "openai-completions",
+      "openai-responses",
+      "openai-codex-responses",
+      "azure-openai-responses",
+      "anthropic-messages",
+      "bedrock-converse-stream",
+      "mistral-conversations",
+    ].includes(api ?? "")
+  )
+    return "chat";
+  return undefined;
 }
 
 const REQUEST_ID_HEADERS = [
@@ -221,9 +238,49 @@ export function createPiOrgTelemetry(
   return function piOrgTelemetry(pi: ExtensionAPI): void {
     let runtime: TelemetryRuntime | undefined;
     let tracker: AgentTelemetryTracker | undefined;
+    const pendingProducts: ProductEvent[] = [];
+    const extensionStartedAt = Date.now();
+    let recordedLaunch = false;
+    pi.events?.on(PRODUCT_EVENT_CHANNEL, (value) => {
+      const event = sanitizeProductEvent(value);
+      if (!event) return;
+      try {
+        if (tracker) tracker.productEvent(event);
+        else if (pendingProducts.length < 128) pendingProducts.push(event);
+      } catch {
+        /* Do not leak bus payloads in Pi diagnostics. */
+      }
+    });
     let pendingProjectTrust: string | undefined;
     let cwd = process.cwd();
     let toolSources: Map<string, { source: string; scope: string }> | undefined;
+    let activeRun = false;
+    let requestPhase = false;
+    let pendingRequest:
+      | {
+          details: Partial<LlmStartDetails>;
+          startedAt: number;
+          response?: ProviderResponseDetails;
+          ambiguous: boolean;
+        }
+      | undefined;
+
+    function observeInference(provider?: string, model?: string, api?: string): void {
+      if (!tracker || !activeRun || tracker.hasOpenLlm()) return;
+      const operation = inferenceOperation(api);
+      const observed =
+        pendingRequest && !pendingRequest.ambiguous && provider && model && operation;
+      tracker.startLlm({
+        ...pendingRequest?.details,
+        ...(provider ? { provider } : {}),
+        ...(model ? { model } : {}),
+        ...(operation ? { operation } : {}),
+        ...(observed && pendingRequest ? { startedAt: pendingRequest.startedAt } : {}),
+        synthesized: !observed,
+      });
+      if (observed && pendingRequest?.response)
+        tracker.noteProviderResponse(pendingRequest.response);
+    }
 
     /** Telemetry must never throw into pi. Failures are counted and swallowed. */
     function guard<E>(
@@ -258,7 +315,9 @@ export function createPiOrgTelemetry(
         for (const tool of pi.getAllTools()) {
           toolSources.set(tool.name, {
             source: classifyToolSource(tool.sourceInfo?.source),
-            scope: tool.sourceInfo?.scope ?? "unknown",
+            scope: ["user", "project", "temporary"].includes(tool.sourceInfo?.scope ?? "")
+              ? (tool.sourceInfo?.scope ?? "unknown")
+              : "unknown",
           });
         }
         found = lookup();
@@ -278,17 +337,22 @@ export function createPiOrgTelemetry(
     pi.on(
       "session_start",
       guard("session_start", async (event, ctx) => {
+        const previous = runtime;
+        tracker?.endSession("replaced");
+        tracker = undefined;
+        runtime = undefined;
+        activeRun = false;
+        pendingRequest = undefined;
+        toolSources = undefined;
+        await previous?.shutdown();
         const config = deps.resolveConfig();
-        if (!config) return;
+        if (!config) {
+          pendingProducts.length = 0;
+          return;
+        }
         cwd = ctx.cwd;
         const quiet = ctx.mode === "tui";
         try {
-          if (runtime) {
-            const previous = runtime;
-            runtime = undefined;
-            tracker = undefined;
-            await previous.shutdown();
-          }
           const [identity, repoSlug, piVersion] = await Promise.all([
             deps.resolveIdentity({ cwd: ctx.cwd }),
             deps.resolveRepoSlug({ cwd: ctx.cwd }),
@@ -311,6 +375,30 @@ export function createPiOrgTelemetry(
               ? { parentSessionId: inheritedSessionId }
               : {}),
           });
+          for (const product of pendingProducts.splice(0)) tracker.productEvent(product);
+          if (!recordedLaunch) {
+            recordedLaunch = true;
+            const inheritedStart = Number(process.env["PI_DEPUTYDEV_LAUNCH_STARTED_AT"]);
+            const start =
+              Number.isFinite(inheritedStart) &&
+              inheritedStart > 0 &&
+              inheritedStart <= Date.now() &&
+              Date.now() - inheritedStart <= 86400000
+                ? inheritedStart
+                : extensionStartedAt;
+            tracker.productEvent({
+              category: "startup",
+              stage: "ready",
+              outcome: "success",
+              durationMs: Date.now() - start,
+            });
+            tracker.productEvent({
+              category: "release",
+              stage: "launch",
+              outcome: "success",
+              version: process.env.PI_DEPUTYDEV_CLI_VERSION ?? "unknown",
+            });
+          }
           if (pendingProjectTrust) {
             tracker.operationalEvent("pi.project.trust_requested", {
               "pi.project.name": pendingProjectTrust,
@@ -319,8 +407,11 @@ export function createPiOrgTelemetry(
           }
         } catch (error: unknown) {
           safeRuntimeFailure(config.diagnostics, quiet, error, ctx.cwd);
+          const failedRuntime = runtime;
+          tracker?.endSession("initialization_failed");
           tracker = undefined;
           runtime = undefined;
+          await failedRuntime?.shutdown();
         }
       }),
     );
@@ -329,6 +420,8 @@ export function createPiOrgTelemetry(
       "session_shutdown",
       guard("session_shutdown", async (event) => {
         tracker?.endSession(event.reason);
+        activeRun = false;
+        pendingRequest = undefined;
         tracker = undefined;
         const currentRuntime = runtime;
         runtime = undefined;
@@ -362,13 +455,21 @@ export function createPiOrgTelemetry(
 
     pi.on(
       "agent_start",
-      guard("agent_start", () => tracker?.startRun()),
+      guard("agent_start", () => {
+        activeRun = true;
+        requestPhase = true;
+        pendingRequest = undefined;
+        tracker?.startRun();
+      }),
     );
 
     pi.on(
       "agent_end",
       guard("agent_end", (event) => {
         tracker?.endRun(lastAssistant(event.messages, cwd).stopReason);
+        requestPhase = false;
+        activeRun = false;
+        pendingRequest = undefined;
       }),
     );
 
@@ -379,26 +480,32 @@ export function createPiOrgTelemetry(
 
     pi.on(
       "turn_start",
-      guard("turn_start", (event) => tracker?.startTurn(event.turnIndex)),
+      guard("turn_start", (event) => {
+        requestPhase = true;
+        pendingRequest = undefined;
+        tracker?.startTurn(event.turnIndex);
+      }),
     );
 
     pi.on(
       "turn_end",
       guard("turn_end", (event) => {
         tracker?.endTurn("ok", summarizeAssistant(event.message, cwd), event.toolResults.length);
+        requestPhase = false;
+        pendingRequest = undefined;
       }),
     );
 
     pi.on(
       "before_provider_request",
-      guard("before_provider_request", (event, ctx) => {
-        if (!tracker) return;
-        const model = requestModel(event.payload) ?? ctx.model?.id;
-        tracker.startLlm({
-          ...(ctx.model?.provider ? { provider: ctx.model.provider } : {}),
-          ...(model ? { model } : {}),
-          ...contextDetails(ctx),
-        });
+      guard("before_provider_request", (_event, ctx) => {
+        if (!tracker || !activeRun || !requestPhase) return; // Warming during tools/idle is not foreground work.
+        if (pendingRequest || tracker.hasOpenLlm()) {
+          if (pendingRequest) pendingRequest.ambiguous = true;
+          tracker.operationalEvent("pi.provider.correlation_ambiguous");
+          return;
+        }
+        pendingRequest = { details: contextDetails(ctx), startedAt: Date.now(), ambiguous: false };
       }),
     );
 
@@ -406,26 +513,31 @@ export function createPiOrgTelemetry(
       "after_provider_response",
       guard("after_provider_response", (event) => {
         const requestId = providerRequestId(event.headers);
-        tracker?.noteProviderResponse({
-          status: event.status,
-          ...(requestId ? { requestId } : {}),
-        });
+        if (!requestPhase || !pendingRequest || pendingRequest.ambiguous) return;
+        const response = { status: event.status, ...(requestId ? { requestId } : {}) };
+        pendingRequest.response = response;
+        if (tracker?.hasOpenLlm()) tracker.noteProviderResponse(response);
+      }),
+    );
+
+    pi.on(
+      "provider_stream_event",
+      guard("provider_stream_event", () => {
+        // Provider-only traffic includes cache warming. Only transcript message_start owns
+        // an inference lifecycle; never inspect, retain or export provider event.data.
       }),
     );
 
     pi.on(
       "message_start",
-      guard("message_start", (event, ctx) => {
+      guard("message_start", (event) => {
         const message = asRecord(event.message);
-        if (!tracker || message?.role !== "assistant" || tracker.hasOpenLlm()) return;
-        const provider = stringValue(message, "provider");
-        const model = stringValue(message, "model");
-        tracker.startLlm({
-          ...(provider ? { provider } : {}),
-          ...(model ? { model } : {}),
-          ...contextDetails(ctx),
-          synthesized: true,
-        });
+        if (message?.role !== "assistant") return;
+        observeInference(
+          stringValue(message, "provider"),
+          stringValue(message, "model"),
+          stringValue(message, "api"),
+        );
       }),
     );
 
@@ -433,7 +545,15 @@ export function createPiOrgTelemetry(
       "message_end",
       guard("message_end", (event) => {
         const message = asRecord(event.message);
-        if (message?.role === "assistant") tracker?.endLlm(summarizeAssistant(message, cwd));
+        if (message?.role === "assistant") {
+          tracker?.endLlm(summarizeAssistant(message, cwd));
+          requestPhase = false;
+          pendingRequest = undefined;
+        } else if (message?.role === "toolResult") {
+          // Pi has already added nested own-usage at message_start. Count the finalized
+          // top-level aggregate once, not every execution event plus this aggregate.
+          tracker?.recordAuxiliaryUsage("tool", summarizeUsage(message.usage));
+        }
       }),
     );
 
@@ -444,23 +564,30 @@ export function createPiOrgTelemetry(
           event.toolCallId,
           event.toolName,
           summarizeToolInput(event.toolName, event.args, ctx.cwd),
-          toolProvenance(event.toolName),
+          {
+            ...toolProvenance(event.toolName),
+            ...(event.parentToolCallId ? { parentToolCallId: event.parentToolCallId } : {}),
+          },
         );
       }),
     );
 
     pi.on(
       "tool_execution_end",
-      guard("tool_execution_end", (event) => {
+      guard("tool_execution_end", (event, ctx) => {
         if (!tracker) return;
+        const aborted = ctx.signal?.aborted === true;
         tracker.endTool(
           event.toolCallId,
-          event.isError,
-          event.isError ? new ToolExecutionError() : undefined,
-          summarizeToolOutput(event.result),
+          event.isError && !aborted,
+          event.isError && !aborted ? new ToolExecutionError() : undefined,
+          summarizeToolOutput(
+            event.result,
+            event.toolName === "bash" && toolProvenance(event.toolName).source === "builtin",
+          ),
+          undefined,
+          aborted,
         );
-        const usage = summarizeUsage(asRecord(event.result)?.usage);
-        if (usage) tracker.recordAuxiliaryUsage("tool", usage);
       }),
     );
 

@@ -101,7 +101,9 @@
     "ENABLED": false,
     "SERVICE_NAME": "deputydev-console-backend",
     "ENDPOINT": "",
-    "EVENT_LOOP_MONITORING": true,
+    "PROTOCOL": "http/protobuf",
+    "HEADERS": {},
+    "METRICS_EXPORT_INTERVAL_MILLIS": 10000,
     "SAMPLING_RATE": 0.1
   },
   "AUTH_SERVICE": {

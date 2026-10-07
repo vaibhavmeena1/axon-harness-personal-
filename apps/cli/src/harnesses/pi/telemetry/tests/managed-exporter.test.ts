@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { loadEncryptedSession, saveEncryptedSession } from "../../../../cli/auth/session.ts";
+import { withFileLock } from "../../../../launcher/file-lock.ts";
 import { resolveDeputyDevPaths } from "../../../../product/paths.ts";
 import { resolveConfig } from "../src/config.ts";
 import { resolveIdentity } from "../src/identity.ts";
@@ -245,6 +246,156 @@ test("all three managed SDK exporters send serialized protobuf to fixed proxy pa
     } finally {
       restore();
       server.stop(true);
+    }
+  });
+});
+
+test("rotation lock contention obeys batch deadline, retains CAS and never persists after cancellation", async () => {
+  await withHome(async (home) => {
+    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+    let release!: () => void;
+    let acquired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    const lock = withFileLock(join(paths.locks, "session.lock"), async () => {
+      acquired();
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+    await ready;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return new Response(null, { headers: { "x-session-refresh-token": "must-not-persist" } });
+      },
+    });
+    const transport = new ManagedOtlpTransport(server.url.toString(), home);
+    try {
+      const started = Date.now();
+      expect((await transport.send(new Uint8Array(), 50)).status).toBe("failure");
+      expect(Date.now() - started).toBeLessThan(1000);
+      expect(await loadEncryptedSession(paths)).toBe("initial-token");
+    } finally {
+      release();
+      await lock;
+      transport.shutdown();
+      server.stop(true);
+    }
+    expect(await loadEncryptedSession(paths)).toBe("initial-token");
+  });
+});
+
+test("bounded chunked/oversized responses and hanging body cancellation", async () => {
+  await withHome(async (home) => {
+    const originalFetch = globalThis.fetch;
+    const transport = new ManagedOtlpTransport("http://127.0.0.1:9/never-fetched", home);
+    try {
+      for (const response of [
+        new Response("x", { headers: { "content-length": "65537" } }),
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(65537));
+              controller.close();
+            },
+          }),
+        ),
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(1));
+            },
+          }),
+        ),
+      ]) {
+        globalThis.fetch = (async () => response) as unknown as typeof fetch;
+        const started = Date.now();
+        expect((await transport.send(new Uint8Array(), 50)).status).toBe("failure");
+        expect(Date.now() - started).toBeLessThan(1000);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+      transport.shutdown();
+    }
+  });
+});
+
+test("managed deadline also bounds never-settling stream cancellation and uncooperative fetch", async () => {
+  await withHome(async (home) => {
+    const originalFetch = globalThis.fetch;
+    const transport = new ManagedOtlpTransport("http://127.0.0.1:9/never-fetched", home);
+    try {
+      for (const status of [200, 503, 401]) {
+        globalThis.fetch = (async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                if (status === 200) controller.enqueue(new Uint8Array(1));
+              },
+              cancel() {
+                return new Promise<void>(() => {});
+              },
+            }),
+            { status, headers: { "retry-after": "0" } },
+          )) as unknown as typeof fetch;
+        const started = Date.now();
+        expect((await transport.send(new Uint8Array(), 50)).status).toBe("failure");
+        expect(Date.now() - started).toBeLessThan(500);
+      }
+      globalThis.fetch = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+      const started = Date.now();
+      expect((await transport.send(new Uint8Array(), 50)).status).toBe("failure");
+      expect(Date.now() - started).toBeLessThan(500);
+    } finally {
+      globalThis.fetch = originalFetch;
+      transport.shutdown();
+    }
+  });
+});
+
+test("runtime shutdown is shared and aborts managed hanging bodies at its deadline", async () => {
+  await withHome(async (home) => {
+    const originalFetch = globalThis.fetch;
+    let cancelled = 0;
+    const restore = manageEnv({
+      PI_ORG_OTEL_MANAGED_ENDPOINT: "http://127.0.0.1:9/api/v1/otel",
+      PI_ORG_OTEL_MANAGED_HOME: home,
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9",
+      PI_ORG_OTEL_DIAGNOSTICS: "false",
+    });
+    try {
+      globalThis.fetch = (async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(1));
+            },
+            cancel() {
+              cancelled++;
+            },
+          }),
+        )) as unknown as typeof fetch;
+      const config = resolveConfig();
+      if (!config) throw new Error("missing config");
+      const runtime = createOtelRuntime(
+        { ...config, shutdownTimeoutMs: 100, exportTimeoutMs: 1000 },
+        { userId: "managed", source: "deputydev_auth" },
+      );
+      runtime.tracer.startSpan("fixture").end();
+      runtime.logs.emit("info", "fixture", "fixture");
+      runtime.metrics.count("fixture", 1);
+      const started = Date.now();
+      const shutdown = runtime.shutdown();
+      expect(runtime.shutdown()).toBe(shutdown);
+      await shutdown;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(Date.now() - started).toBeLessThan(500);
+      expect(cancelled).toBe(3);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore();
     }
   });
 });

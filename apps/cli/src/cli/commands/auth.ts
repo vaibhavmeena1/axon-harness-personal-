@@ -8,6 +8,7 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { DeputyDevPaths } from "../../product/paths.ts";
+import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { loadEncryptedSession, saveEncryptedSession } from "../auth/session.ts";
 import { verifyEncryptedSession } from "../auth/verification.ts";
 
@@ -124,7 +125,7 @@ async function openBrowser(url: string): Promise<void> {
   });
 }
 
-export async function runAuthLogin(
+async function runAuthLoginInternal(
   paths: DeputyDevPaths,
   options: AuthLoginOptions,
 ): Promise<boolean> {
@@ -175,6 +176,32 @@ export async function runAuthLogin(
       LAUNCHER_EXIT_STATUS.profileFailure,
       { remediation: "Check the browser login page and auth service, then retry." },
     );
+  }
+}
+
+export async function runAuthLogin(
+  paths: DeputyDevPaths,
+  options: AuthLoginOptions,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  try {
+    const authenticated = await runAuthLoginInternal(paths, options);
+    emitProductEvent({
+      category: "auth",
+      stage: "login",
+      outcome: authenticated ? "success" : "cancelled",
+      durationMs: Date.now() - startedAt,
+    });
+    return authenticated;
+  } catch (error) {
+    emitProductEvent({
+      category: "auth",
+      stage: "login",
+      outcome: options.signal?.aborted ? "cancelled" : "failed",
+      reason: options.signal?.aborted ? "cancelled" : "unavailable",
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
   }
 }
 

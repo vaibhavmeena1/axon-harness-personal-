@@ -3,13 +3,16 @@ import { resolveDeputyDevPaths } from "../../../product/paths.ts";
 import { BackupApi } from "../../../sessions/api.ts";
 import { BACKUP_PRIVACY_NOTICE, SessionBackups } from "../../../sessions/backup.ts";
 import type { CaptureReason } from "../../../sessions/contracts.ts";
+import { PRODUCT_EVENT_CHANNEL } from "../../../telemetry/product-events.ts";
 
 export default function sessionBackupExtension(pi: ExtensionAPI): void {
   const origin = process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
   const home = process.env["PI_DEPUTYDEV_BACKUP_HOME"];
   if (!origin || !home) return; // Managed launches supply both values, not ambient overrides.
   const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
-  const backups = new SessionBackups(paths, new BackupApi(paths, origin));
+  const backups = new SessionBackups(paths, new BackupApi(paths, origin), (event) =>
+    pi.events.emit(PRODUCT_EVENT_CHANNEL, event),
+  );
   let work: Promise<unknown> = Promise.resolve();
   const requests = new Set<AbortController>();
   let lastStatus = "Backups disabled (opt-in required)";
@@ -30,6 +33,16 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
         try {
           lastStatus = await backups.boundary(path, id, resume, reason, cancellation.signal);
         } catch {
+          try {
+            pi.events.emit(PRODUCT_EVENT_CHANNEL, {
+              category: "backup",
+              stage: "capture",
+              outcome: "failed",
+              reason: "unsafe_storage",
+            });
+          } catch {
+            /* Best effort. */
+          }
           lastStatus =
             "Backup capture failed (invalid, oversized, unsafe or busy); Pi remains usable";
         } finally {

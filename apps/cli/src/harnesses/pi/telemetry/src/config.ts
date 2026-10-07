@@ -2,6 +2,7 @@ export type OtlpProtocol = "grpc" | "http/protobuf";
 
 export interface OrgTelemetryConfig {
   readonly protocol: OtlpProtocol;
+  readonly signalProtocols?: Readonly<Record<"traces" | "metrics" | "logs", OtlpProtocol>>;
   readonly serviceName: string;
   readonly resourceAttributes: Readonly<Record<string, string>>;
   readonly sampleRatio: number;
@@ -19,7 +20,7 @@ function isFalse(value: string | undefined): boolean {
 }
 
 function endpointConfigured(env: NodeJS.ProcessEnv): boolean {
-  if (env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim()) return true;
+  if (env["OTEL_EXPORTER_OTLP_ENDPOINT"]?.trim()) return true;
   return [
     "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
     "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
@@ -27,8 +28,9 @@ function endpointConfigured(env: NodeJS.ProcessEnv): boolean {
   ].every((name) => Boolean(env[name]?.trim()));
 }
 
-function parseProtocol(value: string | undefined): OtlpProtocol {
-  return value?.trim().toLowerCase() === "grpc" ? "grpc" : "http/protobuf";
+function parseProtocol(value: string | undefined): OtlpProtocol | undefined {
+  const protocol = value?.trim().toLowerCase() || "http/protobuf";
+  return protocol === "grpc" || protocol === "http/protobuf" ? protocol : undefined;
 }
 
 function parseBoundedInteger(
@@ -49,10 +51,10 @@ function parseRatio(value: string | undefined, fallback: number): number {
 }
 
 function resolveSampleRatio(env: NodeJS.ProcessEnv): number {
-  const sampler = env.OTEL_TRACES_SAMPLER?.trim().toLowerCase();
+  const sampler = env["OTEL_TRACES_SAMPLER"]?.trim().toLowerCase();
   if (sampler === "always_off" || sampler === "parentbased_always_off") return 0;
   if (sampler === "traceidratio" || sampler === "parentbased_traceidratio") {
-    return parseRatio(env.OTEL_TRACES_SAMPLER_ARG, 1);
+    return parseRatio(env["OTEL_TRACES_SAMPLER_ARG"], 1);
   }
   return 1;
 }
@@ -99,21 +101,39 @@ function batchSetting(
 export function resolveConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): OrgTelemetryConfig | undefined {
-  if (isFalse(env.PI_ORG_OTEL_ENABLED) || !endpointConfigured(env)) return undefined;
+  if (isFalse(env["PI_ORG_OTEL_ENABLED"]) || !endpointConfigured(env)) return undefined;
+
+  const managed = Boolean(env["PI_ORG_OTEL_MANAGED_ENDPOINT"]);
+  const protocol = managed ? "http/protobuf" : parseProtocol(env["OTEL_EXPORTER_OTLP_PROTOCOL"]);
+  const traces = managed
+    ? "http/protobuf"
+    : parseProtocol(
+        env["OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"] ?? env["OTEL_EXPORTER_OTLP_PROTOCOL"],
+      );
+  const metrics = managed
+    ? "http/protobuf"
+    : parseProtocol(
+        env["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"] ?? env["OTEL_EXPORTER_OTLP_PROTOCOL"],
+      );
+  const logs = managed
+    ? "http/protobuf"
+    : parseProtocol(env["OTEL_EXPORTER_OTLP_LOGS_PROTOCOL"] ?? env["OTEL_EXPORTER_OTLP_PROTOCOL"]);
+  if (!traces || !metrics || !logs) return undefined;
 
   const maxQueueSize = batchSetting(env, "MAX_QUEUE_SIZE", 2_048, 64, 16_384);
   return {
-    protocol: parseProtocol(env.OTEL_EXPORTER_OTLP_PROTOCOL),
-    serviceName: env.OTEL_SERVICE_NAME?.trim() || "pi-coding-agent",
-    resourceAttributes: parseResourceAttributes(env.OTEL_RESOURCE_ATTRIBUTES),
+    protocol: protocol ?? traces,
+    signalProtocols: { traces, metrics, logs },
+    serviceName: env["OTEL_SERVICE_NAME"]?.trim() || "pi-coding-agent",
+    resourceAttributes: parseResourceAttributes(env["OTEL_RESOURCE_ATTRIBUTES"]),
     sampleRatio: resolveSampleRatio(env),
     metricExportIntervalMs: parseBoundedInteger(
-      env.OTEL_METRIC_EXPORT_INTERVAL,
+      env["OTEL_METRIC_EXPORT_INTERVAL"],
       10_000,
       1_000,
       300_000,
     ),
-    diagnostics: !isFalse(env.PI_ORG_OTEL_DIAGNOSTICS),
+    diagnostics: !isFalse(env["PI_ORG_OTEL_DIAGNOSTICS"]),
     maxQueueSize,
     maxExportBatchSize: Math.min(
       maxQueueSize,

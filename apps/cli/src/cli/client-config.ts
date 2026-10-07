@@ -1,7 +1,7 @@
 import { z } from "zod";
-
 import { BUILD_INFO } from "../build-info.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
+import { emitProductEvent } from "../telemetry/product-events.ts";
 
 export const CLIENT_CONFIG_TIMEOUT_MS = 700;
 const MAX_CONFIG_BYTES = 16 * 1024;
@@ -73,6 +73,8 @@ export async function fetchClientConfig(
   options: ClientConfigFetchOptions = {},
 ): Promise<ClientConfigResult> {
   let response: Response | undefined;
+  const startedAt = Date.now();
+  const signal = AbortSignal.timeout(options.timeoutMs ?? CLIENT_CONFIG_TIMEOUT_MS);
   try {
     response = await (options.fetcher ?? fetch)(
       resolveServiceUrl(
@@ -83,10 +85,19 @@ export async function fetchClientConfig(
         headers: { accept: "application/json", authorization: `Bearer ${encryptedSession}` },
         redirect: "error",
         cache: "no-store",
-        signal: AbortSignal.timeout(options.timeoutMs ?? CLIENT_CONFIG_TIMEOUT_MS),
+        signal,
       },
     );
-    if (!response.ok) return {};
+    if (!response.ok) {
+      emitProductEvent({
+        category: "config",
+        stage: "fetch",
+        outcome: "failed",
+        reason: response.status >= 500 ? "http_5xx" : "http_4xx",
+        durationMs: Date.now() - startedAt,
+      });
+      return {};
+    }
     const refreshed = response.headers.get("x-session-refresh-token");
     const sessionRefreshToken =
       refreshed && refreshed.length <= 8192 && /^[\x21-\x7e]+$/.test(refreshed)
@@ -97,11 +108,34 @@ export async function fetchClientConfig(
     // lost merely because a successful response has invalid/late config JSON.
     try {
       const config = parseClientConfig(await boundedJson(response));
+      emitProductEvent({
+        category: "config",
+        stage: "fetch",
+        outcome: "success",
+        durationMs: Date.now() - startedAt,
+      });
       return { config, ...rotation };
     } catch {
+      emitProductEvent({
+        category: "config",
+        stage: "fetch",
+        outcome: "failed",
+        reason: signal.aborted ? "timeout" : "invalid_response",
+        durationMs: Date.now() - startedAt,
+      });
       return rotation;
     }
-  } catch {
+  } catch (error) {
+    emitProductEvent({
+      category: "config",
+      stage: "fetch",
+      outcome: "failed",
+      reason:
+        signal.aborted || (error instanceof Error && /abort|timeout/i.test(error.name))
+          ? "timeout"
+          : "network",
+      durationMs: Date.now() - startedAt,
+    });
     return {};
   } finally {
     await response?.body?.cancel().catch(() => {});

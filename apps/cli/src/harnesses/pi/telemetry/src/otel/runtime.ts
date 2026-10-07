@@ -16,7 +16,9 @@ import {
   type ReadableLogRecord,
 } from "@opentelemetry/sdk-logs";
 import {
+  type AggregationOption,
   AggregationTemporality,
+  AggregationType,
   type InstrumentType,
   MeterProvider,
   PeriodicExportingMetricReader,
@@ -54,11 +56,14 @@ import { describeEnvironment, type ResourceEnvironment } from "../environment.ts
 import type { TelemetryIdentity } from "../identity.ts";
 import { sanitizeText } from "../sanitization.ts";
 import type { LogSeverity, LogSink, MetricSink, TelemetryRuntime } from "../telemetry-types.ts";
+import { GEN_AI_HISTOGRAMS } from "./instruments.ts";
 import {
+  type ManagedDestinationOptions,
   managedLogExporter,
   managedMetricExporter,
   managedTraceExporter,
 } from "./managed-exporter.ts";
+import { PRODUCT_HISTOGRAMS } from "./product-instruments.ts";
 
 const SEVERITIES: Record<LogSeverity, SeverityNumber> = {
   debug: SeverityNumber.DEBUG,
@@ -71,6 +76,7 @@ export interface RuntimeOptions {
   /** Suppress stderr diagnostics entirely (set while pi renders a full-screen TUI). */
   readonly quiet?: boolean;
   readonly now?: () => number;
+  readonly managed?: ManagedDestinationOptions;
 }
 
 class ExportHealth {
@@ -197,6 +203,10 @@ class ReportingMetricExporter implements PushMetricExporter {
     return this.delegate.shutdown();
   }
 
+  selectAggregation(instrumentType: InstrumentType): AggregationOption {
+    return this.delegate.selectAggregation?.(instrumentType) ?? { type: AggregationType.DEFAULT };
+  }
+
   selectAggregationTemporality(instrumentType: InstrumentType): AggregationTemporality {
     return (
       this.delegate.selectAggregationTemporality?.(instrumentType) ??
@@ -205,7 +215,7 @@ class ReportingMetricExporter implements PushMetricExporter {
   }
 }
 
-class OtelMetricSink implements MetricSink {
+export class OtelMetricSink implements MetricSink {
   private readonly counters = new Map<string, Counter>();
   private readonly histograms = new Map<string, Histogram>();
   private readonly meter: ReturnType<MeterProvider["getMeter"]>;
@@ -229,41 +239,76 @@ class OtelMetricSink implements MetricSink {
   record(name: string, value: number, unit: string, attributes: Attributes = {}): void {
     let histogram = this.histograms.get(name);
     if (!histogram) {
-      histogram = this.meter.createHistogram(name, { unit });
+      const definition = GEN_AI_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
+      histogram = this.meter.createHistogram(name, {
+        unit: definition?.unit ?? unit,
+        ...(definition ? { advice: { explicitBucketBoundaries: definition.boundaries } } : {}),
+      });
       this.histograms.set(name, histogram);
     }
-    histogram.record(value, { ...this.commonAttributes, ...attributes });
+    const definition = GEN_AI_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
+    const dimensions = definition
+      ? Object.fromEntries(
+          Object.entries(attributes).filter(([key]) => definition.dimensions.includes(key)),
+        )
+      : attributes;
+    histogram.record(value, { ...this.commonAttributes, ...dimensions });
   }
 }
 
-function createTraceExporter(config: OrgTelemetryConfig): SpanExporter {
+function createTraceExporter(
+  config: OrgTelemetryConfig,
+  registerAbort: (abort: () => void) => void,
+  managed?: ManagedDestinationOptions,
+): SpanExporter {
   return (
-    managedTraceExporter(config.exportTimeoutMs) ??
-    (config.protocol === "grpc" ? new GrpcTraceExporter() : new ProtoTraceExporter())
+    managedTraceExporter(config.exportTimeoutMs, registerAbort, managed) ??
+    ((config.signalProtocols?.traces ?? config.protocol) === "grpc"
+      ? new GrpcTraceExporter({ timeoutMillis: config.exportTimeoutMs })
+      : new ProtoTraceExporter({ timeoutMillis: config.exportTimeoutMs }))
   );
 }
 
-function createMetricExporter(config: OrgTelemetryConfig): PushMetricExporter {
+function createMetricExporter(
+  config: OrgTelemetryConfig,
+  registerAbort: (abort: () => void) => void,
+  managed?: ManagedDestinationOptions,
+): PushMetricExporter {
   return (
-    managedMetricExporter(config.exportTimeoutMs) ??
-    (config.protocol === "grpc" ? new GrpcMetricExporter() : new ProtoMetricExporter())
+    managedMetricExporter(config.exportTimeoutMs, registerAbort, managed) ??
+    ((config.signalProtocols?.metrics ?? config.protocol) === "grpc"
+      ? new GrpcMetricExporter({ timeoutMillis: config.exportTimeoutMs })
+      : new ProtoMetricExporter({ timeoutMillis: config.exportTimeoutMs }))
   );
 }
 
-function createLogExporter(config: OrgTelemetryConfig): LogRecordExporter {
+function createLogExporter(
+  config: OrgTelemetryConfig,
+  registerAbort: (abort: () => void) => void,
+  managed?: ManagedDestinationOptions,
+): LogRecordExporter {
   return (
-    managedLogExporter(config.exportTimeoutMs) ??
-    (config.protocol === "grpc" ? new GrpcLogExporter() : new ProtoLogExporter())
+    managedLogExporter(config.exportTimeoutMs, registerAbort, managed) ??
+    ((config.signalProtocols?.logs ?? config.protocol) === "grpc"
+      ? new GrpcLogExporter({ timeoutMillis: config.exportTimeoutMs })
+      : new ProtoLogExporter({ timeoutMillis: config.exportTimeoutMs }))
   );
 }
 
-async function waitBounded(operation: Promise<unknown>, timeoutMs: number): Promise<void> {
+async function waitBounded(
+  operation: Promise<unknown>,
+  timeoutMs: number,
+  onDeadline: () => void,
+): Promise<void> {
   let timer: NodeJS.Timeout | undefined;
   try {
     await Promise.race([
       operation,
       new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, timeoutMs);
+        timer = setTimeout(() => {
+          onDeadline();
+          resolve();
+        }, timeoutMs);
         timer.unref();
       }),
     ]);
@@ -295,6 +340,7 @@ export function createOtelRuntime(
       "pi.extension.name": EXTENSION_NAME,
       "pi.extension.version": environment.extensionVersion,
       ...(environment.piVersion ? { [ATTR_PI_VERSION]: environment.piVersion } : {}),
+      ...(environment.cliVersion ? { "deputydev.cli.version": environment.cliVersion } : {}),
       [ATTR_OS_TYPE]: environment.osType,
       [ATTR_HOST_ARCH]: environment.hostArch,
       [ATTR_RUNTIME_NAME]: environment.runtimeName,
@@ -303,7 +349,17 @@ export function createOtelRuntime(
   );
   const health = new ExportHealth(config.diagnostics && !options.quiet, options.now);
 
-  const metricExporter = new ReportingMetricExporter(createMetricExporter(config), health);
+  // Managed transports expose cooperative cancellation. Environment SDK exporters do not:
+  // the shutdown deadline bounds waiting, not their already in-flight HTTP/gRPC work.
+  const aborts: Array<() => void> = [];
+  const registerAbort = (abort: () => void): void => {
+    aborts.push(abort);
+  };
+  let shutdownPromise: Promise<void> | undefined;
+  const metricExporter = new ReportingMetricExporter(
+    createMetricExporter(config, registerAbort, options.managed),
+    health,
+  );
   const metricReader = new PeriodicExportingMetricReader({
     exporter: metricExporter,
     exportIntervalMillis: config.metricExportIntervalMs,
@@ -320,7 +376,10 @@ export function createOtelRuntime(
   health.attachMetricSink(metrics);
 
   const spanProcessor = new BatchSpanProcessor({
-    exporter: new ReportingSpanExporter(createTraceExporter(config), health),
+    exporter: new ReportingSpanExporter(
+      createTraceExporter(config, registerAbort, options.managed),
+      health,
+    ),
     maxQueueSize: config.maxQueueSize,
     maxExportBatchSize: config.maxExportBatchSize,
     scheduledDelayMillis: config.scheduledDelayMs,
@@ -339,7 +398,10 @@ export function createOtelRuntime(
   });
 
   const logProcessor = new BatchLogRecordProcessor({
-    exporter: new ReportingLogExporter(createLogExporter(config), health),
+    exporter: new ReportingLogExporter(
+      createLogExporter(config, registerAbort, options.managed),
+      health,
+    ),
     maxQueueSize: config.maxQueueSize,
     maxExportBatchSize: config.maxExportBatchSize,
     scheduledDelayMillis: config.scheduledDelayMs,
@@ -377,13 +439,19 @@ export function createOtelRuntime(
     metrics,
     logs,
     commonAttributes,
-    async shutdown() {
-      const shutdown = Promise.allSettled([
-        loggerProvider.shutdown(),
-        tracerProvider.shutdown(),
-        meterProvider.shutdown(),
-      ]);
-      await waitBounded(shutdown, config.shutdownTimeoutMs);
+    shutdown() {
+      shutdownPromise ??= waitBounded(
+        Promise.allSettled([
+          loggerProvider.shutdown(),
+          tracerProvider.shutdown(),
+          meterProvider.shutdown(),
+        ]),
+        config.shutdownTimeoutMs,
+        () => {
+          for (const abort of aborts) abort();
+        },
+      );
+      return shutdownPromise;
     },
   };
 }

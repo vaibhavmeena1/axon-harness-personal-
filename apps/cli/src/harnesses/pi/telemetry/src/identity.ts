@@ -58,7 +58,7 @@ export function resolveAgentDirectory(
   env: NodeJS.ProcessEnv = process.env,
   homeDirectory: string = homedir(),
 ): string {
-  return env.PI_CODING_AGENT_DIR?.trim() || join(homeDirectory, ".pi", "agent");
+  return env["PI_CODING_AGENT_DIR"]?.trim() || join(homeDirectory, ".pi", "agent");
 }
 
 function parseStoredIdentity(raw: string): StoredIdentity | undefined {
@@ -111,7 +111,7 @@ async function createInstallationId(path: string, directory: string): Promise<st
 
 export async function resolveIdentity(options: IdentityOptions = {}): Promise<TelemetryIdentity> {
   // Managed identity is rewritten by the backend. Do not send local Git PII in this mode.
-  if ((options.env ?? process.env).PI_ORG_OTEL_MANAGED_ENDPOINT) {
+  if ((options.env ?? process.env)["PI_ORG_OTEL_MANAGED_ENDPOINT"]) {
     return { userId: "managed", source: "deputydev_auth" };
   }
   const email = normalizeGitEmail(

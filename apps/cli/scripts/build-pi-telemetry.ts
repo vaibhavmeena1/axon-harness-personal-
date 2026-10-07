@@ -58,7 +58,14 @@ async function buildBundle(repositoryRoot: string): Promise<string> {
     }
 
     const bundle = await Bun.file(temporaryOutput).text();
-    return `${await legalBanner(repositoryRoot)}${bundle}`;
+    // Minified SDK multiline templates retain trailing spaces and space-before-tab indents.
+    // Escape that literal whitespace without changing runtime text or reproducibility.
+    const normalized = bundle
+      .replace(/^( +)\t/gm, "$1\\t")
+      .replace(/[ \t]+$/gm, (whitespace) =>
+        whitespace.replaceAll(" ", "\\x20").replaceAll("\t", "\\t"),
+      );
+    return `${await legalBanner(repositoryRoot)}${normalized}`;
   } finally {
     await rm(temporaryDirectory, { force: true, recursive: true });
   }

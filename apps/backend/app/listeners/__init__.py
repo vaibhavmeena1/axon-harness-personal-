@@ -11,12 +11,16 @@ from app.listeners.database import close_database, initialize_database
 from app.listeners.litellm import close_litellm_proxy, initialize_litellm_proxy
 from app.listeners.openrouter import close_openrouter_client, initialize_openrouter_client
 from app.proxies.otel import close_otel_proxy, initialize_otel_proxy
+from app.telemetry import close_backend_telemetry, initialize_backend_telemetry
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start dependencies in order and close initialized resources in reverse order."""
     async with AsyncExitStack() as stack:
+        await initialize_backend_telemetry(app)
+        stack.push_async_callback(close_backend_telemetry, app)
+
         await initialize_database(app)
         stack.push_async_callback(close_database, app)
 

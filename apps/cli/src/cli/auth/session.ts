@@ -88,33 +88,40 @@ async function persistEncryptedSession(
   paths: DeputyDevPaths,
   encryptedSession: string,
   expectedSession?: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   if (!isEncryptedSession(encryptedSession)) throw new Error("Invalid encrypted session");
   const destination = sessionPath(paths);
   await mkdir(paths.home, { recursive: true, mode: 0o700 });
   await assertRegularDirectory(paths.home);
 
-  return withFileLock(join(paths.locks, "session.lock"), async () => {
-    // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
-    const existingData = await readSessionFile(destination, expectedSession === undefined);
-    // A late response must not overwrite a newer login or another process's refresh.
-    if (expectedSession !== undefined && existingData?.[AUTH_TOKEN_KEY] !== expectedSession) {
-      return false;
-    }
-    const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
-    const serialized = `${JSON.stringify(data)}\n`;
-    if (Buffer.byteLength(serialized) > MAX_SESSION_FILE_BYTES) {
-      throw new Error("Saved session is too large");
-    }
-    const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
-      await rename(temporary, destination);
-    } finally {
-      await rm(temporary, { force: true });
-    }
-    return true;
-  });
+  return withFileLock(
+    join(paths.locks, "session.lock"),
+    async () => {
+      // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
+      const existingData = await readSessionFile(destination, expectedSession === undefined);
+      // A late response must not overwrite a newer login or another process's refresh.
+      if (expectedSession !== undefined && existingData?.[AUTH_TOKEN_KEY] !== expectedSession) {
+        return false;
+      }
+      signal?.throwIfAborted();
+      const data = { ...existingData, [AUTH_TOKEN_KEY]: encryptedSession };
+      const serialized = `${JSON.stringify(data)}\n`;
+      if (Buffer.byteLength(serialized) > MAX_SESSION_FILE_BYTES) {
+        throw new Error("Saved session is too large");
+      }
+      const temporary = `${destination}.${crypto.randomUUID()}.tmp`;
+      try {
+        await writeFile(temporary, serialized, { flag: "wx", mode: 0o600 });
+        signal?.throwIfAborted();
+        await rename(temporary, destination);
+      } finally {
+        await rm(temporary, { force: true });
+      }
+      return true;
+    },
+    signal ? { signal } : {},
+  );
 }
 
 export async function saveEncryptedSession(
@@ -130,6 +137,7 @@ export async function refreshEncryptedSession(
   paths: DeputyDevPaths,
   expectedSession: string,
   refreshedSession: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
-  return persistEncryptedSession(paths, refreshedSession, expectedSession);
+  return persistEncryptedSession(paths, refreshedSession, expectedSession, signal);
 }

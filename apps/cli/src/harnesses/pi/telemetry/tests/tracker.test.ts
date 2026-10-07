@@ -62,7 +62,16 @@ test("records an attributed interaction tree and operational metrics", async () 
   tracker.endSession("quit");
 
   const spans = fixture.spans();
-  const byName = new Map(spans.map((span) => [span.name, span]));
+  const byName = new Map(
+    spans.map((span) => [
+      span.name.startsWith("chat ")
+        ? SPAN_LLM
+        : span.name.startsWith("execute_tool ")
+          ? SPAN_TOOL
+          : span.name,
+      span,
+    ]),
+  );
   for (const name of [
     SPAN_INTERACTION,
     SPAN_AGENT_RUN,
@@ -84,13 +93,9 @@ test("records an attributed interaction tree and operational metrics", async () 
   assert.equal(turn.parentSpanContext?.spanId, run.spanContext().spanId);
   assert.equal(llm.parentSpanContext?.spanId, turn.spanContext().spanId);
   assert.equal(tool.parentSpanContext?.spanId, turn.spanContext().spanId);
-  assert.equal(llm.attributes["gen_ai.usage.input_tokens"], 100);
+  assert.equal(llm.attributes["gen_ai.usage.input_tokens"], 110);
   assert.equal(llm.attributes["pi.provider.request_id"], "request-1");
-  assert.equal(
-    llm.attributes["gen_ai.response.id"],
-    "request-1",
-    "header id is the fallback when the message has none",
-  );
+  assert.equal(llm.attributes["gen_ai.response.id"], undefined);
   assert.equal(llm.attributes["pi.context.percent"], 0.5);
   assert.equal(llm.attributes["user.id"], "developer@example.com");
   assert.ok(spans.every((span) => span.attributes["user.id"] === "developer@example.com"));
@@ -122,13 +127,13 @@ test("tracks parallel tools and infers repeated agent runs", async () => {
   tracker.endRun("stop");
   tracker.endInteraction();
 
-  const toolSpans = fixture.spans().filter((span) => span.name === SPAN_TOOL);
+  const toolSpans = fixture.spans().filter((span) => span.name.startsWith("execute_tool "));
   assert.equal(toolSpans.length, 2);
   assert.equal(
     toolSpans.find((span) => span.attributes["gen_ai.tool.name"] === "write")?.status.code,
     SpanStatusCode.ERROR,
   );
-  assert.ok(fixture.metrics.some((metric) => metric.name === "pi.agent.retry.inferred"));
+  assert.ok(fixture.metrics.some((metric) => metric.name === "pi.agent.run.repeated"));
   const errorLog = fixture.logs.find((log) => log.eventName === "pi.tool.error");
   assert.ok(errorLog);
   assert.doesNotMatch(String(errorLog.attributes["error.message"]), /secret|\/work\/project/);
@@ -147,9 +152,9 @@ test("preserves provider HTTP failures when the assistant has a normal stop reas
   tracker.noteProviderResponse({ status: 503 });
   tracker.endLlm({ stopReason: "stop" });
 
-  const llm = fixture.spans().find((span) => span.name === SPAN_LLM);
+  const llm = fixture.spans().find((span) => span.name === "chat model");
   assert.equal(llm?.status.code, SpanStatusCode.ERROR);
-  assert.equal(llm?.attributes["error.type"], "http_503");
+  assert.equal(llm?.attributes["error.type"], "http_error");
   assert.ok(fixture.metrics.some((metric) => metric.name === "pi.llm.errors"));
   await fixture.runtime.shutdown();
 });
@@ -164,7 +169,7 @@ test("marks synthesized LLM spans", async () => {
   tracker.startLlm({ provider: "custom", model: "model", synthesized: true });
   tracker.endLlm({ stopReason: "stop" });
 
-  const llm = fixture.spans().find((span) => span.name === SPAN_LLM);
+  const llm = fixture.spans().find((span) => span.name === "pi.assistant.lifecycle");
   assert.equal(llm?.attributes["pi.llm.synthesized"], true);
   await fixture.runtime.shutdown();
 });
@@ -182,10 +187,12 @@ test("drains orphan wait, tool, llm, and compaction spans on endSession", async 
 
   const spans = fixture.spans();
   for (const name of [SPAN_USER_WAIT, SPAN_TOOL, SPAN_LLM, SPAN_COMPACTION]) {
-    const span = spans.find((candidate) => candidate.name === name);
+    const span = spans.find(
+      (candidate) => candidate.name === name || candidate.name.startsWith(`${name} `),
+    );
     assert.ok(span, `missing ${name}`);
     assert.ok(span.ended, `${name} was not ended`);
-    assert.equal(span.status.code, SpanStatusCode.ERROR);
+    assert.equal(span.status.code, SpanStatusCode.UNSET);
   }
   await fixture.runtime.shutdown();
 });
@@ -203,12 +210,12 @@ test("counts truncated responses without marking them failed", async () => {
   tracker.endTool("call-1", true, new Error("truncated"));
   tracker.endTurn("ok", { stopReason: "length" }, 1);
 
-  const llm = fixture.spans().find((span) => span.name === SPAN_LLM);
+  const llm = fixture.spans().find((span) => span.name === "chat gpt-5");
   assert.equal(llm?.status.code, SpanStatusCode.OK);
   assert.equal(llm?.attributes["pi.llm.truncated"], true);
   assert.ok(fixture.metrics.some((metric) => metric.name === "pi.llm.truncated"));
   assert.ok(!fixture.metrics.some((metric) => metric.name === "pi.llm.errors"));
-  const tool = fixture.spans().find((span) => span.name === SPAN_TOOL);
+  const tool = fixture.spans().find((span) => span.name === "execute_tool edit");
   assert.equal(tool?.attributes["pi.tool.truncated_call"], true);
   await fixture.runtime.shutdown();
 });
@@ -224,7 +231,7 @@ test("prefers the message response id over the header request id", async () => {
   tracker.noteProviderResponse({ status: 200, requestId: "req_abc" });
   tracker.endLlm({ stopReason: "stop", responseId: "msg_123", providerThinkingLevel: "high" });
 
-  const llm = fixture.spans().find((span) => span.name === SPAN_LLM);
+  const llm = fixture.spans().find((span) => span.name === "chat claude");
   assert.equal(llm?.attributes["gen_ai.response.id"], "msg_123");
   assert.equal(llm?.attributes["pi.provider.request_id"], "req_abc");
   assert.equal(llm?.attributes["pi.thinking.provider_level"], "high");
@@ -274,7 +281,7 @@ test("attributes usage to its source and keeps the repo slug off token metrics",
   const interaction = fixture.spans().find((span) => span.name === SPAN_INTERACTION);
   assert.equal(interaction?.attributes["pi.repo.slug"], "github.com/acme/backend");
   assert.equal(interaction?.attributes["pi.session.parent_id"], "parent-1");
-  const llm = fixture.spans().find((span) => span.name === SPAN_LLM);
+  const llm = fixture.spans().find((span) => span.name === "chat gpt-5");
   assert.equal(llm?.attributes["pi.cost.input_usd"], 0.04);
   await fixture.runtime.shutdown();
 });

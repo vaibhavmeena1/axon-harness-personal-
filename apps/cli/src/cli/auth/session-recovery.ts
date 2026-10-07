@@ -1,4 +1,5 @@
 import type { DeputyDevPaths } from "../../product/paths.ts";
+import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { runAuthLogin } from "../commands/auth.ts";
 import { loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
@@ -12,7 +13,10 @@ interface PendingRecovery {
   readonly expiresAt: number;
   readonly controller: AbortController;
   readonly result: Promise<boolean>;
-  readonly finish: (authenticated: boolean) => void;
+  readonly finish: (
+    authenticated: boolean,
+    failure?: { outcome: "failed" | "cancelled"; reason: string },
+  ) => void;
   state: "required" | "logging-in";
 }
 
@@ -43,16 +47,28 @@ export function createSessionRecovery(paths: DeputyDevPaths): SessionRecovery {
         resolveResult = resolve;
       });
       const controller = new AbortController();
-      const finish = (authenticated: boolean): void => {
+      const startedAt = Date.now();
+      emitProductEvent({ category: "auth", stage: "recovery", outcome: "pending" });
+      const finish: PendingRecovery["finish"] = (authenticated, failure): void => {
         if (pending !== recovery) return;
         pending = undefined;
         clearTimeout(timeout);
         signal.removeEventListener("abort", onAbort);
         controller.abort();
+        emitProductEvent({
+          category: "auth",
+          stage: "recovery",
+          outcome: authenticated ? "success" : (failure?.outcome ?? "cancelled"),
+          ...(authenticated ? {} : { reason: failure?.reason ?? "cancelled" }),
+          durationMs: Date.now() - startedAt,
+        });
         resolveResult(authenticated);
       };
       const onAbort = (): void => finish(false);
-      const timeout = setTimeout(onAbort, RECOVERY_TIMEOUT_MS);
+      const timeout = setTimeout(
+        () => finish(false, { outcome: "failed", reason: "timeout" }),
+        RECOVERY_TIMEOUT_MS,
+      );
       const recovery: PendingRecovery = {
         id: crypto.randomUUID(),
         expiresAt: Date.now() + RECOVERY_TIMEOUT_MS,
@@ -113,7 +129,10 @@ export function createSessionRecovery(paths: DeputyDevPaths): SessionRecovery {
       } catch {
         // Keep credentials, browser URLs, and upstream errors out of Pi's transcript.
       } finally {
-        recovery.finish(authenticated);
+        recovery.finish(authenticated, {
+          outcome: signal.aborted ? "cancelled" : "failed",
+          reason: signal.aborted ? "cancelled" : "unavailable",
+        });
       }
       return controlResponse({ authenticated }, authenticated ? 200 : 401);
     },

@@ -1,6 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
+  sanitizeError,
   sanitizePath,
   sanitizeText,
   summarizeShellCommand,
@@ -24,6 +25,37 @@ test("sanitizes credentials, project paths, home paths, and long text", () => {
   assert.equal(
     sanitizeText("see /Users/alice/notes.txt", "/tmp/elsewhere", undefined, "/Users/alice"),
     "see <home>/notes.txt",
+  );
+});
+
+test("quoted secrets and arbitrary shell content stay out of telemetry", () => {
+  assert.doesNotMatch(
+    sanitizeText("password=\"two word secret\" --token 'another secret' Bearer hidden", cwd),
+    /two word|another secret|hidden/,
+  );
+  for (const command of [
+    "echo 'private document contents'",
+    "token=secret shell && other",
+    "$(private) | sudo command",
+  ]) {
+    assert.deepEqual(summarizeShellCommand(command, cwd), { "pi.command.length": command.length });
+    const attrs = summarizeToolInput("bash", { command }, cwd);
+    assert.equal(attrs["pi.command.executable"], undefined);
+    assert.equal(attrs["pi.command.summary"], undefined);
+  }
+});
+
+test("JSON credential keys and escaped quoted values are redacted from exceptions", () => {
+  for (const key of ["password", "api_key", "access-token", "authorization", "secret"]) {
+    const raw = JSON.stringify({ [key]: 'private "escaped" value', ordinary: "safe" });
+    const message = sanitizeError(new Error(raw), cwd).message ?? "";
+    assert.doesNotMatch(message, /private|escaped|value/);
+    assert.match(message, /<redacted>/);
+    assert.match(message, /safe/);
+  }
+  assert.doesNotMatch(
+    sanitizeText("{'password':'private \\'escaped\\' value'}", cwd),
+    /private|escaped|value/,
   );
 });
 
@@ -65,6 +97,5 @@ test("uses fixed summaries for built-in and unknown tools", () => {
   assert.equal(unknown.query, undefined);
 
   const command = summarizeShellCommand("API_KEY=secret npm test", cwd);
-  assert.equal(command["pi.command.executable"], "npm");
-  assert.doesNotMatch(String(command["pi.command.summary"]), /secret/);
+  assert.deepEqual(command, { "pi.command.length": 23 });
 });
