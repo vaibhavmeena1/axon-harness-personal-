@@ -3,7 +3,7 @@ import {
   startAuthenticatedRequestRelay,
 } from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
-import { fetchClientConfig } from "../../cli/client-config.ts";
+import { fetchClientConfig, type WebSearchConfig } from "../../cli/client-config.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -20,6 +20,7 @@ import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides, isTelemetryDisabled } from "./telemetry-environment.ts";
 import { resolvePiVersion } from "./version.ts";
+import { createWebSearchOverrides, isWebSearchDisabled } from "./web-search-environment.ts";
 
 export function createPiAdapter(): HarnessAdapter {
   let setup: PiSetupResult | undefined;
@@ -50,6 +51,7 @@ export function createPiAdapter(): HarnessAdapter {
         PI_DEPUTYDEV_AUTH_RELAY_KEY: undefined,
       };
       let telemetryOverrides: EnvironmentOverrides = {};
+      let webSearchOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
         let encryptedSession: string | undefined;
         try {
@@ -66,16 +68,17 @@ export function createPiAdapter(): HarnessAdapter {
           undefined,
           setup.offline,
         );
+        let webSearch: WebSearchConfig | undefined;
         if (
           encryptedSession &&
-          setup.invocationKind === "interactive" &&
           !setup.offline &&
-          !isTelemetryDisabled(context.environment)
+          (!isTelemetryDisabled(context.environment) || !isWebSearchDisabled(context.environment))
         ) {
           const result = await fetchClientConfig(encryptedSession);
           // Persist rotation before passing the credential to the child. Config is
           // optional, so a failed local rotation must not prevent Pi launch.
           let telemetry = result.config?.telemetry;
+          webSearch = result.config?.webSearch;
           try {
             if (
               result.sessionRefreshToken &&
@@ -90,7 +93,10 @@ export function createPiAdapter(): HarnessAdapter {
             const currentSession = await loadEncryptedSession(context.paths);
             // Another CLI/VS Code login may have switched users during the fetch.
             // Discard preferences obtained under the old credential in that case.
-            if (currentSession !== encryptedSession) telemetry = undefined;
+            if (currentSession !== encryptedSession) {
+              telemetry = undefined;
+              webSearch = undefined;
+            }
             encryptedSession = currentSession;
           } catch {
             /* Preserve the previous credential; no token diagnostics. */
@@ -103,6 +109,12 @@ export function createPiAdapter(): HarnessAdapter {
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths);
+        webSearchOverrides = createWebSearchOverrides(
+          context.environment,
+          relay,
+          webSearch,
+          setup.offline,
+        );
         litellmOverrides = {
           LITELLM_API_KEY: relay.capability,
           LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
@@ -123,6 +135,7 @@ export function createPiAdapter(): HarnessAdapter {
           context.paths,
           litellmOverrides,
           telemetryOverrides,
+          webSearchOverrides,
         ),
         cwd: context.cwd,
         ...(relay === undefined

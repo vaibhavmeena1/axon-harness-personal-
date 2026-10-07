@@ -160,7 +160,7 @@ describe("real Pi adapter client config integration", () => {
     mode = "valid";
   });
 
-  test("scripted, offline, disabled, and administrative launches do not fetch config", async () => {
+  test("search policy is fetched for scripted and telemetry-disabled launches, but not offline or admin", async () => {
     for (const options of [
       { interactive: false },
       { offline: true },
@@ -169,7 +169,11 @@ describe("real Pi adapter client config integration", () => {
     ]) {
       requests = [];
       const environment = await launchSpec(options);
-      expect(requests).not.toContain("/api/v1/cli/config");
+      if (options.offline || options.admin) {
+        expect(requests).not.toContain("/api/v1/cli/config");
+      } else {
+        expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
+      }
       if (options.offline || options.disabled)
         expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
     }

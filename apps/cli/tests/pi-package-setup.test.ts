@@ -705,6 +705,7 @@ describe("package and resource locks", () => {
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
       "session-backup.mjs",
+      "web-search.ts",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

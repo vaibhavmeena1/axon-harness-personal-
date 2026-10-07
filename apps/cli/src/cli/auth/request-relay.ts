@@ -211,7 +211,8 @@ export function startAuthenticatedRequestRelay(paths: DeputyDevPaths): Authentic
       if (controlResponse !== undefined) return controlResponse;
       const allowed =
         url.pathname.startsWith("/litellm/") ||
-        (url.pathname === "/api/v1/model-recommendations" && request.method === "POST");
+        (url.pathname === "/api/v1/model-recommendations" && request.method === "POST") ||
+        (url.pathname === "/api/v1/web-search" && request.method === "POST");
       if (!allowed) return relayError(404, "DeputyDev endpoint is not available");
 
       // Serialize only until response headers arrive: streams remain concurrent,

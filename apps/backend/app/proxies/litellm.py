@@ -279,7 +279,8 @@ async def _json_body(
     return encoded_body
 
 
-async def _authenticated_upstream_key(scope: Scope, settings: LiteLLMSettings, user: AuthenticatedUser) -> str:
+async def authenticated_upstream_key(scope: Scope, settings: LiteLLMSettings, user: AuthenticatedUser) -> str:
+    """Resolve a native user/team key for both proxy traffic and backend tools."""
     if not settings.identity_sync_enabled:
         return settings.api_key
     app = scope.get("app")
@@ -323,7 +324,7 @@ async def _forward_authenticated_request(
             return
 
     try:
-        upstream_api_key = await _authenticated_upstream_key(scope, settings, user)
+        upstream_api_key = await authenticated_upstream_key(scope, settings, user)
     except LiteLLMIdentityError as exc:
         logger.warning("LiteLLM identity synchronization failed: %s", exc)
         body = _ACCESS_DENIED_BODY if exc.status_code == 403 else _IDENTITY_SYNC_UNAVAILABLE_BODY

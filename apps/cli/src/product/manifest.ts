@@ -11,6 +11,10 @@ import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/se
   type: "file",
 };
 
+import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
+  type: "file",
+};
+
 import {
   type PiResourceManifestEntry,
   parseDeputyDevManifest,
@@ -40,6 +44,12 @@ const MODEL_RECOMMENDER_RESOURCE = Object.freeze({
   destination: "pi/extensions/model-recommender.ts",
 }) satisfies PiResourceManifestEntry;
 
+const WEB_SEARCH_RESOURCE = Object.freeze({
+  id: "web-search",
+  type: "extension",
+  destination: "pi/extensions/web-search.ts",
+}) satisfies PiResourceManifestEntry;
+
 export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
   schemaVersion: 1,
   revision: "7",
@@ -66,6 +76,7 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
       SESSION_BACKUP_RESOURCE,
       // Close telemetry after backup shutdown has emitted its final outcomes.
       PI_ORG_TELEMETRY_RESOURCE,
+      WEB_SEARCH_RESOURCE,
     ],
   },
 });
@@ -91,5 +102,9 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...SESSION_BACKUP_RESOURCE,
     sourcePath: sessionBackupExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...WEB_SEARCH_RESOURCE,
+    sourcePath: webSearchExtensionAsset as unknown as string,
   }),
 ] as const satisfies readonly EmbeddedPiResource[]);

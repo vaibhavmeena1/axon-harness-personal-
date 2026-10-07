@@ -13,13 +13,26 @@ const telemetrySchema = z.object({
   traceSampleRatio: z.number().finite().min(0).max(1).default(1),
   metricExportIntervalMs: z.number().int().min(1_000).max(300_000).default(10_000),
 });
+const webSearchSchema = z.object({
+  enabled: z.boolean(),
+  endpoint: z.literal("/api/v1/web-search"),
+  model: z.string().min(1).max(256),
+  allowedModels: z.array(z.string().min(1).max(256)).max(33),
+  timeoutMs: z.number().int().min(1_000).max(300_000),
+  maxQueryCharacters: z.number().int().min(1).max(100_000),
+  maxResultCharacters: z.number().int().min(1).max(100_000),
+  maxOutputTokens: z.number().int().min(1).max(65_536),
+  maxSources: z.number().int().min(1).max(100),
+});
 const configSchema = z.object({
   schemaVersion: z.literal(1),
   telemetry: telemetrySchema.optional(),
+  webSearch: webSearchSchema.optional(),
 });
 
 export type ClientConfig = z.infer<typeof configSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
+export type WebSearchConfig = z.infer<typeof webSearchSchema>;
 
 export function parseClientConfig(value: unknown): ClientConfig {
   // Config can select policy, never a destination to which our session is sent.

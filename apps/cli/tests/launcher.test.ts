@@ -332,6 +332,8 @@ describe("launcher dispatch", () => {
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
       "--extension",
       join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
+      "--extension",
+      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");

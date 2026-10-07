@@ -11,6 +11,7 @@ from app.routers.health import router as health_router
 from app.routers.install import router as install_router
 from app.routers.model_recommendations import router as model_recommendations_router
 from app.routers.sessions import router as sessions_router
+from app.routers.web_search import router as web_search_router
 
 ROUTERS: list[APIRouter] = [
     health_router,
@@ -22,4 +23,5 @@ ROUTERS: list[APIRouter] = [
     install_router,
     cli_releases_router,
     sessions_router,
+    web_search_router,
 ]
