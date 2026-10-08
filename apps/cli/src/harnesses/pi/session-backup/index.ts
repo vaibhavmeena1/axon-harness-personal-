@@ -24,6 +24,36 @@ export function backupWarning(error: unknown): string {
   return "Backup action failed; check connectivity and retry. Existing snapshots were retained";
 }
 
+// Consumed by the standalone Axon header extension; only fixed, non-sensitive states cross the bus.
+export const BACKUP_HEADER_CHANNEL = "axon:backup-status";
+export type BackupHeaderState =
+  | "checking"
+  | "syncing"
+  | "saved"
+  | "pending"
+  | "paused"
+  | "off"
+  | "ready";
+
+export function backupHeaderState(status: string): BackupHeaderState {
+  if (status === "Backups disabled by administrator") return "off";
+  const summary =
+    /^Backups enabled; last confirmed: ([^;]+); pending streams: (\d+); paused: (\d+)/.exec(status);
+  if (summary) {
+    if (Number(summary[3]) > 0) return "paused";
+    if (Number(summary[2]) > 0) return "pending";
+    return summary[1] === "none" ? "ready" : "saved";
+  }
+  if (status.startsWith("Backup paused:") || /failed|invalid|denied|required/.test(status))
+    return "paused";
+  if (/pending|Incomplete|Reservation expired/.test(status)) return "pending";
+  if (status.startsWith("Backup committed") || status.startsWith("Backup confirmed"))
+    return "saved";
+  if (status.startsWith("No persisted session") || status.startsWith("No session content"))
+    return "ready";
+  return "paused";
+}
+
 export default function sessionBackupExtension(pi: ExtensionAPI): void {
   const origin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
   const home = process.env["PI_AXON_BACKUP_HOME"];
@@ -35,6 +65,10 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
   let work: Promise<unknown> = Promise.resolve();
   const requests = new Set<AbortController>();
   let lastStatus = "Checking administrator backup policy";
+
+  function publish(state: BackupHeaderState): void {
+    pi.events.emit(BACKUP_HEADER_CHANNEL, state);
+  }
 
   function capture(ctx: ExtensionContext, reason: CaptureReason): Promise<unknown> {
     // Capture all context-bound values synchronously. Background work never retains ctx.
@@ -49,6 +83,7 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
     work = work
       .catch(() => undefined)
       .then(async () => {
+        publish("syncing");
         try {
           lastStatus = await backups.boundary(path, id, resume, reason, cancellation.signal);
         } catch {
@@ -66,6 +101,7 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
             "Backup capture failed (invalid, oversized, unsafe or busy); Pi remains usable";
         } finally {
           requests.delete(cancellation);
+          publish(backupHeaderState(lastStatus));
         }
       });
     return work;
@@ -73,8 +109,8 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
 
   pi.on("session_start", (_event, ctx) => {
     // No awaited large transfer at startup; private staging and requests are best-effort.
+    publish("checking");
     void capture(ctx, "session_start");
-    if (ctx.hasUI) ctx.ui.setStatus("axon-backup", "Session backups: /axon-backups status");
   });
   pi.on("session_shutdown", (_event, ctx) =>
     capture(ctx, "session_shutdown").then(() => undefined),
@@ -95,7 +131,6 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
       await capture(ctx, "manual");
       if (ctx.hasUI) {
         ctx.ui.notify(lastStatus, lastStatus.startsWith("Backup committed") ? "info" : "warning");
-        ctx.ui.setStatus("axon-backup", lastStatus);
       }
     },
   });
@@ -114,15 +149,17 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
         }
         if (action === "retry") await backups.retry();
         lastStatus = await backups.status();
+        publish(backupHeaderState(lastStatus));
         if (ctx.hasUI) {
           ctx.ui.notify(
             lastStatus,
             lastStatus.includes("local queue issues:") ? "warning" : "info",
           );
-          ctx.ui.setStatus("axon-backup", lastStatus);
         }
       } catch (error) {
-        if (ctx.hasUI) ctx.ui.notify(backupWarning(error), "warning");
+        lastStatus = backupWarning(error);
+        publish("paused");
+        if (ctx.hasUI) ctx.ui.notify(lastStatus, "warning");
       }
     },
   });

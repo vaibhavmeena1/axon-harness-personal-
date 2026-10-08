@@ -4,11 +4,13 @@ from fastapi import FastAPI
 
 from app.authentication import SessionRefreshResponseMiddleware
 from app.core.config import get_settings
+from app.core.logging import configure_application_logging
 from app.listeners import lifespan
 from app.proxies import mount_litellm_proxy
 from app.routers import ROUTERS
 from app.web import mount_frontend
 
+configure_application_logging()
 settings = get_settings()
 app = FastAPI(
     title=settings.name,
