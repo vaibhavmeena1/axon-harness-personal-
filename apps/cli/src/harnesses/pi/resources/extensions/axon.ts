@@ -6,12 +6,24 @@ import {
   type Theme,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 const ENTRY_TYPE = "axon-status";
+// Keep this bus contract in sync with session-backup/index.ts; this extension ships standalone.
+const BACKUP_HEADER_CHANNEL = "axon:backup-status";
+const BACKUP_LABELS = {
+  checking: "checking…",
+  syncing: "syncing…",
+  saved: "saved",
+  pending: "pending",
+  paused: "paused",
+  off: "off",
+  ready: "on",
+} as const;
+type BackupHeaderState = keyof typeof BACKUP_LABELS;
 
 /** A small connected-node A mark; all colors and shortcut labels follow Pi's active settings. */
-function createAxonHeader(theme: Theme) {
+function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | undefined) {
   const rawVersion = process.env["PI_AXON_CLI_VERSION"];
   const version =
     rawVersion && /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/.test(rawVersion) ? ` v${rawVersion}` : "";
@@ -33,15 +45,29 @@ function createAxonHeader(theme: Theme) {
       if (width <= 0) return [];
       const title = theme.fg("accent", "Axon") + theme.fg("dim", version);
       const attribution = theme.fg("dim", `Powered by Pi v${VERSION}`);
+      const withBackup = (line: string): string => {
+        const state = backupState();
+        if (state === undefined) return line;
+        const color =
+          state === "saved"
+            ? "success"
+            : state === "paused" || state === "pending"
+              ? "warning"
+              : "dim";
+        const badge = theme.fg(color, `Backup: ${BACKUP_LABELS[state]}`);
+        const available = width - 1 - visibleWidth(badge) - 3;
+        if (available < 4) return line;
+        return truncateToWidth(line, available, "") + theme.fg("dim", " · ") + badge;
+      };
       const brand =
         width >= 48
           ? [
-              theme.fg("accent", "   ●      ") + title,
+              withBackup(theme.fg("accent", "   ●      ") + title),
               theme.fg("accent", "  ╱ ╲     ") +
                 theme.fg("muted", "TATA 1mg · Your coding workspace"),
               theme.fg("accent", " ●───●    ") + attribution,
             ]
-          : [title, theme.fg("muted", "TATA 1mg"), attribution];
+          : [withBackup(title), theme.fg("muted", "TATA 1mg"), attribution];
       const shortcuts = [
         hint("app.interrupt", "interrupt"),
         hint("app.model.select", "models"),
@@ -231,14 +257,36 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
 
 export default function axonExtension(pi: ExtensionAPI): void {
   let stopRecovery: (() => void) | undefined;
+  let backupState: BackupHeaderState | undefined;
+  let refreshHeader: (() => void) | undefined;
+  pi.events.on(BACKUP_HEADER_CHANNEL, (data) => {
+    if (typeof data !== "string" || !Object.hasOwn(BACKUP_LABELS, data)) return;
+    backupState = data as BackupHeaderState;
+    refreshHeader?.();
+  });
   pi.on("session_start", (_event, ctx) => {
     stopRecovery?.();
     stopRecovery = watchSessionRecovery(ctx);
     if (ctx.mode === "tui") {
-      ctx.ui.setHeader((_tui, theme) => createAxonHeader(theme));
+      ctx.ui.setHeader((tui, theme) => {
+        const component = createAxonHeader(theme, () => backupState);
+        const refresh = () => {
+          component.invalidate();
+          tui.requestRender();
+        };
+        refreshHeader = refresh;
+        return {
+          ...component,
+          dispose() {
+            if (refreshHeader === refresh) refreshHeader = undefined;
+          },
+        };
+      });
     }
   });
   pi.on("session_shutdown", () => {
+    refreshHeader = undefined;
+    backupState = undefined;
     stopRecovery?.();
     stopRecovery = undefined;
   });

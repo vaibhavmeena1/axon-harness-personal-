@@ -49,9 +49,65 @@ With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteL
 
 New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified Axon team ID and creates that native team if needed.
 
-No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing user/team/key policies and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
+No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing budgets, model/MCP permissions, and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
+
+New backend-managed keys use `key_type: "default"` with an explicit route allowlist:
+`["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`. Do not combine that list with the
+`llm_api` key preset: LiteLLM overwrites explicit routes with the preset. This allows inference,
+the two CLI key/user metadata reads, and all `/team/*` paths. The team wildcard is not read-only:
+team writes are allowed through the key route gate, but LiteLLM's native role, membership, and
+endpoint authorization checks still apply. It does not grant proxy-admin privileges or permit
+key/user management writes.
+The proxy pins GET `/key/info` to the current backend credential's SHA-256 hash, replacing any
+caller-supplied `key` query parameters. LiteLLM therefore echoes only a hash, never the backend
+credential, and callers cannot use this route to inspect another key. Other routes remain streamed unchanged.
+
+After a backend restart, identity provisioning lazily upgrades active keys with either previous
+harness default (`["llm_api_routes"]` or `["llm_api_routes", "/key/info", "/v2/user/info"]`)
+only when their metadata identifies them as this harness's key for
+the same verified user (`source=meta-harness`, matching `axon_user_team_id` or the older
+`deputydev_user_team_id` ownership marker). The upgrade changes
+only `allowed_routes` and is read back before caching the key. Custom route lists, unmanaged keys,
+blocked/expired keys, budgets, spend, and MCP grants are not changed. No key recreation or login
+reset is required. MCP still requires separately registered servers and grants.
 
 Restart the backend after changing these settings. Changing `TEAM_ID` selects a different user/team key; it does not remove old memberships or revoke old keys. This is a provisioning setting only—the proxy allowlist and inference-body attribution are unchanged.
+
+### LiteLLM request diagnostics
+
+In addition to Uvicorn access logs, the backend emits one diagnostic line per LiteLLM request.
+Successful requests use INFO; failures use WARNING. Cancelled requests and disconnected clients
+use INFO. An app-only console handler is installed when no application/deployment handler exists;
+it does not enable HTTP client debug logging or replace deployment logging configuration.
+
+Example (timings and ID are illustrative):
+
+```text
+WARNING: app.proxies.litellm LiteLLM request request_id=8f96f2e7 method=GET path=/key/info stage=upstream reason=upstream_permission_denied upstream_status=403 status=403 credential_mode=virtual_key upstream_duration_ms=12.4 duration_ms=18.2 completed=true error_type=none
+```
+
+- `request_id` is returned as `X-Request-ID`, including on auth/provisioning/transport errors,
+  and forwarded to LiteLLM for proxied requests. Safe caller-supplied IDs are retained; others
+  are replaced with a UUID.
+- `stage` distinguishes `session_auth`, proxy readiness (`proxy`), `identity_sync`, `upstream`,
+  `upstream_stream`, and `downstream_stream`.
+- `upstream_status` preserves the original LiteLLM status; `status` is the response sent to the
+  CLI. Upstream 401 and 403 still become a sanitized 403; `upstream_authentication_failed` versus
+  `upstream_permission_denied` distinguishes them in diagnostics without invalidating the Axon session.
+- `credential_mode=virtual_key` means native user/team credentials; `configured_key` means
+  identity sync is disabled and the configured API key is used. `unresolved` means no key mode
+  was resolved. A 403 from `/key/info`, `/v2/user/info`, or `/mcp` should prompt inspection of
+  LiteLLM endpoint permissions, user/team/key policy, and MCP permissions—not a CLI login reset.
+- `upstream_duration_ms` measures the forwarded call to response headers (not identity provisioning);
+  `duration_ms` covers the full request, including auth, provisioning, and streaming. `completed=false`
+  distinguishes an interrupted stream even when HTTP 200 headers have already been sent.
+
+Diagnostics never include authorization headers, sessions, keys, query strings, bodies, email, or
+raw exception text/tracebacks. Only known static endpoint paths are logged; other paths become
+`<other>` so file IDs and arbitrary path content cannot leak. Exact upstream error bodies remain
+redacted because LiteLLM can include backend-only keys in them; use the correlated LiteLLM server
+logs for detailed policy denial reasons. If deployment logging is provided, enable INFO for the
+`app` namespace to see successful-request diagnostics.
 
 ## Serving the console frontend
 
@@ -138,6 +194,11 @@ The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-b
 This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a Axon credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
 
 Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved Axon session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
+
+Clients that disconnect during a telemetry upload are treated as cancellations, not server errors:
+the incomplete batch is not forwarded, concurrency capacity is released, and an INFO line records
+`reason=client_disconnected` without a traceback or payload. The handler uses the conventional
+499 cancellation status; the disconnected client may not receive a response.
 
 The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=axon_auth`, and `axon.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
 

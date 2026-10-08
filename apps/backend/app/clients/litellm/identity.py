@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -14,6 +15,14 @@ import httpx
 from app.clients.auth_service import AuthenticatedUser
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
+
+# Explicit routes are required: the llm_api preset overwrites allowed_routes.
+_MANAGED_KEY_ROUTES = ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*")
+_PREVIOUS_MANAGED_KEY_ROUTES = (
+    ("llm_api_routes",),
+    ("llm_api_routes", "/key/info", "/v2/user/info"),
+)
+logger = logging.getLogger(__name__)
 
 
 class LiteLLMIdentityError(Exception):
@@ -179,6 +188,29 @@ class LiteLLMIdentityClient:
             if expiry <= datetime.now(timezone.utc):
                 raise LiteLLMIdentityError("LiteLLM user/team key is expired", status_code=403)
 
+    async def _ensure_metadata_routes(
+        self, record: dict[str, Any], key_hash: str, user_id: str, team_id: str
+    ) -> dict[str, Any]:
+        """Upgrade only previous harness defaults; preserve custom policies."""
+        metadata = record.get("metadata")
+        routes = record.get("allowed_routes")
+        if (
+            not isinstance(metadata, dict)
+            or metadata.get("source") != "meta-harness"
+            or metadata.get("axon_user_team_id", metadata.get("deputydev_user_team_id")) != user_id
+            or not isinstance(routes, list)
+            or tuple(routes) not in _PREVIOUS_MANAGED_KEY_ROUTES
+        ):
+            return record
+        await self._request(
+            "POST", "/key/update", payload={"key": key_hash, "allowed_routes": list(_MANAGED_KEY_ROUTES)}
+        )
+        updated = await self._lookup("/key/info", {"key": key_hash}, "info", {"user_id": user_id, "team_id": team_id})
+        if updated is None or updated.get("allowed_routes") != list(_MANAGED_KEY_ROUTES):
+            raise LiteLLMIdentityError("LiteLLM did not persist managed key metadata routes")
+        logger.info("LiteLLM managed key metadata routes upgraded user_team_id=%s", user_id)
+        return updated
+
     async def _provision(self, user: AuthenticatedUser) -> str:
         # LiteLLM calls this field user_id, but Axon's canonical identifier
         # is the verified membership's user_team_id, not the account-level ID.
@@ -245,7 +277,8 @@ class LiteLLMIdentityClient:
             {
                 "key": virtual_key,
                 "key_alias": f"meta-harness:{user_id}:{team_id}:{key_hash[:12]}",
-                "key_type": "llm_api",
+                "key_type": "default",
+                "allowed_routes": list(_MANAGED_KEY_ROUTES),
                 "user_id": user_id,
                 "team_id": team_id,
                 "metadata": {
@@ -255,8 +288,10 @@ class LiteLLMIdentityClient:
                 },
             },
         )
-        # Reuse restrictions as configured in LiteLLM; never unblock keys, reset
-        # spend, alter budgets, or fall back to an admin key for model traffic.
+        # Never unblock keys, reset spend/budgets, change custom routes, or fall
+        # back to an admin key. Only previous harness route defaults are upgraded.
+        self._require_active_key(key_record)
+        key_record = await self._ensure_metadata_routes(key_record, key_hash, user_id, team_id)
         self._require_active_key(key_record)
         return virtual_key
 

@@ -50,8 +50,16 @@ afterEach(() => {
 
 function setup(mode: ExtensionContext["mode"] = "tui") {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => unknown>();
+  const listeners = new Map<string, (data: unknown) => void>();
+  const emitBackup = (data: unknown) => listeners.get("axon:backup-status")?.(data);
   const setHeader = mock((_factory: Parameters<ExtensionContext["ui"]["setHeader"]>[0]) => {});
   axonExtension({
+    events: {
+      on(channel: string, handler: (data: unknown) => void) {
+        listeners.set(channel, handler);
+        return () => listeners.delete(channel);
+      },
+    },
     on(name: string, handler: (event: unknown, ctx: ExtensionContext) => unknown) {
       handlers.set(name, handler);
       return () => {};
@@ -64,7 +72,7 @@ function setup(mode: ExtensionContext["mode"] = "tui") {
     hasUI: mode === "tui" || mode === "rpc",
     ui: { setHeader },
   } as unknown as ExtensionContext);
-  return { handlers, setHeader };
+  return { handlers, setHeader, emitBackup };
 }
 
 function header(
@@ -107,6 +115,63 @@ describe("Axon startup header", () => {
     const output = text(header());
     expect(output).not.toContain("Axon v");
     expect(output).not.toContain("untrusted");
+  });
+
+  test("shows concise live backup states beside the wordmark without adding header lines", () => {
+    process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
+    const { setHeader, emitBackup } = setup();
+    const requestRender = mock(() => {});
+    const theme = { fg: (_color: string, value: string) => value } as unknown as Theme;
+    const component = setHeader.mock.calls[0]?.[0]?.(
+      { requestRender } as unknown as Parameters<HeaderFactory>[0],
+      theme,
+    ) as Header;
+    const lineCount = component.render(100).length;
+    expect(text(component)).not.toContain("Backup:");
+    for (const [state, label] of [
+      ["checking", "checking…"],
+      ["syncing", "syncing…"],
+      ["saved", "saved"],
+      ["pending", "pending"],
+      ["paused", "paused"],
+      ["off", "off"],
+      ["ready", "on"],
+    ]) {
+      emitBackup(state);
+      expect(component.render(100)[0]).toContain(`Backup: ${label}`);
+      expect(component.render(100)).toHaveLength(lineCount);
+      expect(text(component)).not.toContain("/axon-backups");
+      for (const width of [1, 8, 24, 32, 40, 48, 80, 120]) {
+        for (const line of component.render(width))
+          expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+      }
+      expect(component.render(40)[0]).toContain(`Backup: ${label}`);
+    }
+    expect(requestRender).toHaveBeenCalledTimes(7);
+    component.dispose?.();
+    emitBackup("saved");
+    expect(requestRender).toHaveBeenCalledTimes(7);
+  });
+
+  test("retains early backup updates and ignores untrusted status payloads", () => {
+    const { setHeader, emitBackup } = setup();
+    emitBackup("pending");
+    const requestRender = mock(() => {});
+    const component = setHeader.mock.calls[0]?.[0]?.(
+      { requestRender } as unknown as Parameters<HeaderFactory>[0],
+      { fg: (_color: string, value: string) => value } as unknown as Theme,
+    ) as Header;
+    expect(text(component)).toContain("Backup: pending");
+    for (const value of [
+      "private-name /private/path secret-token",
+      "__proto__",
+      null,
+      { state: "saved" },
+    ])
+      emitBackup(value);
+    expect(requestRender).not.toHaveBeenCalled();
+    expect(text(component)).toContain("Backup: pending");
+    expect(text(component)).not.toContain("secret-token");
   });
 
   test("uses active shortcuts and omits disabled actions", () => {

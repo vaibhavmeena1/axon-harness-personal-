@@ -527,7 +527,7 @@ test("native backup bundle captures after final environment filtering using the 
     const { default: extension } = await import(${JSON.stringify(url)});
     const events = new Map();
     const commands = [];
-    extension({ on(name, handler) { events.set(name, handler); }, registerCommand(name) { commands.push(name); } });
+    extension({ events: { emit() {} }, on(name, handler) { events.set(name, handler); }, registerCommand(name) { commands.push(name); } });
     const ctx = {
       hasUI: false,
       sessionManager: {

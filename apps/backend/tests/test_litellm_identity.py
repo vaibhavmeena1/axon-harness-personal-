@@ -64,6 +64,8 @@ class IdentityAPI:
         self.requests: list[httpx.Request] = []
         self.attach_teams_on_user_create = True
         self.persist_membership = True
+        self.persist_key_update = True
+        self.key_update_status = 200
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -91,10 +93,25 @@ class IdentityAPI:
             if self.persist_membership:
                 self.teams[payload["team_id"]]["members_with_roles"].append(deepcopy(payload["member"]))
         elif path == "/key/generate":
-            key_hash = hashlib.sha256(payload["key"].encode()).hexdigest()
-            self.keys[key_hash] = deepcopy(payload)
+            self._generate_key(payload)
+        elif path == "/key/update":
+            return self._update_key(payload)
         else:
             raise AssertionError(f"Unexpected management write: {path}")
+        return httpx.Response(200, json={})
+
+    def _generate_key(self, payload: dict[str, Any]) -> None:
+        key_hash = hashlib.sha256(payload["key"].encode()).hexdigest()
+        self.keys[key_hash] = deepcopy(payload)
+        # Stock LiteLLM's llm_api preset overrides any explicit route list.
+        if payload.get("key_type") == "llm_api":
+            self.keys[key_hash]["allowed_routes"] = ["llm_api_routes"]
+
+    def _update_key(self, payload: dict[str, Any]) -> httpx.Response:
+        if self.key_update_status != 200:
+            return httpx.Response(self.key_update_status, json={"error": "rejected"})
+        if self.persist_key_update:
+            self.keys[payload["key"]].update({name: value for name, value in payload.items() if name != "key"})
         return httpx.Response(200, json={})
 
     def posted(self, path: str) -> list[dict[str, Any]]:
@@ -132,7 +149,9 @@ def test_new_user_joins_configured_team_without_budgets(
     assert generated["key"] == key
     assert generated["user_id"] == "12"
     assert generated["team_id"] == settings.team_id
-    assert generated["key_type"] == "llm_api"
+    assert generated["key_type"] == "default"
+    assert generated["allowed_routes"] == ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]
+    assert not api.posted("/key/update")
     assert generated["metadata"]["axon_team_id"] == "7"
     assert "max_budget" not in generated
     original_team["members_with_roles"] = [{"user_id": "12", "role": role}]

@@ -14,7 +14,7 @@ from app.clients.auth_service import AuthenticatedUser
 from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
-from app.proxies.litellm import LiteLLMProxy
+from app.proxies.litellm import LiteLLMProxy, LiteLLMRequestLoggingMiddleware
 
 
 class UpstreamStream(httpx.AsyncByteStream):
@@ -143,9 +143,9 @@ def test_proxy_forwards_raw_chunks_and_closes_on_cancellation() -> None:
         try:
             if cancel:
                 with pytest.raises(asyncio.CancelledError):
-                    await LiteLLMProxy()(scope, receive, send)
+                    await LiteLLMRequestLoggingMiddleware(LiteLLMProxy())(scope, receive, send)
             else:
-                await LiteLLMProxy()(scope, receive, send)
+                await LiteLLMRequestLoggingMiddleware(LiteLLMProxy())(scope, receive, send)
         finally:
             await transport.aclose()
         assert stream.closed
