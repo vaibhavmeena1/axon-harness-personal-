@@ -10,7 +10,7 @@ Please report vulnerabilities privately through the repository's **Security** ta
 
 Include, when possible:
 
-- the output of `ddcli --version`
+- the output of `axon --version`
 - macOS and architecture details
 - the affected command or installation step
 - reproduction steps and impact

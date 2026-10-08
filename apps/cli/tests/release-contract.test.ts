@@ -7,7 +7,7 @@ import {
   parseCliReleaseTag,
 } from "../scripts/release-contract.ts";
 import { PRODUCT_IDENTITY } from "../src/product/identity.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
 
 describe("release version contract", () => {
@@ -63,13 +63,29 @@ describe("production service origin contract", () => {
   });
 });
 
-describe("ddcli command identity", () => {
-  test("uses ddcli while retaining the existing DeputyDev home", () => {
-    const paths = resolveDeputyDevPaths({}, "/Users/example");
+describe("axon command identity", () => {
+  test("uses the Axon product, command, and managed home consistently", () => {
+    const paths = resolveAxonPaths({}, "/Users/example");
 
-    expect(PRODUCT_IDENTITY.command).toBe("ddcli");
-    expect(paths.home).toBe("/Users/example/.deputydev");
-    expect(paths.managedBinary).toBe("/Users/example/.deputydev/bin/ddcli");
-    expect(paths.previousBinary).toBe("/Users/example/.deputydev/bin/ddcli.prev");
+    expect(PRODUCT_IDENTITY.applicationId).toBe("axon");
+    expect(PRODUCT_IDENTITY.displayName).toBe("Axon");
+    expect(PRODUCT_IDENTITY.command).toBe("axon");
+    expect(PRODUCT_IDENTITY.homeEnvironmentVariable).toBe("AXON_HOME");
+    expect(PRODUCT_IDENTITY.defaultHomeDirectoryName).toBe(".axon");
+    expect(paths.home).toBe("/Users/example/.axon");
+    expect(paths.managedBinary).toBe("/Users/example/.axon/bin/axon");
+    expect(paths.previousBinary).toBe("/Users/example/.axon/bin/axon.prev");
+    expect(paths.stagedBinary).toBe("/Users/example/.axon/staged/axon");
+    expect(paths.piSessions).toBe("/Users/example/.axon/pi/sessions");
+  });
+
+  test("derives managed paths from AXON_HOME", () => {
+    const paths = resolveAxonPaths({ AXON_HOME: " /tmp/axon-custom " }, "/Users/example");
+
+    expect(paths.home).toBe("/tmp/axon-custom");
+    expect(paths.managedBinary).toBe("/tmp/axon-custom/bin/axon");
+    expect(paths.previousBinary).toBe("/tmp/axon-custom/bin/axon.prev");
+    expect(paths.stagedBinary).toBe("/tmp/axon-custom/staged/axon");
+    expect(paths.piSessions).toBe("/tmp/axon-custom/pi/sessions");
   });
 });

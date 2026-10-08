@@ -58,7 +58,7 @@ def payload(signal: str) -> Message:
         record = group.scope_logs.add().log_records.add()
         record.body.string_value = "session.started"
     for attributes in (group.resource.attributes, record.attributes):
-        for key in ("user.id", "user.email", "user.name", "enduser.id", "pi.identity.source", "deputydev.user_team_id"):
+        for key in ("user.id", "user.email", "user.name", "enduser.id", "pi.identity.source", "axon.user_team_id"):
             attributes.add(key=key).value.string_value = "spoofed"
         attributes.add(key="keep.me").value.string_value = "preserved"
     return result
@@ -138,8 +138,8 @@ def test_auth_identity_replaces_all_client_identity(
             assert group["user.id"] == "42"
             assert group["user.email"] == "verified@example.com"
             assert group["user.name"] == "Verified User"
-            assert group["pi.identity.source"] == "deputydev_auth"
-            assert group["deputydev.user_team_id"] == "12"
+            assert group["pi.identity.source"] == "axon_auth"
+            assert group["axon.user_team_id"] == "12"
             assert "enduser.id" not in group
         assert b"spoofed" not in request.content
         assert b"preserved" in request.content
@@ -292,7 +292,7 @@ def test_identity_added_when_resource_is_absent_and_name_removed_when_unknown() 
     span = message.resource_spans.add().scope_spans.add().spans.add(name="span")
     span.attributes.add(key="user.name").value.string_value = "fake"
     otel.rewrite_identity(
-        message, {"user.id": "42", "user.email": "auth@example.com", "pi.identity.source": "deputydev_auth"}
+        message, {"user.id": "42", "user.email": "auth@example.com", "pi.identity.source": "axon_auth"}
     )
     assert message.resource_spans[0].HasField("resource")
     for group in attributes(message):

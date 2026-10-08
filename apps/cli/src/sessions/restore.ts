@@ -18,7 +18,7 @@ import { createGunzip } from "node:zlib";
 import type { SessionManager as PiSessionManager } from "@earendil-works/pi-coding-agent";
 
 import piVersion from "../../pi-version.json";
-import type { DeputyDevPaths } from "../product/paths.ts";
+import type { AxonPaths } from "../product/paths.ts";
 import {
   emitProductEvent,
   measureProductOperation,
@@ -40,7 +40,7 @@ import { validatePiJsonl } from "./pi-jsonl.ts";
 
 export type PiManagerClass = typeof PiSessionManager;
 
-export async function loadPinnedPi(paths: DeputyDevPaths): Promise<PiManagerClass> {
+export async function loadPinnedPi(paths: AxonPaths): Promise<PiManagerClass> {
   const packageRoot = join(
     paths.piRuntime,
     piVersion.version,
@@ -52,7 +52,7 @@ export async function loadPinnedPi(paths: DeputyDevPaths): Promise<PiManagerClas
   try {
     metadata = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
   } catch {
-    throw new Error("Managed pinned Pi is unavailable; run ddcli setup pi --sync-packages first");
+    throw new Error("Managed pinned Pi is unavailable; run axon setup pi --sync-packages first");
   }
   if (metadata.version !== piVersion.version)
     throw new Error("Managed Pi version does not match the restore adapter");
@@ -110,10 +110,12 @@ export async function forkArchive(
 ): Promise<string> {
   const resume = assertPiAdapter(session);
   const original = await validatePiJsonl(raw, session.harness_session_id, resume);
-  if (
-    original.displayName !== session.display_name ||
-    original.displayName !== session.snapshot?.display_name
-  )
+  // Backups made before first-message titles may have legitimately stored a null name.
+  const displayName =
+    session.display_name === null && session.snapshot?.display_name === null
+      ? original.nativeDisplayName
+      : original.displayName;
+  if (displayName !== session.display_name || displayName !== session.snapshot?.display_name)
     throw new Error("Display name does not match session archive");
   const chosenCwd = await realpath(resolve(cwd));
   if (!(await lstat(chosenCwd)).isDirectory())
@@ -129,7 +131,7 @@ export async function forkArchive(
     if (resume.leaf_known) {
       if (resume.selected_leaf_id === null) fork.resetLeaf();
       else fork.branch(resume.selected_leaf_id);
-      fork.appendCustomEntry("deputydev.restore", {
+      fork.appendCustomEntry("axon.restore", {
         source_session_id: session.id,
         leaf_known: true,
         selected_leaf_id: resume.selected_leaf_id,

@@ -17,7 +17,7 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
-import { type DeputyDevPaths, resolveDeputyDevPaths } from "../product/paths.ts";
+import { type AxonPaths, resolveAxonPaths } from "../product/paths.ts";
 import { emitProductEvent, productFailureReason } from "../telemetry/product-events.ts";
 import {
   assertReleaseVersion,
@@ -28,12 +28,12 @@ import {
 
 const BACKGROUND_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FAILED_CHECK_INTERVAL_MS = 60 * 60 * 1000;
-const NO_UPDATE_ENV = "DEPUTYDEV_NO_UPDATE";
+const NO_UPDATE_ENV = "AXON_NO_UPDATE";
 const CI_ENV = "CI";
 
 export interface UpdateContext {
   readonly build: BuildInfo;
-  readonly paths: DeputyDevPaths;
+  readonly paths: AxonPaths;
   readonly executable: string;
   readonly client: ReleaseClient;
   readonly verifySignature?: (path: string) => Promise<void>;
@@ -42,7 +42,7 @@ export interface UpdateContext {
 export function updateContext(): UpdateContext {
   return {
     build: BUILD_INFO,
-    paths: resolveDeputyDevPaths(),
+    paths: resolveAxonPaths(),
     executable: process.execPath,
     client: {
       baseUrl: resolveServiceUrl(BUILD_INFO.serviceOrigin, SERVICE_ENDPOINTS.release.base),
@@ -161,14 +161,14 @@ async function performUpdate(context: UpdateContext): Promise<string | undefined
   if (!version) return undefined;
 
   // The staging directory lives on the same filesystem as the installed binary.
-  const staging = await mkdtemp(join(context.paths.bin, ".ddcli-update-"));
+  const staging = await mkdtemp(join(context.paths.bin, ".axon-update-"));
   try {
     const binary = await downloadVerifiedRelease(context.client, version, staging);
     await verifyStagedBinary(context, binary, version);
     // Recheck the inode immediately before activation: a different updater or user may
     // have replaced the executable while we were downloading.
     await assertManagedInstallation(context);
-    const backup = join(staging, "ddcli.prev");
+    const backup = join(staging, "axon.prev");
     await copyFile(context.paths.managedBinary, backup);
     // Activate with one atomic rename; only then replace the previous backup.
     // If the backup cannot be installed, restore the original before reporting failure.
@@ -213,9 +213,9 @@ export async function installUpdate(
       version: context.build.version,
       durationMs: Date.now() - startedAt,
     });
-    throw new LauncherError("could not update ddcli", LAUNCHER_EXIT_STATUS.updateFailure, {
+    throw new LauncherError("could not update axon", LAUNCHER_EXIT_STATUS.updateFailure, {
       cause: error,
-      remediation: "Keep using the current installation and retry ddcli update.",
+      remediation: "Keep using the current installation and retry axon update.",
     });
   }
 }

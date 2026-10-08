@@ -16,14 +16,14 @@ import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { withFileLock } from "../../launcher/file-lock.ts";
 import { compareSemVer, isSemVer, parseFirstSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { createPiEnvironment } from "./environment.ts";
 import { isPiOffline } from "./setup/packages/invocation.ts";
 import { type PiVersionProber, probePiVersion, resolvePiVersion } from "./version.ts";
 
-/** Only Pi release that DeputyDev installs and executes. Independent of the user's PATH Pi. */
+/** Only Pi release that Axon installs and executes. Independent of the user's PATH Pi. */
 export const PI_INSTALL_VERSION: string = piVersion.version;
-export const PI_VERSION_ENVIRONMENT_VARIABLE = "DEPUTYDEV_PI_VERSION";
+export const PI_VERSION_ENVIRONMENT_VARIABLE = "AXON_PI_VERSION";
 export const PI_RELEASES_API = "https://pi.dev/api/installer/releases";
 export const PI_PACKAGE_NAME = "@earendil-works/pi-coding-agent";
 export const PI_MINIMUM_NODE_VERSION = "22.19.0";
@@ -95,15 +95,15 @@ export function resolveConfiguredPiVersion(
   return configured ?? PI_INSTALL_VERSION;
 }
 
-export function managedPiDirectory(paths: DeputyDevPaths, version: string): string {
+export function managedPiDirectory(paths: AxonPaths, version: string): string {
   return join(paths.piRuntime, version);
 }
 
-export function managedPiExecutable(paths: DeputyDevPaths, version: string): string {
+export function managedPiExecutable(paths: AxonPaths, version: string): string {
   return join(managedPiDirectory(paths, version), "node_modules", ".bin", "pi");
 }
 
-export function isManagedPiExecutable(paths: DeputyDevPaths, executable: string): boolean {
+export function isManagedPiExecutable(paths: AxonPaths, executable: string): boolean {
   return executable.startsWith(`${paths.piRuntime}/`);
 }
 
@@ -514,7 +514,7 @@ export async function resolvePiExecutable(
       `${registration.executableOverrideVariable} cannot override pinned Pi ${installVersion}`,
       LAUNCHER_EXIT_STATUS.profileFailure,
       {
-        remediation: `Unset ${registration.executableOverrideVariable}; ddcli uses its own Pi runtime.`,
+        remediation: `Unset ${registration.executableOverrideVariable}; axon uses its own Pi runtime.`,
       },
     );
   }
@@ -577,7 +577,7 @@ export async function inspectPiRuntime(context: LaunchContext): Promise<readonly
   return [
     {
       level: "info",
-      message: `pi: no managed install; DeputyDev installs pinned Pi ${version} on an online launch`,
+      message: `pi: no managed install; Axon installs pinned Pi ${version} on an online launch`,
     },
   ];
 }

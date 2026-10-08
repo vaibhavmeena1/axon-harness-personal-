@@ -14,7 +14,7 @@ app = FastAPI(
     title=settings.name,
     debug=settings.debug,
     lifespan=lifespan,
-    description="Centralized management API for DeputyDev CLI installations",
+    description="Centralized management API for Axon CLI installations",
     version="0.1.0",
 )
 app.add_middleware(SessionRefreshResponseMiddleware)

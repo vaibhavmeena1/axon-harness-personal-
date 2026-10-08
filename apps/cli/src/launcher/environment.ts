@@ -13,62 +13,62 @@ export interface EnvironmentVariableDefinition {
 
 export type EnvironmentOverrides = Readonly<Record<string, string | undefined>>;
 
-export const DEPUTYDEV_ENVIRONMENT_REGISTRY = Object.freeze({
-  DEPUTYDEV_HOME: {
+export const AXON_ENVIRONMENT_REGISTRY = Object.freeze({
+  AXON_HOME: {
     owner: "public",
     consumers: ["launcher", "updater"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_NO_UPDATE: {
+  AXON_NO_UPDATE: {
     owner: "public",
     consumers: ["updater"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_PIN: {
+  AXON_PIN: {
     owner: "public",
     consumers: ["updater"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_ALLOW_CI_UPDATE: {
+  AXON_ALLOW_CI_UPDATE: {
     owner: "public",
     consumers: ["updater"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_DEBUG: {
+  AXON_DEBUG: {
     owner: "public-launcher",
     consumers: ["launcher"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_INTERNAL_NO_UPDATE: {
+  AXON_INTERNAL_NO_UPDATE: {
     owner: "internal-updater",
     consumers: ["updater"],
     mayReachHarness: false,
     safeToPrint: false,
   },
-  DEPUTYDEV_SWAPPED: {
+  AXON_SWAPPED: {
     owner: "internal-updater",
     consumers: ["updater"],
     mayReachHarness: false,
     safeToPrint: false,
   },
-  DEPUTYDEV_SERVICE_ORIGIN: {
+  AXON_SERVICE_ORIGIN: {
     owner: "build-tooling",
     consumers: ["local build tooling"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_PI_BIN: {
+  AXON_PI_BIN: {
     owner: "public-launcher",
     consumers: ["Pi pin validation (rejected)"],
     mayReachHarness: false,
     safeToPrint: true,
   },
-  DEPUTYDEV_PI_VERSION: {
+  AXON_PI_VERSION: {
     owner: "public-launcher",
     consumers: ["Pi source development override; built CLI pin validation"],
     mayReachHarness: false,
@@ -87,14 +87,14 @@ export function createHarnessEnvironment(
       continue;
     }
 
-    if (!name.startsWith("DEPUTYDEV_")) {
+    if (!name.startsWith("AXON_")) {
       harnessEnvironment[name] = value;
       continue;
     }
 
-    const definition = DEPUTYDEV_ENVIRONMENT_REGISTRY[
-      name as keyof typeof DEPUTYDEV_ENVIRONMENT_REGISTRY
-    ] as EnvironmentVariableDefinition | undefined;
+    const definition = AXON_ENVIRONMENT_REGISTRY[name as keyof typeof AXON_ENVIRONMENT_REGISTRY] as
+      | EnvironmentVariableDefinition
+      | undefined;
 
     if (definition?.mayReachHarness) {
       harnessEnvironment[name] = value;

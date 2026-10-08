@@ -62,14 +62,14 @@ test("product SDK instruments preserve cumulative counts, declared histogram uni
   const provider = new MeterProvider({ readers: [reader] });
   const sink = new OtelMetricSink(provider.getMeter("products"), { "user.id": "fixture" });
   try {
-    sink.count("deputydev.backup.events", 1, { component: "cli", stage: "upload" }, "{event}");
+    sink.count("axon.backup.events", 1, { component: "cli", stage: "upload" }, "{event}");
     for (const [name, definition] of Object.entries(PRODUCT_HISTOGRAMS)) {
       sink.record(name, 0, "ignored", {
         component: "cli",
         stage: "request",
         policy_version: "fixture-policy",
         "session.id": "private-id",
-        "deputydev.recommendation.id": "private-id",
+        "axon.recommendation.id": "private-id",
         "pi.repo.slug": "private/repo",
         prompt: "secret",
       });
@@ -84,7 +84,7 @@ test("product SDK instruments preserve cumulative counts, declared histogram uni
     const metrics = resourceMetrics.scopeMetrics.flatMap((scope) => scope.metrics);
     assert.equal(metrics.length, Object.keys(PRODUCT_HISTOGRAMS).length + 1);
     for (const metric of metrics) {
-      if (metric.descriptor.name === "deputydev.backup.events") {
+      if (metric.descriptor.name === "axon.backup.events") {
         assert.equal(metric.descriptor.unit, "{event}");
         assert.equal(metric.dataPointType, DataPointType.SUM);
         assert.equal(metric.aggregationTemporality, AggregationTemporality.CUMULATIVE);
@@ -109,10 +109,10 @@ test("product SDK instruments preserve cumulative counts, declared histogram uni
         policy_version: "fixture-policy",
       });
     }
-    sink.count("deputydev.backup.events", 1, { component: "cli", stage: "upload" });
+    sink.count("axon.backup.events", 1, { component: "cli", stage: "upload" });
     const second = (await reader.collect()).resourceMetrics.scopeMetrics
       .flatMap((scope) => scope.metrics)
-      .find((metric) => metric.descriptor.name === "deputydev.backup.events");
+      .find((metric) => metric.descriptor.name === "axon.backup.events");
     assert.equal(second?.dataPoints[0]?.value, 2);
   } finally {
     await provider.shutdown();

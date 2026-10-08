@@ -1,10 +1,10 @@
 import type { PiConfig } from "../../cli/client-config.ts";
 import { withFileLock } from "../../launcher/file-lock.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { piSettingsPath, readPiSettings, writePiSettings } from "./setup/packages/settings.ts";
 
 /** Apply startup defaults only; project settings and Pi CLI flags can still override them. */
-export async function applyPiDefaults(paths: DeputyDevPaths, defaults: PiConfig): Promise<void> {
+export async function applyPiDefaults(paths: AxonPaths, defaults: PiConfig): Promise<void> {
   // Share the package synchronizer's lock because both update the same settings file.
   await withFileLock(
     paths.piPackageLock,

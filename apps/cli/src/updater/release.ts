@@ -6,8 +6,8 @@ const VERSION_PATTERN =
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAX_BINARY_BYTES = 512 * 1024 * 1024;
-const ARCHIVE = "ddcli-darwin-arm64.gz";
-const BINARY = "ddcli-darwin-arm64";
+const ARCHIVE = "axon-darwin-arm64.gz";
+const BINARY = "axon-darwin-arm64";
 
 export interface ReleaseClient {
   readonly baseUrl: string;
@@ -113,8 +113,8 @@ export async function releaseHashes(
   const data = await smallText(client, `${encodeURIComponent(version)}/checksums.txt`);
   const lines = data.split("\n");
   if (lines.length !== 3 || lines[2] !== "") throw new Error("invalid release checksum file");
-  const archive = lines[0]?.match(/^([0-9a-f]{64}) {2}ddcli-darwin-arm64\.gz$/)?.[1];
-  const binary = lines[1]?.match(/^([0-9a-f]{64}) {2}ddcli-darwin-arm64$/)?.[1];
+  const archive = lines[0]?.match(/^([0-9a-f]{64}) {2}axon-darwin-arm64\.gz$/)?.[1];
+  const binary = lines[1]?.match(/^([0-9a-f]{64}) {2}axon-darwin-arm64$/)?.[1];
   if (!archive || !binary || !HASH_PATTERN.test(archive) || !HASH_PATTERN.test(binary)) {
     throw new Error("invalid release checksum file");
   }

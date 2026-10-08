@@ -4,7 +4,7 @@ import { dirname, join, parse, resolve } from "node:path";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { SESSION_FILE_NAME } from "../auth/session.ts";
 
 export interface UninstallOptions {
@@ -20,7 +20,7 @@ async function sameFile(left: string, right: string): Promise<boolean> {
   }
 }
 
-function assertSafeManagedHome(paths: DeputyDevPaths): void {
+function assertSafeManagedHome(paths: AxonPaths): void {
   const home = resolve(paths.home);
   if (home === parse(home).root || dirname(paths.managedBinary) !== paths.bin) {
     throw new LauncherError(
@@ -31,10 +31,7 @@ function assertSafeManagedHome(paths: DeputyDevPaths): void {
   }
 }
 
-export async function runUninstall(
-  paths: DeputyDevPaths,
-  options: UninstallOptions,
-): Promise<void> {
+export async function runUninstall(paths: AxonPaths, options: UninstallOptions): Promise<void> {
   assertSafeManagedHome(paths);
 
   if (!(await sameFile(process.execPath, paths.managedBinary))) {

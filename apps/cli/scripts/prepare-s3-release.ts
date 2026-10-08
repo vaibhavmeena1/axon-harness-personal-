@@ -12,8 +12,8 @@ import {
   requireEnvironmentVariable,
 } from "./release-contract.ts";
 
-const ARCHIVE = "ddcli-darwin-arm64.gz";
-const EXECUTABLE = "ddcli-darwin-arm64";
+const ARCHIVE = "axon-darwin-arm64.gz";
+const EXECUTABLE = "axon-darwin-arm64";
 
 async function run(...argumentsVector: string[]): Promise<string> {
   const child = Bun.spawn(argumentsVector, { stdin: "ignore", stdout: "pipe", stderr: "inherit" });
@@ -34,7 +34,7 @@ async function digest(path: string): Promise<{ sha256: string; size: number }> {
 export async function prepareS3Release(): Promise<void> {
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const commit = requireEnvironmentVariable("BUILD_COMMIT");
-  const origin = parseServiceOrigin(requireEnvironmentVariable("DEPUTYDEV_SERVICE_ORIGIN"), {
+  const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
     allowLoopbackHttp: false,
   });
   assertCanonicalSemVer(version, "release version");

@@ -67,10 +67,10 @@ class ProductOperation:
 class ProductTelemetry:
     def __init__(self, tracer: trace.Tracer, meter: metrics.Meter) -> None:
         self.tracer = tracer
-        self.events = meter.create_counter("deputydev.recommender.events", unit="{event}")
-        self.durations = meter.create_histogram("deputydev.recommender.duration", unit="s")
+        self.events = meter.create_counter("axon.recommender.events", unit="{event}")
+        self.durations = meter.create_histogram("axon.recommender.duration", unit="s")
         self.scores = {
-            name: meter.create_histogram(f"deputydev.recommender.{name}", unit="1")
+            name: meter.create_histogram(f"axon.recommender.{name}", unit="1")
             for name in (
                 "complexity",
                 "confidence",
@@ -89,7 +89,7 @@ class ProductTelemetry:
                 attributes[key] = values[key]
         try:
             self.events.add(1, attributes)
-            trace.get_current_span().add_event(f"deputydev.recommender.{stage}", {**attributes, **values})
+            trace.get_current_span().add_event(f"axon.recommender.{stage}", {**attributes, **values})
             if "duration" in values:
                 self.durations.record(values["duration"], attributes)
             for key, histogram in self.scores.items():
@@ -106,7 +106,7 @@ class ProductTelemetry:
         attributes = {**(identity or {}), "component": "backend", **values}
         # Do not automatically record exception messages: upstream errors can contain prompts.
         with self.tracer.start_as_current_span(
-            f"deputydev.recommender.{stage}",
+            f"axon.recommender.{stage}",
             attributes=attributes,
             record_exception=False,
             set_status_on_exception=False,
@@ -120,7 +120,7 @@ class ProductTelemetry:
                 raise
             else:
                 if operation.skipped:
-                    span.set_attribute("deputydev.skipped", True)
+                    span.set_attribute("axon.skipped", True)
                 self.event(
                     stage,
                     "skipped" if operation.skipped else "success",
@@ -131,9 +131,7 @@ class ProductTelemetry:
 
 def product_telemetry(app: FastAPI | None = None) -> ProductTelemetry:
     configured = getattr(app.state, "product_telemetry", None) if app is not None else None
-    return configured or ProductTelemetry(
-        trace.get_tracer("deputydev-products"), metrics.get_meter("deputydev-products")
-    )
+    return configured or ProductTelemetry(trace.get_tracer("axon-products"), metrics.get_meter("axon-products"))
 
 
 async def verified_telemetry_identity(request: Request) -> dict[str, str]:
@@ -142,7 +140,7 @@ async def verified_telemetry_identity(request: Request) -> dict[str, str]:
 
     auth = getattr(request.state, "auth_data", None)
     data = auth.model_dump() if auth is not None else {}
-    identity = {"deputydev.user_team_id": str(data["user_team_id"])} if data.get("user_team_id") else {}
+    identity = {"axon.user_team_id": str(data["user_team_id"])} if data.get("user_team_id") else {}
     email = data.get("user_email")
     if not email and getattr(request.app.state, "product_telemetry", None) is not None:
         try:
@@ -208,31 +206,31 @@ async def initialize_backend_telemetry(app: FastAPI) -> None:
     )
     views = [
         View(
-            instrument_name="deputydev.recommender.duration",
+            instrument_name="axon.recommender.duration",
             aggregation=ExplicitBucketHistogramAggregation([0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60]),
         ),
         View(
-            instrument_name="deputydev.recommender.complexity",
+            instrument_name="axon.recommender.complexity",
             aggregation=ExplicitBucketHistogramAggregation([0, 0.5, 1, 1.5, 2, 2.5, 3]),
         ),
     ]
     views.extend(
         View(
-            instrument_name=f"deputydev.recommender.{name}",
+            instrument_name=f"axon.recommender.{name}",
             aggregation=ExplicitBucketHistogramAggregation([0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]),
         )
         for name in ("confidence", "high_complexity_probability", "needs_deep_reasoning", "prioritizes_speed")
     )
     views.append(
         View(
-            instrument_name="deputydev.recommender.candidate_count",
+            instrument_name="axon.recommender.candidate_count",
             aggregation=ExplicitBucketHistogramAggregation([1, 2, 4, 8, 16, 32, 64, 128, 250]),
         )
     )
     meter_provider = MeterProvider(resource=resource, metric_readers=[reader], views=views)
     app.state.backend_telemetry_providers = (tracer_provider, meter_provider)
     app.state.product_telemetry = ProductTelemetry(
-        tracer_provider.get_tracer("deputydev-products"), meter_provider.get_meter("deputydev-products")
+        tracer_provider.get_tracer("axon-products"), meter_provider.get_meter("axon-products")
     )
 
 

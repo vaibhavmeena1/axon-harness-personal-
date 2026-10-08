@@ -1,4 +1,4 @@
-# DeputyDev validates sessions in its backend; LiteLLM needs no custom authentication.
+# Axon validates sessions in its backend; LiteLLM needs no custom authentication.
 # Add model_list or provision models in the LiteLLM database for this deployment.
 general_settings:
   store_model_in_db: true

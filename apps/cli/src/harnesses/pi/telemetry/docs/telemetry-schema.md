@@ -9,16 +9,16 @@ This schema adopts the supplied development conventions; their names are not a p
 | Attribute | Description |
 |---|---|
 | `service.name` | Managed service name, default `pi-coding-agent` |
-| `service.version` | Extension version embedded when DeputyDev builds the standalone bundle |
+| `service.version` | Extension version embedded when Axon builds the standalone bundle |
 | `service.instance.id` | Per-process random instance ID |
 | `user.id` | Managed: auth user ID or verified email; env fallback: Git email or installation UUID |
 | `user.email` | Managed: verified auth email; env fallback: raw effective Git email when available |
 | `user.name` | Optional verified auth-service name, managed mode only |
-| `deputydev.user_team_id` | Authenticated user-team membership ID, managed mode only |
-| `pi.identity.source` | `deputydev_auth`, `git_email`, or `installation_id` |
+| `axon.user_team_id` | Authenticated user-team membership ID, managed mode only |
+| `pi.identity.source` | `axon_auth`, `git_email`, or `installation_id` |
 | `pi.extension.name` | `pi-org-telemetry` |
 | `pi.extension.version` | Extension version |
-| `deputydev.cli.version` | CLI build version supplied by the managed launcher |
+| `axon.cli.version` | CLI build version supplied by the managed launcher |
 | `pi.version` | pi version, when pi can be imported at runtime |
 | `os.type` | `darwin`, `linux`, `windows`, ... |
 | `host.arch` | `amd64`, `arm64`, ... |
@@ -168,7 +168,7 @@ Log bodies are fixed strings. Variable data is stored in attributes.
 
 ## Product observations (additive)
 
-See [Product telemetry](product-telemetry.md) for the `deputydev.*` event counters, duration/byte/
+See [Product telemetry](product-telemetry.md) for the `axon.*` event counters, duration/byte/
 assessment histograms, structured operation logs and spans. Dimensions include component, stage,
 outcome, bounded reason, model, selected rank, policy version and CLI version. Numeric scores and
 correlation IDs are never dimensions; product metrics do not include repository/session IDs.

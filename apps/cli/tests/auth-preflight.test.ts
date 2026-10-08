@@ -3,24 +3,24 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink } from "node:fs/prom
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { ensureDeputyDevSession, runPiSessionPreflight } from "../src/cli/auth/preflight.ts";
+import { ensureAxonSession, runPiSessionPreflight } from "../src/cli/auth/preflight.ts";
 import {
   loadEncryptedSession,
   refreshEncryptedSession,
   SESSION_FILE_NAME,
   saveEncryptedSession,
 } from "../src/cli/auth/session.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 let root: string;
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), "ddcli-preflight-"));
+  root = await mkdtemp(join(tmpdir(), "axon-preflight-"));
 });
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 function paths(name: string) {
-  return resolveDeputyDevPaths({ DEPUTYDEV_HOME: join(root, name) });
+  return resolveAxonPaths({ AXON_HOME: join(root, name) });
 }
 
 describe("first-run preflight", () => {
@@ -28,7 +28,7 @@ describe("first-run preflight", () => {
     const home = paths("existing");
     await saveEncryptedSession(home, "saved-session");
     let calls = 0;
-    await ensureDeputyDevSession(home, {
+    await ensureAxonSession(home, {
       interactive: false,
       offline: true,
       login: async () => {
@@ -47,16 +47,16 @@ describe("first-run preflight", () => {
       await saveEncryptedSession(home, "new-session");
       return true;
     };
-    await ensureDeputyDevSession(home, { interactive: true, login });
+    await ensureAxonSession(home, { interactive: true, login });
     expect(await loadEncryptedSession(home)).toBe("new-session");
-    await ensureDeputyDevSession(home, { interactive: true, login });
+    await ensureAxonSession(home, { interactive: true, login });
     expect(calls).toBe(1);
   });
 
   test("noninteractive and offline missing-session runs fail without invoking login", async () => {
     for (const options of [{ interactive: false }, { interactive: true, offline: true }]) {
       await expect(
-        ensureDeputyDevSession(paths("not-saved"), {
+        ensureAxonSession(paths("not-saved"), {
           ...options,
           login: async () => {
             throw new Error("must not call");
@@ -68,7 +68,7 @@ describe("first-run preflight", () => {
 
   test("cancelled onboarding cannot continue", async () => {
     await expect(
-      ensureDeputyDevSession(paths("cancel"), { interactive: true, login: async () => false }),
+      ensureAxonSession(paths("cancel"), { interactive: true, login: async () => false }),
     ).rejects.toThrow("not completed");
   });
 
@@ -77,7 +77,7 @@ describe("first-run preflight", () => {
     await mkdir(home.home);
     await symlink("/does/not/exist", join(home.home, SESSION_FILE_NAME));
     await expect(
-      ensureDeputyDevSession(home, {
+      ensureAxonSession(home, {
         interactive: true,
         login: async () => {
           throw new Error("must not call");
@@ -128,8 +128,8 @@ test("real dispatch fails before provisioning and keeps help/status/invalid usag
       cwd: resolve(import.meta.dir, ".."),
       env: {
         ...process.env,
-        DEPUTYDEV_HOME: home.home,
-        DEPUTYDEV_SERVICE_ORIGIN: "http://127.0.0.1:1",
+        AXON_HOME: home.home,
+        AXON_SERVICE_ORIGIN: "http://127.0.0.1:1",
       },
       stdin: "ignore",
       stdout: "pipe",
@@ -151,7 +151,7 @@ test("real dispatch fails before provisioning and keeps help/status/invalid usag
   ]) {
     const result = await run(args);
     expect(result.status).toBe(123);
-    expect(result.stderr).toContain("ddcli auth login");
+    expect(result.stderr).toContain("axon auth login");
     expect(await Bun.file(home.home).exists()).toBe(false);
   }
   for (const args of [["--help"], ["--version"], ["paths", "--help"], ["auth", "status"]])

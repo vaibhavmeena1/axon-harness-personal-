@@ -42,7 +42,7 @@ test("Grafana user selector lists non-empty emails and supports multi-select and
   assert.equal(user.label, "User email");
   assert.equal(
     user.query,
-    'label_values({__name__=~"pi_interaction_count_total|deputydev_.*_events_total",user_email!=""}, user_email)',
+    'label_values({__name__=~"pi_interaction_count_total|axon_.*_events_total",user_email!=""}, user_email)',
   );
   assert.equal(user.definition, user.query);
   assert.equal(user.includeAll, true);
@@ -110,7 +110,7 @@ test("recommender traces match CLI resource identity or backend span identity wi
   assert.equal(panel.targets.length, 1);
   assert.equal(
     panel.targets[0]?.query,
-    '{ name = "deputydev.recommender.request" && (resource."user.email" =~ "$user" || span."user.email" =~ "$user") }',
+    '{ name = "axon.recommender.request" && (resource."user.email" =~ "$user" || span."user.email" =~ "$user") }',
   );
 });
 
@@ -124,14 +124,14 @@ test("product histograms use the declared instrument names and translated units"
   const queries = dashboard.panels.flatMap((panel) =>
     panel.targets.map((target) => target.expr ?? ""),
   );
-  const names = queries.flatMap((query) => query.match(/deputydev_\w+_bucket/g) ?? []);
+  const names = queries.flatMap((query) => query.match(/axon_\w+_bucket/g) ?? []);
   assert.ok(names.length > 0);
   for (const name of names) assert.ok(expectedNames.has(name), name);
 });
 
 test("product metrics separate CLI funnel counts from backend requests and avoid repo/ID labels", () => {
   const productPanels = dashboard.panels.filter((panel) =>
-    panel.targets.some((target) => target.expr?.includes("deputydev_")),
+    panel.targets.some((target) => target.expr?.includes("axon_")),
   );
   assert.ok(productPanels.length > 0);
   for (const panel of productPanels) {

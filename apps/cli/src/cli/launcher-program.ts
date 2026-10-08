@@ -6,14 +6,14 @@ import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
-import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { resolveAxonPaths } from "../product/paths.ts";
 import { checkForUpdate, installUpdate } from "../updater/update.ts";
-import { ensureDeputyDevSession } from "./auth/preflight.ts";
+import { ensureAxonSession } from "./auth/preflight.ts";
 import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
 import { printHarnesses } from "./commands/harnesses.ts";
 import { printPaths } from "./commands/paths.ts";
-import { runSessions } from "./commands/sessions.ts";
+import { runSessions, runSessionsInteractive } from "./commands/sessions.ts";
 import { runSetup, type SetupOptions } from "./commands/setup.ts";
 import { runUninstall, type UninstallOptions } from "./commands/uninstall.ts";
 
@@ -43,48 +43,38 @@ function createLauncherProgram(): Command {
 
   program
     .command("paths")
-    .description("show managed DeputyDev paths")
+    .description("show managed Axon paths")
     .action(() => {
-      printPaths(resolveDeputyDevPaths());
+      printPaths(resolveAxonPaths());
     });
 
-  const auth = program.command("auth").description("manage the local DeputyDev session");
+  const auth = program.command("auth").description("manage the local Axon session");
   auth
     .command("login")
-    .description("sign in to DeputyDev from your browser")
+    .description("sign in to Axon from your browser")
     .option("--browser", "open the browser without a selection prompt")
     .action(async (options: AuthLoginOptions) => {
-      await runAuthLogin(resolveDeputyDevPaths(), options);
+      await runAuthLogin(resolveAxonPaths(), options);
     });
   auth
     .command("status")
-    .description("verify the saved DeputyDev session with the auth service")
+    .description("verify the saved Axon session with the auth service")
     .action(async () => {
-      await runAuthStatus(resolveDeputyDevPaths());
+      await runAuthStatus(resolveAxonPaths());
     });
 
   const sessions = program
     .command("sessions")
-    .description("opt-in latest session backups and explicit checkout-bound restore");
+    .description("manage session backups interactively, or use explicit subcommands for scripts")
+    .action(() => runSessionsInteractive());
   sessions
     .command("list")
     .description("list latest owned remote backups")
     .action(() => runSessions("list"));
   sessions
     .command("status")
-    .description("show consent, confirmed and pending backup status")
+    .description("show administrator policy, confirmed and pending backup status")
     .action(() => runSessions("status"));
-  sessions
-    .command("enable")
-    .description("consent to sensitive transcript backup")
-    .option("--accept-sensitive-data", "explicitly consent without an interactive prompt")
-    .action((options: { acceptSensitiveData?: boolean }) =>
-      runSessions("enable", undefined, options),
-    );
-  sessions
-    .command("disable")
-    .description("pause uploads without deleting pending snapshots")
-    .action(() => runSessions("disable"));
   sessions
     .command("retry")
     .description("explicitly retry repaired/access-restored snapshots")
@@ -113,7 +103,7 @@ function createLauncherProgram(): Command {
         {
           cwd: process.cwd(),
           environment,
-          paths: resolveDeputyDevPaths(environment),
+          paths: resolveAxonPaths(environment),
         },
         harness,
       );
@@ -137,20 +127,20 @@ function createLauncherProgram(): Command {
       if (options.check) {
         try {
           const available = await checkForUpdate();
-          console.log(available ? `ddcli ${available} is available` : "ddcli is up to date");
+          console.log(available ? `axon ${available} is available` : "axon is up to date");
         } catch (error) {
           throw new LauncherError(
-            "could not check for ddcli updates",
+            "could not check for axon updates",
             LAUNCHER_EXIT_STATUS.updateFailure,
             {
               cause: error,
-              remediation: "Check network connectivity and retry ddcli update --check.",
+              remediation: "Check network connectivity and retry axon update --check.",
             },
           );
         }
       } else {
         const installed = await installUpdate();
-        console.log(installed ? `Updated ddcli to ${installed}` : "ddcli is up to date");
+        console.log(installed ? `Updated axon to ${installed}` : "axon is up to date");
       }
     });
 
@@ -159,7 +149,7 @@ function createLauncherProgram(): Command {
     .description("remove the managed binary while preserving user data by default")
     .option("--remove-runtimes", "also remove cached immutable runtimes")
     .action(async (options: UninstallOptions) => {
-      await runUninstall(resolveDeputyDevPaths(), options);
+      await runUninstall(resolveAxonPaths(), options);
     });
 
   program.hook("preAction", async (_command, actionCommand) => {
@@ -174,7 +164,7 @@ function createLauncherProgram(): Command {
     )
       return;
     const invocation = currentPiInvocationEnvironment();
-    await ensureDeputyDevSession(resolveDeputyDevPaths(), {
+    await ensureAxonSession(resolveAxonPaths(), {
       interactive: !invocation.ci && invocation.stdinIsTty && invocation.stdoutIsTty,
     });
   });

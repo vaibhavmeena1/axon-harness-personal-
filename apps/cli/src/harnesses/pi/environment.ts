@@ -1,12 +1,13 @@
 import { BUILD_INFO } from "../../build-info.ts";
 import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launcher/environment.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import { PRODUCT_IDENTITY } from "../../product/identity.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 
 const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_SKIP_VERSION_CHECK: "1",
-  PI_DEPUTYDEV_CLI_VERSION: BUILD_INFO.version,
-  // PI_* markers survive the launcher's final DeputyDev-control-variable filter.
-  PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
+  PI_AXON_CLI_VERSION: BUILD_INFO.version,
+  // PI_* markers survive the launcher's final Axon-control-variable filter.
+  PI_AXON_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
   PI_MODEL_RECOMMENDER_URL: new URL(
     "/api/v1/model-recommendations",
     BUILD_INFO.serviceOrigin,
@@ -15,7 +16,7 @@ const PI_PROCESS_OVERRIDES = Object.freeze({
 
 /**
  * Provider credentials documented by Pi (docs/providers.md) that are removed
- * from every DeputyDev-launched Pi process, so ambient personal keys never
+ * from every Axon-launched Pi process, so ambient personal keys never
  * select a provider implicitly. LiteLLM variables are intentionally kept: the
  * pinned `pi-provider-litellm` package is the organization's provider path.
  * Cloud SDK configuration (AWS_*, GOOGLE_APPLICATION_CREDENTIALS, Cloudflare
@@ -61,23 +62,30 @@ const PI_PROVIDER_CREDENTIAL_REMOVALS: EnvironmentOverrides = Object.freeze(
   Object.fromEntries(PI_STRIPPED_PROVIDER_VARIABLES.map((name) => [name, undefined])),
 );
 
-function createPiDirectoryOverrides(paths: DeputyDevPaths): EnvironmentOverrides {
+function createPiDirectoryOverrides(paths: AxonPaths): EnvironmentOverrides {
   return Object.freeze({
     PI_CODING_AGENT_DIR: paths.pi,
     PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
-    PI_DEPUTYDEV_BACKUP_HOME: paths.home,
+    PI_AXON_BACKUP_HOME: paths.home,
   });
 }
 
 export function createPiEnvironment(
   inheritedEnvironment: NodeJS.ProcessEnv,
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   ...additionalOverrides: readonly EnvironmentOverrides[]
 ): NodeJS.ProcessEnv {
   return createHarnessEnvironment(
     inheritedEnvironment,
     createPiDirectoryOverrides(paths),
     PI_PROCESS_OVERRIDES,
+    {
+      // The provider extension gives settings.json displayName precedence.
+      // Preserve explicit env values; brand only an otherwise unconfigured label.
+      LITELLM_DISPLAY_NAME:
+        inheritedEnvironment["LITELLM_DISPLAY_NAME"] ??
+        `${PRODUCT_IDENTITY.displayName} AI Gateway`,
+    },
     PI_PROVIDER_CREDENTIAL_REMOVALS,
     ...additionalOverrides,
   );

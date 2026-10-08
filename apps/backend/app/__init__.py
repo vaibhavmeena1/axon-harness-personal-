@@ -1,1 +1,1 @@
-"""DeputyDev backend application package."""
+"""Axon backend application package."""

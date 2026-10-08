@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { loadEncryptedSession, saveEncryptedSession } from "../../../../cli/auth/session.ts";
 import { withFileLock } from "../../../../launcher/file-lock.ts";
-import { resolveDeputyDevPaths } from "../../../../product/paths.ts";
+import { resolveAxonPaths } from "../../../../product/paths.ts";
 import { resolveConfig } from "../src/config.ts";
 import { resolveIdentity } from "../src/identity.ts";
 import { ManagedOtlpTransport } from "../src/otel/managed-exporter.ts";
@@ -13,9 +13,9 @@ import { createOtelRuntime } from "../src/otel/runtime.ts";
 import { AgentTelemetryTracker } from "../src/tracker.ts";
 
 async function withHome(operation: (home: string) => Promise<void>): Promise<void> {
-  const home = await mkdtemp(join(tmpdir(), "ddcli-managed-otel-"));
+  const home = await mkdtemp(join(tmpdir(), "axon-managed-otel-"));
   try {
-    await saveEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }), "initial-token");
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "initial-token");
     await operation(home);
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -40,7 +40,7 @@ test("managed identity never reads Git email", async () => {
       throw new Error("must not read Git");
     },
   });
-  expect(identity).toEqual({ userId: "managed", source: "deputydev_auth" });
+  expect(identity).toEqual({ userId: "managed", source: "axon_auth" });
 });
 
 test("each batch reads current session, persists rotation, and ignores ambient OTEL credentials", async () => {
@@ -63,7 +63,7 @@ test("each batch reads current session, persists rotation, and ignores ambient O
       expect((await transport.send(new TextEncoder().encode("payload"), 1000)).status).toBe(
         "success",
       );
-      expect(await loadEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }))).toBe(
+      expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: home }))).toBe(
         "rotated-token",
       );
       expect((await transport.send(new Uint8Array(), 1000)).status).toBe("success");
@@ -83,7 +83,7 @@ test("each batch reads current session, persists rotation, and ignores ambient O
 
 test("an old response cannot overwrite a concurrent new login", async () => {
   await withHome(async (home) => {
-    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+    const paths = resolveAxonPaths({ AXON_HOME: home });
     const server = Bun.serve({
       port: 0,
       async fetch() {
@@ -239,7 +239,7 @@ test("all three managed SDK exporters send serialized protobuf to fixed proxy pa
         expect(request.authorization).toBe("Bearer initial-token");
         expect(request.contentType).toBe("application/x-protobuf");
         expect(request.body.byteLength).toBeGreaterThan(0);
-        expect(request.body.includes(Buffer.from("deputydev_auth"))).toBe(true);
+        expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
         expect(request.body.includes(Buffer.from("initial-token"))).toBe(false);
         expect(request.body.includes(Buffer.from("ambient-secret"))).toBe(false);
       }
@@ -252,7 +252,7 @@ test("all three managed SDK exporters send serialized protobuf to fixed proxy pa
 
 test("rotation lock contention obeys batch deadline, retains CAS and never persists after cancellation", async () => {
   await withHome(async (home) => {
-    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+    const paths = resolveAxonPaths({ AXON_HOME: home });
     let release!: () => void;
     let acquired!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -381,7 +381,7 @@ test("runtime shutdown is shared and aborts managed hanging bodies at its deadli
       if (!config) throw new Error("missing config");
       const runtime = createOtelRuntime(
         { ...config, shutdownTimeoutMs: 100, exportTimeoutMs: 1000 },
-        { userId: "managed", source: "deputydev_auth" },
+        { userId: "managed", source: "axon_auth" },
       );
       runtime.tracer.startSpan("fixture").end();
       runtime.logs.emit("info", "fixture", "fixture");
@@ -409,9 +409,7 @@ test("invalid managed endpoint fails closed rather than using env credentials", 
   try {
     const config = resolveConfig();
     if (!config) throw new Error("missing config");
-    expect(() =>
-      createOtelRuntime(config, { userId: "managed", source: "deputydev_auth" }),
-    ).toThrow();
+    expect(() => createOtelRuntime(config, { userId: "managed", source: "axon_auth" })).toThrow();
   } finally {
     restore();
   }

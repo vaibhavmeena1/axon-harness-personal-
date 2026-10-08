@@ -18,7 +18,7 @@ import {
 import { resolvePiVersion } from "../src/harnesses/pi/version.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import type { HarnessRegistration, LaunchContext } from "../src/launcher/contracts.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 const fixtureRoots: string[] = [];
 const DEVELOPMENT_VERSION = PI_INSTALL_VERSION === "0.90.0" ? "0.91.0" : "0.90.0";
@@ -34,7 +34,7 @@ async function createFixture(name: string): Promise<{
   readonly home: string;
   readonly root: string;
 }> {
-  const root = await mkdtemp(join(tmpdir(), `ddcli-pi-install-${name}-`));
+  const root = await mkdtemp(join(tmpdir(), `axon-pi-install-${name}-`));
   fixtureRoots.push(root);
   const home = join(root, "home");
   const bin = join(root, "bin");
@@ -42,7 +42,7 @@ async function createFixture(name: string): Promise<{
   const environment: NodeJS.ProcessEnv = {
     HOME: home,
     PATH: bin,
-    DEPUTYDEV_HOME: join(root, "deputydev"),
+    AXON_HOME: join(root, "axon"),
   };
   return {
     root,
@@ -51,7 +51,7 @@ async function createFixture(name: string): Promise<{
     context: {
       cwd: root,
       environment,
-      paths: resolveDeputyDevPaths(environment, home),
+      paths: resolveAxonPaths(environment, home),
     },
   };
 }
@@ -128,7 +128,7 @@ function installerDependencies(fixture: { readonly root: string }, version: stri
       expect(stagedLock.packages[`node_modules/${PI_PACKAGE_NAME}`]?.integrity).toBe(
         PI_TARBALL_INTEGRITY,
       );
-      expect(request.cwd.startsWith(join(fixture.root, "deputydev", "pi-runtime"))).toBe(true);
+      expect(request.cwd.startsWith(join(fixture.root, "axon", "pi-runtime"))).toBe(true);
       const packageDirectory = join(request.cwd, "node_modules", PI_PACKAGE_NAME);
       await mkdir(packageDirectory, { recursive: true });
       await Bun.write(
@@ -152,7 +152,7 @@ afterEach(async () => {
 
 describe("Pi version policy", () => {
   test("checks the default against typecheck dependencies before building", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "ddcli-pi-config-"));
+    const directory = await mkdtemp(join(tmpdir(), "axon-pi-config-"));
     fixtureRoots.push(directory);
     await Bun.write(join(directory, "pi-version.json"), JSON.stringify({ version: "0.90.0" }));
     await Bun.write(
@@ -172,17 +172,17 @@ describe("Pi version policy", () => {
   test("allows exact-version overrides in source runs but pins built CLIs", async () => {
     expect(await checkPiVersion(join(import.meta.dir, ".."))).toBe(PI_INSTALL_VERSION);
     expect(resolveConfiguredPiVersion({})).toBe(PI_INSTALL_VERSION);
-    expect(resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION })).toBe(
+    expect(resolveConfiguredPiVersion({ AXON_PI_VERSION: DEVELOPMENT_VERSION })).toBe(
       DEVELOPMENT_VERSION,
     );
-    expect(resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: PI_INSTALL_VERSION }, false)).toBe(
+    expect(resolveConfiguredPiVersion({ AXON_PI_VERSION: PI_INSTALL_VERSION }, false)).toBe(
       PI_INSTALL_VERSION,
     );
     expect(() =>
-      resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION }, false),
+      resolveConfiguredPiVersion({ AXON_PI_VERSION: DEVELOPMENT_VERSION }, false),
     ).toThrow("cannot override pinned Pi");
     for (const version of ["latest", "1.2.3; rm -rf", " "]) {
-      expect(() => resolveConfiguredPiVersion({ DEPUTYDEV_PI_VERSION: version })).toThrow(
+      expect(() => resolveConfiguredPiVersion({ AXON_PI_VERSION: version })).toThrow(
         "is not a valid Pi version",
       );
     }
@@ -345,7 +345,7 @@ describe("Pi executable resolution", () => {
   test("rejects executable overrides before installing", async () => {
     const fixture = await createFixture("override");
     const { dependencies, state } = installerDependencies(fixture, PI_INSTALL_VERSION);
-    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_BIN", join(fixture.root, "custom pi"));
+    Reflect.set(fixture.context.environment, "AXON_PI_BIN", join(fixture.root, "custom pi"));
     await expect(
       resolvePiExecutable(fixture.context, piRegistration(), launchOptions, dependencies),
     ).rejects.toThrow("cannot override pinned Pi");
@@ -354,7 +354,7 @@ describe("Pi executable resolution", () => {
 
   test("installs an exact development override into its own directory", async () => {
     const fixture = await createFixture("dev-version");
-    Reflect.set(fixture.context.environment, "DEPUTYDEV_PI_VERSION", DEVELOPMENT_VERSION);
+    Reflect.set(fixture.context.environment, "AXON_PI_VERSION", DEVELOPMENT_VERSION);
     const { dependencies, state } = installerDependencies(fixture, DEVELOPMENT_VERSION);
     const resolved = await resolvePiExecutable(
       fixture.context,

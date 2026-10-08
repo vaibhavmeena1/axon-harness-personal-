@@ -7,7 +7,7 @@ import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { loadEncryptedSession, saveEncryptedSession } from "../auth/session.ts";
 import { verifyEncryptedSession } from "../auth/verification.ts";
@@ -125,20 +125,17 @@ async function openBrowser(url: string): Promise<void> {
   });
 }
 
-async function runAuthLoginInternal(
-  paths: DeputyDevPaths,
-  options: AuthLoginOptions,
-): Promise<boolean> {
+async function runAuthLoginInternal(paths: AxonPaths, options: AuthLoginOptions): Promise<boolean> {
   if (!options.browser) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       throw new LauncherError(
         "Browser login requires an interactive terminal",
         LAUNCHER_EXIT_STATUS.usage,
-        { remediation: "Run ddcli auth login --browser to skip the selection prompt." },
+        { remediation: "Run axon auth login --browser to skip the selection prompt." },
       );
     }
     const choice = await select({
-      message: "Sign in to DeputyDev",
+      message: "Sign in to Axon",
       options: [{ value: "browser", label: "Login from browser" }],
     });
     if (isCancel(choice)) return false;
@@ -163,7 +160,7 @@ async function runAuthLoginInternal(
       const encryptedSession = await polling;
       signal.throwIfAborted();
       await saveEncryptedSession(paths, encryptedSession);
-      if (!options.quiet) console.log("DeputyDev encrypted session saved locally.");
+      if (!options.quiet) console.log("Axon encrypted session saved locally.");
       return true;
     } finally {
       clearTimeout(timeout);
@@ -179,10 +176,7 @@ async function runAuthLoginInternal(
   }
 }
 
-export async function runAuthLogin(
-  paths: DeputyDevPaths,
-  options: AuthLoginOptions,
-): Promise<boolean> {
+export async function runAuthLogin(paths: AxonPaths, options: AuthLoginOptions): Promise<boolean> {
   const startedAt = Date.now();
   try {
     const authenticated = await runAuthLoginInternal(paths, options);
@@ -205,23 +199,23 @@ export async function runAuthLogin(
   }
 }
 
-export async function runAuthStatus(paths: DeputyDevPaths): Promise<void> {
+export async function runAuthStatus(paths: AxonPaths): Promise<void> {
   try {
     const encryptedSession = await loadEncryptedSession(paths);
     if (encryptedSession === undefined) {
-      console.log("No saved DeputyDev browser session. Run ddcli auth login to sign in.");
+      console.log("No saved Axon browser session. Run axon auth login to sign in.");
       return;
     }
     const status = await verifyEncryptedSession(encryptedSession);
     console.log(
       status === "VERIFIED"
-        ? "DeputyDev session is valid."
-        : `DeputyDev session is ${status === "EXPIRED" ? "expired" : "invalid"}. Run ddcli auth login to sign in.`,
+        ? "Axon session is valid."
+        : `Axon session is ${status === "EXPIRED" ? "expired" : "invalid"}. Run axon auth login to sign in.`,
     );
   } catch (error) {
     if (error instanceof LauncherError) throw error;
     throw new LauncherError(
-      "Saved DeputyDev session could not be read safely",
+      "Saved Axon session could not be read safely",
       LAUNCHER_EXIT_STATUS.profileFailure,
     );
   }

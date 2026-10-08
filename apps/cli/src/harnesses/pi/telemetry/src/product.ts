@@ -18,9 +18,9 @@ export function recordProductEvent(
     ...(event.model ? { model: event.model } : {}),
     ...(event.rank !== undefined ? { selected_rank: event.rank } : {}),
     ...(event.policyVersion ? { policy_version: event.policyVersion } : {}),
-    ...(event.version ? { deputydev_cli_version: event.version } : {}),
+    ...(event.version ? { axon_cli_version: event.version } : {}),
   };
-  const prefix = `deputydev.${event.category}`;
+  const prefix = `axon.${event.category}`;
   runtime.metrics.count(`${prefix}.events`, 1, dimensions, "{event}");
   if (event.durationMs !== undefined)
     runtime.metrics.record(`${prefix}.duration`, event.durationMs / 1000, "s", dimensions);
@@ -51,8 +51,8 @@ export function recordProductEvent(
     ...contextAttributes,
     ...dimensions,
   };
-  if (event.previousModel) attributes["deputydev.model.previous"] = event.previousModel;
-  if (event.recommendationId) attributes["deputydev.recommendation.id"] = event.recommendationId;
+  if (event.previousModel) attributes["axon.model.previous"] = event.previousModel;
+  if (event.recommendationId) attributes["axon.recommendation.id"] = event.recommendationId;
   for (const key of [
     "complexity",
     "confidence",
@@ -62,7 +62,7 @@ export function recordProductEvent(
     "candidateCount",
     "bytes",
   ] as const) {
-    if (event[key] !== undefined) attributes[`deputydev.${key}`] = event[key];
+    if (event[key] !== undefined) attributes[`axon.${key}`] = event[key];
   }
   const endedAt = Date.now();
   const span = runtime.tracer.startSpan(
@@ -77,7 +77,7 @@ export function recordProductEvent(
   runtime.logs.emit(
     event.outcome === "failed" ? "warn" : "info",
     `${prefix}.${event.stage}`,
-    "DeputyDev product operation observed",
+    "Axon product operation observed",
     attributes,
     trace.setSpan(ROOT_CONTEXT, span),
   );

@@ -1,7 +1,7 @@
 [project]
-name = "deputydev-console-backend"
+name = "axon-console-backend"
 version = "0.1.0"
-description = "Centralized management API for DeputyDev CLI installations"
+description = "Centralized management API for Axon CLI installations"
 authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

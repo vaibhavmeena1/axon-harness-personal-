@@ -13,6 +13,8 @@ from uuid import uuid4
 import httpx
 from botocore.exceptions import BotoCoreError, ClientError
 
+from app.clients.s3 import S3Client
+from app.core.s3 import parse_s3_storage
 from app.core.session_storage import SessionStorageSettings
 from app.services.sessions.adapters import get_adapter
 from app.services.sessions.contracts import Snapshot
@@ -21,12 +23,21 @@ from app.services.sessions.storage import SessionObjectStore
 
 def main() -> int:
     settings = SessionStorageSettings(
-        bucket=os.environ["AWS_BUCKET_NAME"],
-        region=os.environ.get("AWS_REGION", "ap-south-1"),
-        endpoint_url=os.environ.get("AWS_ENDPOINT_URL"),
-        key_prefix=os.environ.get("SESSION_KEY_PREFIX", "deputydev/sessions/"),
+        s3=parse_s3_storage(
+            {
+                "BUCKET": os.environ["AWS_BUCKET_NAME"],
+                "REGION": os.environ.get("AWS_REGION", "ap-south-1"),
+                "ENDPOINT_URL": os.environ.get("AWS_ENDPOINT_URL"),
+            },
+            "S3",
+            connect_timeout=5,
+            read_timeout=10,
+            max_retries=1,
+        ),
+        key_prefix=os.environ.get("SESSION_KEY_PREFIX", "axon/sessions/"),
     )
-    store = SessionObjectStore(settings)
+    s3 = S3Client(settings.s3.client)
+    store = SessionObjectStore(settings, s3)
     key = f"{settings.key_prefix}{uuid4()}/{uuid4()}"
     native = str(uuid4())
     raw = (
@@ -88,7 +99,7 @@ def main() -> int:
             results["anonymous_get_denied"] = public.status_code in {401, 403}
         # Verify policy, not just a header signed into one URL. Only our disposable test key is touched.
         try:
-            store.client.put_object(Bucket=settings.bucket, Key=key, Body=io.BytesIO(raw))
+            store.s3.client.put_object(Bucket=settings.s3.bucket, Key=key, Body=io.BytesIO(raw))
             results["unconditional_overwrite_denied"] = False
         except ClientError as error:
             results["unconditional_overwrite_denied"] = error.response["ResponseMetadata"]["HTTPStatusCode"] == 403
@@ -106,6 +117,8 @@ def main() -> int:
             results["test_object_cleanup"] = True
         except (ClientError, BotoCoreError):
             results["test_object_cleanup"] = False
+        finally:
+            s3.close()
     return report(results)
 
 

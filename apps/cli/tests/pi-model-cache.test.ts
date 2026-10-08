@@ -6,10 +6,10 @@ import lockfile from "proper-lockfile";
 
 import { FileModelsStore } from "../node_modules/@earendil-works/pi-coding-agent/dist/core/models-store.js";
 import { invalidateStalePiRelayModels } from "../src/harnesses/pi/model-cache.ts";
-import { type DeputyDevPaths, resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 
 let root: string;
-let paths: DeputyDevPaths;
+let paths: AxonPaths;
 let cachePath: string;
 const relayOrigin = "http://127.0.0.1:54321";
 const staleUrl = "http://127.0.0.1:54320/litellm/v1";
@@ -21,8 +21,8 @@ const model = (baseUrl = staleUrl, id = "test-model") => ({
 });
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "ddcli-pi-model-cache-"));
-  paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+  root = await mkdtemp(join(tmpdir(), "axon-pi-model-cache-"));
+  paths = resolveAxonPaths({ AXON_HOME: root });
   cachePath = join(paths.pi, "models-store.json");
   await mkdir(paths.pi);
 });

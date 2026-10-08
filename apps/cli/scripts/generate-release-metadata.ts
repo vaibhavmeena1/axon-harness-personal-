@@ -12,7 +12,7 @@ import {
 } from "./release-contract.ts";
 
 const RELEASE_TARGET = "darwin-arm64";
-const BINARY_NAME = "ddcli-darwin-arm64";
+const BINARY_NAME = "axon-darwin-arm64";
 const ARCHIVE_NAME = `${BINARY_NAME}.gz`;
 
 interface FileDigest {

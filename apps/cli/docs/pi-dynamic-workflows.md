@@ -1,6 +1,6 @@
 # Pi dynamic workflows: orchestration and pipelines
 
-This is a note on the optional `@quintinshaw/pi-dynamic-workflows` Pi extension (inspected at v3.13.0). It adds a `workflow` tool, background subagents, reusable scripts, built-in review/research patterns, and a `/workflows` run navigator. It is **not** a built-in Pi feature or a required DeputyDev package.
+This is a note on the optional `@quintinshaw/pi-dynamic-workflows` Pi extension (inspected at v3.13.0). It adds a `workflow` tool, background subagents, reusable scripts, built-in review/research patterns, and a `/workflows` run navigator. It is **not** a built-in Pi feature or a required Axon package.
 
 ## Getting started in Pi
 
@@ -8,11 +8,11 @@ This is a note on the optional `@quintinshaw/pi-dynamic-workflows` Pi extension 
 
    ```sh
    pi install npm:@quintinshaw/pi-dynamic-workflows
-   # If using DeputyDev's separate Pi profile instead:
-   ddcli pi install npm:@quintinshaw/pi-dynamic-workflows
+   # If using Axon's separate Pi profile instead:
+   axon pi install npm:@quintinshaw/pi-dynamic-workflows
    ```
 
-   Normal `pi` and `ddcli pi` have different `PI_CODING_AGENT_DIR` directories, so installing in one does not install it in the other. Start Pi or run `/reload` in an already-open Pi session.
+   Normal `pi` and `axon pi` have different `PI_CODING_AGENT_DIR` directories, so installing in one does not install it in the other. Start Pi or run `/reload` in an already-open Pi session.
 
 2. **Create an ad hoc workflow** by typing a request in Pi's chat. The explicit command is the most predictable option:
 

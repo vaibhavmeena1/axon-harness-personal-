@@ -16,12 +16,13 @@ import pytest
 from fastapi import HTTPException
 from tortoise import Tortoise
 
+from app.core.s3 import S3ClientSettings, S3StorageSettings
 from app.core.session_storage import SessionStorageSettings
 from app.models.session_backup import SessionBackup
 from app.services.sessions.adapters import Adapter, InvalidSessionError
 from app.services.sessions.contracts import Registration, Snapshot, UploadRequest
+from app.services.sessions.integrity import verify_chunks
 from app.services.sessions.service import BackupService, now
-from app.services.sessions.storage import verify_chunks
 from tests.test_session_backups import declaration, named_payload, payload
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,7 +68,7 @@ def disposable_db() -> Iterator[str]:
 
 
 class MemoryStore:
-    settings = SessionStorageSettings("synthetic", "ap-south-1")
+    settings = SessionStorageSettings(S3StorageSettings("synthetic", S3ClientSettings("ap-south-1")))
 
     def __init__(self) -> None:
         self.data = {}
@@ -229,9 +230,15 @@ def test_titles_are_validated_and_committed_atomically_with_replay(disposable_db
                 store.data[result["upload"]["url"]] = (raw, now())
                 return request
 
+            unnamed = await reserve(payload(), "synthetic")
+            assert (await service.register(1, registration))["display_name"] is None
+            fallback = await service.finalize(sid, 1, unnamed.request_id)
+            assert fallback["session"]["display_name"] == "synthetic"
+            assert (await SessionBackup.get(id=sid)).display_name == "synthetic"
+
             original_bytes = named_payload(["Original"])
             original = await reserve(original_bytes, "Original")
-            assert (await service.register(1, registration))["display_name"] is None
+            assert (await service.register(1, registration))["display_name"] == "synthetic"
             first = await service.finalize(sid, 1, original.request_id)
             assert first["session"]["display_name"] == "Original"
             with pytest.raises(HTTPException):
@@ -260,11 +267,12 @@ def test_titles_are_validated_and_committed_atomically_with_replay(disposable_db
             assert await service.finalize(sid, 1, renamed.request_id) == committed
             assert await service.reserve(sid, 1, renamed) == committed
             assert (await service.download(sid, 1))["session"] == committed["session"]
-            cleared = await reserve(named_payload(["Original", "Renamed", ""]), None)
+            cleared = await reserve(named_payload(["Original", "Renamed", ""]), "synthetic")
             assert (await service.register(1, registration))["display_name"] == "Renamed"
             result = await service.finalize(sid, 1, cleared.request_id)
-            assert result["session"]["display_name"] is None
-            assert result["session"]["snapshot"]["display_name"] is None
+            assert result["session"]["display_name"] == "synthetic"
+            assert result["session"]["snapshot"]["display_name"] == "synthetic"
+            assert (await SessionBackup.get(id=sid)).display_name == "synthetic"
         finally:
             await Tortoise.close_connections()
 

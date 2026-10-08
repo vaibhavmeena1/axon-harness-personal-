@@ -7,9 +7,9 @@ import {
   readPiVersion,
 } from "../src/environment.ts";
 
-test("uses the version embedded in the standalone DeputyDev extension", () => {
+test("uses the version embedded in the standalone Axon extension", () => {
   assert.equal(readExtensionVersion(), PI_ORG_TELEMETRY_VERSION);
-  assert.equal(readExtensionVersion(), "0.5.0-deputydev.1");
+  assert.equal(readExtensionVersion(), "0.5.0-axon.1");
 });
 
 test("falls back when pi cannot be imported", async () => {

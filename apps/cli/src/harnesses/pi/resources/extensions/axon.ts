@@ -1,7 +1,78 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import {
+  type AppKeybinding,
+  type ExtensionAPI,
+  type ExtensionContext,
+  keyText,
+  type Theme,
+  VERSION,
+} from "@earendil-works/pi-coding-agent";
+import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 
-const ENTRY_TYPE = "deputydev-status";
+const ENTRY_TYPE = "axon-status";
+
+/** A small connected-node A mark; all colors and shortcut labels follow Pi's active settings. */
+function createAxonHeader(theme: Theme) {
+  const rawVersion = process.env["PI_AXON_CLI_VERSION"];
+  const version =
+    rawVersion && /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/.test(rawVersion) ? ` v${rawVersion}` : "";
+  let expanded = false;
+
+  const hint = (action: AppKeybinding, description: string): string | undefined => {
+    const key = keyText(action);
+    return key ? theme.fg("dim", key) + theme.fg("muted", ` ${description}`) : undefined;
+  };
+  const rawHint = (key: string, description: string): string =>
+    theme.fg("dim", key) + theme.fg("muted", ` ${description}`);
+
+  return {
+    setExpanded(value: boolean) {
+      expanded = value;
+    },
+    invalidate() {},
+    render(width: number): string[] {
+      if (width <= 0) return [];
+      const title = theme.fg("accent", "Axon") + theme.fg("dim", version);
+      const attribution = theme.fg("dim", `Powered by Pi v${VERSION}`);
+      const brand =
+        width >= 48
+          ? [
+              theme.fg("accent", "   ●      ") + title,
+              theme.fg("accent", "  ╱ ╲     ") +
+                theme.fg("muted", "TATA 1mg · Your coding workspace"),
+              theme.fg("accent", " ●───●    ") + attribution,
+            ]
+          : [title, theme.fg("muted", "TATA 1mg"), attribution];
+      const shortcuts = [
+        hint("app.interrupt", "interrupt"),
+        hint("app.model.select", "models"),
+        ...(expanded
+          ? [
+              hint("app.clear", "clear / twice to exit"),
+              hint("app.exit", "exit (empty editor)"),
+              hint("app.thinking.cycle", "thinking level"),
+              hint("app.thinking.toggle", "show/hide thinking"),
+              hint("app.editor.external", "external editor"),
+              hint("app.message.followUp", "queue follow-up"),
+              hint("app.clipboard.pasteImage", "attach files/images"),
+            ]
+          : []),
+        rawHint("/", "commands"),
+        rawHint("!", "shell"),
+      ].filter((value): value is string => value !== undefined);
+      const help = [
+        hint("app.tools.expand", expanded ? "less" : "more"),
+        rawHint("/hotkeys", "all shortcuts"),
+      ].filter((value): value is string => value !== undefined);
+      const lines = [
+        ...brand,
+        "",
+        ...(expanded ? shortcuts : [shortcuts.join(theme.fg("muted", " · "))]),
+        help.join(theme.fg("muted", " · ")),
+      ];
+      return lines.map((line) => truncateToWidth(` ${line}`, width, ""));
+    },
+  };
+}
 const AUTH_POLL_INTERVAL_MS = 1_000;
 const AUTH_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -12,8 +83,8 @@ interface RecoveryStatus {
 }
 
 function authRelayConfiguration(): { origin: string; capability: string } | undefined {
-  const origin = Reflect.get(process.env, "PI_DEPUTYDEV_AUTH_RELAY_URL") as string | undefined;
-  const capability = Reflect.get(process.env, "PI_DEPUTYDEV_AUTH_RELAY_KEY") as string | undefined;
+  const origin = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_URL") as string | undefined;
+  const capability = Reflect.get(process.env, "PI_AXON_AUTH_RELAY_KEY") as string | undefined;
   if (!origin || !capability) return undefined;
   try {
     const url = new URL(origin);
@@ -46,7 +117,7 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
   let busy = false;
 
   const authRequest = (action: string, method = "GET", id?: string): Promise<Response> => {
-    const url = new URL(`/_deputydev/auth/${action}`, config.origin);
+    const url = new URL(`/_axon/auth/${action}`, config.origin);
     if (id !== undefined) url.searchParams.set("id", id);
     return fetch(url, {
       method,
@@ -68,10 +139,10 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
       promptController.signal,
       ...(ctx.signal === undefined ? [] : [ctx.signal]),
     ]);
-    ctx.ui.setStatus("deputydev-auth", "Session expired — login required");
+    ctx.ui.setStatus("axon-auth", "Session expired — login required");
     try {
       const choice = await ctx.ui.select(
-        "Your DeputyDev session expired. Sign in to continue this chat.",
+        "Your Axon session expired. Sign in to continue this chat.",
         ["Login from browser", "Not now (keep chat open)"],
         { signal, timeout: Math.max(1, recovery.expiresAt - Date.now()) },
       );
@@ -86,7 +157,7 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
         }
         return;
       }
-      ctx.ui.setStatus("deputydev-auth", "Waiting for browser login…");
+      ctx.ui.setStatus("axon-auth", "Waiting for browser login…");
       ctx.ui.notify(
         "Complete login in your browser. This chat will continue after approval.",
         "info",
@@ -117,7 +188,7 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
       }
     } finally {
       activePrompt = undefined;
-      ctx.ui.setStatus("deputydev-auth", undefined);
+      ctx.ui.setStatus("axon-auth", undefined);
     }
   };
 
@@ -154,15 +225,18 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
   return () => {
     controller.abort();
     if (timer !== undefined) clearTimeout(timer);
-    ctx.ui.setStatus("deputydev-auth", undefined);
+    ctx.ui.setStatus("axon-auth", undefined);
   };
 }
 
-export default function deputyDevExtension(pi: ExtensionAPI): void {
+export default function axonExtension(pi: ExtensionAPI): void {
   let stopRecovery: (() => void) | undefined;
   pi.on("session_start", (_event, ctx) => {
     stopRecovery?.();
     stopRecovery = watchSessionRecovery(ctx);
+    if (ctx.mode === "tui") {
+      ctx.ui.setHeader((_tui, theme) => createAxonHeader(theme));
+    }
   });
   pi.on("session_shutdown", () => {
     stopRecovery?.();
@@ -171,15 +245,15 @@ export default function deputyDevExtension(pi: ExtensionAPI): void {
 
   pi.registerEntryRenderer(ENTRY_TYPE, (entry, _options, theme) => {
     const data = entry.data as { message?: unknown };
-    const message = typeof data.message === "string" ? data.message : "DeputyDev is active";
+    const message = typeof data.message === "string" ? data.message : "Axon is active";
     return new Text(theme.fg("accent", message), 1, 0);
   });
 
-  pi.registerCommand("deputydev-status", {
-    description: "Show the active DeputyDev integration status",
+  pi.registerCommand("axon-status", {
+    description: "Show the active Axon integration status",
     handler: async () => {
       pi.appendEntry(ENTRY_TYPE, {
-        message: "DeputyDev-managed Pi resources are active",
+        message: "Axon-managed Pi resources are active",
       });
     },
   });

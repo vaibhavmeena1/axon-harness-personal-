@@ -1,7 +1,5 @@
+import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" with { type: "file" };
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
-  type: "file",
-};
-import deputyDevExtensionAsset from "../harnesses/pi/resources/extensions/deputydev.ts" with {
   type: "file",
 };
 import modelRecommenderExtensionAsset from "../harnesses/pi/resources/extensions/model-recommender.ts" with {
@@ -20,7 +18,7 @@ import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-se
 
 import {
   type PiResourceManifestEntry,
-  parseDeputyDevManifest,
+  parseAxonManifest,
 } from "../harnesses/pi/setup/packages/manifest.ts";
 
 const SESSION_BACKUP_RESOURCE = Object.freeze({
@@ -29,10 +27,10 @@ const SESSION_BACKUP_RESOURCE = Object.freeze({
   destination: "pi/extensions/session-backup.mjs",
 }) satisfies PiResourceManifestEntry;
 
-const DEPUTYDEV_CORE_RESOURCE = Object.freeze({
-  id: "deputydev-core",
+const AXON_CORE_RESOURCE = Object.freeze({
+  id: "axon-core",
   type: "extension",
-  destination: "pi/extensions/deputydev.ts",
+  destination: "pi/extensions/axon.ts",
 }) satisfies PiResourceManifestEntry;
 
 const PI_ORG_TELEMETRY_RESOURCE = Object.freeze({
@@ -59,9 +57,9 @@ const WEB_SEARCH_RESOURCE = Object.freeze({
   destination: "pi/extensions/web-search.ts",
 }) satisfies PiResourceManifestEntry;
 
-export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
+export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "9",
+  revision: "11",
   pi: {
     packages: [
       {
@@ -75,12 +73,12 @@ export const DEPUTYDEV_MANIFEST = parseDeputyDevManifest({
         id: "pi-provider-litellm",
         source: "npm:pi-provider-litellm",
         required: true,
-        versionPolicy: { kind: "exact", version: "4.1.0" },
+        versionPolicy: { kind: "exact", version: "4.2.0" },
         install: { action: "pi.install" },
       },
     ],
     resources: [
-      DEPUTYDEV_CORE_RESOURCE,
+      AXON_CORE_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
       // Close telemetry after backup shutdown has emitted its final outcomes.
@@ -97,9 +95,9 @@ export interface EmbeddedPiResource extends PiResourceManifestEntry {
 
 export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
-    ...DEPUTYDEV_CORE_RESOURCE,
+    ...AXON_CORE_RESOURCE,
     // TypeScript resolves the source module while Bun's `file` loader returns its asset path.
-    sourcePath: deputyDevExtensionAsset as unknown as string,
+    sourcePath: axonExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...PI_ORG_TELEMETRY_RESOURCE,

@@ -1,6 +1,6 @@
-# DeputyDev Console (frontend)
+# Axon Console (frontend)
 
-Management console UI for DeputyDev. Part of the [DeputyDev monorepo](../../README.md).
+Management console UI for Axon. Part of the [Axon monorepo](../../README.md).
 
 This app is managed with **pnpm**, not Bun, and is deliberately outside the root Bun workspace. Run every command from this directory.
 
@@ -38,4 +38,4 @@ pnpm dev
 
 The console is a static build with nothing to run, so it is not deployed as its own service. `apps/backend` serves `dist/` from its own origin at `/`, and its Docker image runs `pnpm build` here and embeds the output. See that app's README for the routing and caching rules.
 
-Because the API and the console share an origin in production, the app calls the API with **relative** URLs (`BASE_API_URL` is `""`) and there is no CORS. `vite dev` reproduces that: it proxies `/api` to `DEV_API_PROXY_TARGET` (the backend on port 3000 by default), so the same relative URLs work in development.
+Because the API and the console share an origin in production, the app calls the API with **relative** URLs (`BASE_API_URL` is `""`) and there is no CORS. `vite dev` reproduces that: it proxies `/api` to `DEV_API_PROXY_TARGET` (the backend on port 0 by default), so the same relative URLs work in development.

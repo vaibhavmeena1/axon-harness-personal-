@@ -5,12 +5,12 @@ import { LauncherError } from "../../../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../../../launcher/exit-status.ts";
 import { withFileLock } from "../../../../launcher/file-lock.ts";
 import { PRODUCT_IDENTITY } from "../../../../product/identity.ts";
-import { DEPUTYDEV_MANIFEST } from "../../../../product/manifest.ts";
+import { AXON_MANIFEST } from "../../../../product/manifest.ts";
 import { createPiEnvironment } from "../../environment.ts";
 import { type InstalledPackageInspection, inspectInstalledPackage } from "./inspect.ts";
 import {
-  type DeputyDevManifest,
-  hashDeputyDevManifest,
+  type AxonManifest,
+  hashAxonManifest,
   type NormalizedPiPackage,
   normalizePiPackage,
   resolveInstalledIdentityPath,
@@ -45,7 +45,7 @@ export type PiPackageActionRunner = (
 export interface PiPackageSyncOptions {
   readonly allowInstall: boolean;
   readonly context: HarnessLaunchContext;
-  readonly manifest?: DeputyDevManifest;
+  readonly manifest?: AxonManifest;
   readonly now?: () => Date;
   readonly runAction?: PiPackageActionRunner;
 }
@@ -454,9 +454,9 @@ async function synchronizeLocked(
 export async function synchronizePiPackages(
   options: PiPackageSyncOptions,
 ): Promise<PiPackageSyncResult> {
-  const manifest = options.manifest ?? DEPUTYDEV_MANIFEST;
+  const manifest = options.manifest ?? AXON_MANIFEST;
   const packages = manifest.pi.packages.map(normalizePiPackage);
-  const manifestHash = hashDeputyDevManifest(manifest);
+  const manifestHash = hashAxonManifest(manifest);
   const initialSnapshot = await inspectLocalState(options.context, packages);
   if (isSnapshotCurrent(initialSnapshot, packages, manifestHash, !options.allowInstall)) {
     return {

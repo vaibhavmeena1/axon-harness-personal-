@@ -1,4 +1,4 @@
-"""Private, pooled HTTP client for deputydev-auth session and identity lookups."""
+"""Private, pooled HTTP client for axon-auth session and identity lookups."""
 
 from typing import Literal
 
@@ -82,7 +82,7 @@ class AuthServiceClient:
         authorization: str,
         grace_params: dict[str, str],
     ) -> AuthDataResponse:
-        """Validate a session and return auth data and response headers from deputydev-auth."""
+        """Validate a session and return auth data and response headers from axon-auth."""
         try:
             response = await self._client.get(
                 "get-auth-data",

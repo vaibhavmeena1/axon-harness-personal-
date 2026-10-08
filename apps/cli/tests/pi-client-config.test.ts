@@ -8,8 +8,8 @@ import {
   normalizeManifestPackages,
   resolveInstalledPackagePath,
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
-import { DEPUTYDEV_MANIFEST } from "../src/product/manifest.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { AXON_MANIFEST } from "../src/product/manifest.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 let root: string;
 let server: ReturnType<typeof Bun.serve>;
@@ -20,10 +20,10 @@ let codemodeEnabled: boolean | undefined = true;
 const projectRoot = resolve(import.meta.dir, "..");
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), "ddcli-pi-config-"));
-  const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+  root = await mkdtemp(join(tmpdir(), "axon-pi-config-"));
+  const paths = resolveAxonPaths({ AXON_HOME: root });
   await saveEncryptedSession(paths, "initial-token");
-  const packages = normalizeManifestPackages(DEPUTYDEV_MANIFEST);
+  const packages = normalizeManifestPackages(AXON_MANIFEST);
   for (const entry of packages) {
     const directory = resolveInstalledPackagePath(entry, paths.pi);
     await mkdir(directory, { recursive: true });
@@ -52,6 +52,19 @@ beforeAll(async () => {
           {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined ? {} : { pi: { codemodeEnabled } }),
+            webSearch: {
+              enabled: true,
+              model: "gemini-3.8-flash",
+              allowedModels: ["gemini-3.8-flash"],
+              timeoutMs: 60000,
+              maxQueryCharacters: 20000,
+              maxResultCharacters: 30000,
+              maxOutputTokens: 8192,
+              maxSources: 20,
+              temperature: 1,
+              useUrlContext: false,
+              requireGrounding: true,
+            },
             telemetry: {
               enabled: true,
               endpoint: "/api/v1/otel",
@@ -90,14 +103,14 @@ async function launchSpec(
   const script = [
     'import { createPiAdapter } from "./src/harnesses/pi/adapter.ts";',
     'import { resolveHarnessRegistration } from "./src/harnesses/registry.ts";',
-    'import { resolveDeputyDevPaths } from "./src/product/paths.ts";',
+    'import { resolveAxonPaths } from "./src/product/paths.ts";',
     'Object.defineProperty(process.stdin, "isTTY", { value: ' +
       (options.interactive !== false) +
       " });",
     'Object.defineProperty(process.stdout, "isTTY", { value: ' +
       (options.interactive !== false) +
       " });",
-    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveDeputyDevPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused" };',
+    'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused" };',
     "const adapter = createPiAdapter();",
     "const args = " +
       JSON.stringify(
@@ -116,8 +129,8 @@ async function launchSpec(
       ...process.env,
       HOME: root,
       CI: "false",
-      DEPUTYDEV_HOME: root,
-      DEPUTYDEV_SERVICE_ORIGIN: server.url.origin,
+      AXON_HOME: root,
+      AXON_SERVICE_ORIGIN: server.url.origin,
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://env.example.test",
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://env.example.test/v1/traces",
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
@@ -157,25 +170,33 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["PI_ORG_OTEL_MANAGED_HOME"]).toBe(root);
     expect(environment["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]).toBeUndefined();
     expect(environment["OTEL_EXPORTER_OTLP_HEADERS"]).toBeUndefined();
-    const capability = environment["PI_DEPUTYDEV_AUTH_RELAY_KEY"];
+    const capability = environment["PI_AXON_AUTH_RELAY_KEY"];
     expect(capability).toBeString();
     expect(capability).not.toBe("rotated-token");
     expect(environment["LITELLM_API_KEY"]).toBe(capability);
     expect(environment["PI_MODEL_RECOMMENDER_API_KEY"]).toBe(capability);
-    const relayOrigin = environment["PI_DEPUTYDEV_AUTH_RELAY_URL"];
+    const relayOrigin = environment["PI_AXON_AUTH_RELAY_URL"];
     if (relayOrigin === undefined) throw new Error("Missing local auth relay origin");
     expect(new URL(relayOrigin).hostname).toBe("127.0.0.1");
     expect(environment["LITELLM_BASE_URL"]).toBe(`${relayOrigin}/litellm`);
+    expect(environment["PI_WEB_SEARCH_URL"]).toBe(`${relayOrigin}/litellm/v1/chat/completions`);
+    expect(environment["PI_WEB_SEARCH_API_KEY"]).toBe(capability);
+    expect(environment["PI_WEB_SEARCH_MODEL"]).toBe("gemini-3.8-flash");
+    expect(environment["PI_WEB_SEARCH_TEMPERATURE"]).toBe("1");
+    expect(environment["PI_WEB_SEARCH_REQUIRE_GROUNDING"]).toBe("true");
+    expect(environment["PI_WEB_SEARCH_MODE"]).toBeUndefined();
+    expect(environment["PI_WEB_SEARCH_THINKING_LEVEL"]).toBeUndefined();
+    expect(environment["PI_WEB_SEARCH_SEARCH_CONTEXT_SIZE"]).toBeUndefined();
     expect(environment["PI_MODEL_RECOMMENDER_URL"]).toBe(
       `${relayOrigin}/api/v1/model-recommendations`,
     );
-    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+    const paths = resolveAxonPaths({ AXON_HOME: root });
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
-      normalizeManifestPackages(DEPUTYDEV_MANIFEST).map((entry) => entry.configuredSource),
+      normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
     );
   });
 
@@ -209,6 +230,8 @@ describe("real Pi adapter client config integration", () => {
       }
       if (options.offline || options.disabled)
         expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
+      if (options.offline || options.searchDisabled)
+        expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe("false");
     }
   });
 
@@ -248,7 +271,7 @@ describe("real Pi adapter client config integration", () => {
     try {
       await launchSpec();
       expect(await Bun.file(settingsPath).text()).toBe(settings);
-      expect(await loadEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: root }))).toBe(
+      expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: root }))).toBe(
         "different-account-token",
       );
     } finally {
@@ -274,7 +297,7 @@ describe("real Pi adapter client config integration", () => {
         }),
       );
       const environment = await launchSpec();
-      expect(environment["PI_DEPUTYDEV_AUTH_RELAY_URL"]).not.toBe(oldRelay.url.origin);
+      expect(environment["PI_AXON_AUTH_RELAY_URL"]).not.toBe(oldRelay.url.origin);
       expect(await Bun.file(cachePath).json()).toEqual({ openrouter: otherProvider });
     } finally {
       oldRelay.stop(true);

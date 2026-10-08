@@ -378,7 +378,7 @@ export function createPiOrgTelemetry(
           for (const product of pendingProducts.splice(0)) tracker.productEvent(product);
           if (!recordedLaunch) {
             recordedLaunch = true;
-            const inheritedStart = Number(process.env["PI_DEPUTYDEV_LAUNCH_STARTED_AT"]);
+            const inheritedStart = Number(process.env["PI_AXON_LAUNCH_STARTED_AT"]);
             const start =
               Number.isFinite(inheritedStart) &&
               inheritedStart > 0 &&
@@ -396,7 +396,7 @@ export function createPiOrgTelemetry(
               category: "release",
               stage: "launch",
               outcome: "success",
-              version: process.env.PI_DEPUTYDEV_CLI_VERSION ?? "unknown",
+              version: process.env.PI_AXON_CLI_VERSION ?? "unknown",
             });
           }
           if (pendingProjectTrust) {

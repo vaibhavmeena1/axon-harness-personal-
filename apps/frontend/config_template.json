@@ -1,5 +1,5 @@
 {
-  "NAME": "deputydev-console",
+  "NAME": "axon-console",
   "env": "local",
   "port": 8010,
   "REQUEST_TIMEOUT": 10000,

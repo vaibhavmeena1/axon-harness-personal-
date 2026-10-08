@@ -3,7 +3,7 @@ import { isTrue } from "../../../launcher/debug-preview.ts";
 import { LauncherError } from "../../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../../product/identity.ts";
-import { DEPUTYDEV_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../../product/manifest.ts";
+import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../../product/manifest.ts";
 import { synchronizePiMcpConfig } from "./mcp-config.ts";
 import {
   classifyPiInvocation,
@@ -14,7 +14,7 @@ import {
 import { synchronizePiPackages } from "./packages/sync.ts";
 import { materializePiResources, type PiResourceMaterializationResult } from "./resources.ts";
 
-const DEBUG_ENVIRONMENT_VARIABLE = "DEPUTYDEV_DEBUG";
+const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 
 export interface PiSetupResult {
   readonly invocationKind: PiInvocationKind;
@@ -73,7 +73,7 @@ async function prepareRequiredResources(
     const packages = await synchronizePiPackages({
       allowInstall,
       context,
-      manifest: DEPUTYDEV_MANIFEST,
+      manifest: AXON_MANIFEST,
     });
     for (const warning of packages.warnings) {
       console.error(`${PRODUCT_IDENTITY.command}: pi package warning: ${warning}`);

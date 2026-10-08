@@ -47,7 +47,7 @@ export async function readPiPackageState(path: string): Promise<PiPackageState> 
   try {
     return piPackageStateSchema.parse(JSON.parse(await Bun.file(path).text()));
   } catch {
-    // This file contains only derived DeputyDev verification state. Rebuild a
+    // This file contains only derived Axon verification state. Rebuild a
     // corrupt regular file from settings and installed package metadata.
     return emptyPiPackageState();
   }

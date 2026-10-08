@@ -22,7 +22,7 @@ describe("protected client config", () => {
     let seenUrl = "";
     let seenOptions: RequestInit | undefined;
     const result = await fetchClientConfig("saved-token", {
-      serviceOrigin: "https://deputydev.example.test",
+      serviceOrigin: "https://axon.example.test",
       fetcher: (async (url, options) => {
         seenUrl = String(url);
         seenOptions = options;
@@ -34,7 +34,7 @@ describe("protected client config", () => {
         );
       }) as typeof fetch,
     });
-    expect(seenUrl).toBe("https://deputydev.example.test/api/v1/cli/config");
+    expect(seenUrl).toBe("https://axon.example.test/api/v1/cli/config");
     expect(new Headers(seenOptions?.headers).get("authorization")).toBe("Bearer saved-token");
     expect(seenOptions?.redirect).toBe("error");
     expect(seenOptions?.cache).toBe("no-store");
@@ -184,10 +184,10 @@ describe("Pi telemetry environment", () => {
       environment,
       createTelemetryOverrides(environment, policy, false, {
         home: "/tmp/managed",
-        serviceOrigin: "https://deputydev.example.test",
+        serviceOrigin: "https://axon.example.test",
       }),
     );
-    expect(child["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe("https://deputydev.example.test/api/v1/otel");
+    expect(child["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe("https://axon.example.test/api/v1/otel");
     expect(child["PI_ORG_OTEL_MANAGED_HOME"]).toBe("/tmp/managed");
     expect(child["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(child["OTEL_EXPORTER_OTLP_ENDPOINT"]);
     expect(child["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");

@@ -9,9 +9,9 @@ import {
   type PiInvocationEnvironment,
 } from "../src/harnesses/pi/setup/packages/invocation.ts";
 import {
-  type DeputyDevManifest,
+  type AxonManifest,
   normalizeManifestPackages,
-  parseDeputyDevManifest,
+  parseAxonManifest,
   resolveInstalledPackagePath,
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { readPiSettings } from "../src/harnesses/pi/setup/packages/settings.ts";
@@ -21,13 +21,13 @@ import { materializePiResources } from "../src/harnesses/pi/setup/resources.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import type { HarnessLaunchContext } from "../src/launcher/contracts.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
-import { DEPUTYDEV_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../src/product/manifest.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 let fixtureDirectory: string;
 
 beforeAll(async () => {
-  fixtureDirectory = await mkdtemp(join(tmpdir(), "deputydev-pi-packages-"));
+  fixtureDirectory = await mkdtemp(join(tmpdir(), "axon-pi-packages-"));
 });
 
 afterAll(async () => {
@@ -38,7 +38,7 @@ function createContext(name: string, executable: string = "/usr/bin/false"): Har
   const environment = {
     HOME: fixtureDirectory,
     PATH: Reflect.get(process.env, "PATH") as string,
-    DEPUTYDEV_HOME: join(fixtureDirectory, name),
+    AXON_HOME: join(fixtureDirectory, name),
   };
   const registration = resolveHarnessRegistration("pi");
   if (registration === undefined) {
@@ -48,7 +48,7 @@ function createContext(name: string, executable: string = "/usr/bin/false"): Har
     cwd: fixtureDirectory,
     environment,
     executable,
-    paths: resolveDeputyDevPaths(environment),
+    paths: resolveAxonPaths(environment),
     registration,
   };
 }
@@ -56,8 +56,8 @@ function createContext(name: string, executable: string = "/usr/bin/false"): Har
 function manifest(
   packages: readonly Record<string, unknown>[],
   revision: string = "test",
-): DeputyDevManifest {
-  return parseDeputyDevManifest({
+): AxonManifest {
+  return parseAxonManifest({
     schemaVersion: 1,
     revision,
     pi: { packages, resources: [] },
@@ -99,7 +99,7 @@ function floatingPackage() {
 
 async function writeNpmPackage(
   context: HarnessLaunchContext,
-  packageManifest: DeputyDevManifest,
+  packageManifest: AxonManifest,
   version: string,
 ): Promise<void> {
   const packageEntry = normalizeManifestPackages(packageManifest)[0];
@@ -137,27 +137,27 @@ const interactive: PiInvocationEnvironment = {
 
 describe("Pi package manifest", () => {
   test("declares the embedded install targets and update ownership", () => {
-    const packages = normalizeManifestPackages(DEPUTYDEV_MANIFEST);
+    const packages = normalizeManifestPackages(AXON_MANIFEST);
 
     expect(
       packages.map((entry) => ({
         id: entry.id,
         installTarget: entry.configuredSource,
-        updateOwner: entry.updates?.owner ?? "deputydev",
+        updateOwner: entry.updates?.owner ?? "axon",
         versionPolicy: entry.versionPolicy,
       })),
     ).toEqual([
       {
         id: "rpiv-ask-user-question",
         installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.12.0",
-        updateOwner: "deputydev",
+        updateOwner: "axon",
         versionPolicy: { kind: "exact", version: "2.12.0" },
       },
       {
         id: "pi-provider-litellm",
-        installTarget: "npm:pi-provider-litellm@4.1.0",
-        updateOwner: "deputydev",
-        versionPolicy: { kind: "exact", version: "4.1.0" },
+        installTarget: "npm:pi-provider-litellm@4.2.0",
+        updateOwner: "axon",
+        versionPolicy: { kind: "exact", version: "4.2.0" },
       },
     ]);
   });
@@ -202,7 +202,7 @@ describe("Pi package manifest", () => {
       [],
     );
     expect(
-      normalizeManifestPackages(DEPUTYDEV_MANIFEST).some((entry) => entry.id === "pi-mcp-adapter"),
+      normalizeManifestPackages(AXON_MANIFEST).some((entry) => entry.id === "pi-mcp-adapter"),
     ).toBe(false);
   });
 
@@ -701,7 +701,7 @@ describe("package and resource locks", () => {
     expect(first.arguments).toHaveLength(EMBEDDED_PI_RESOURCES.length * 2);
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
-      "deputydev.ts",
+      "axon.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",
       "session-backup.mjs",

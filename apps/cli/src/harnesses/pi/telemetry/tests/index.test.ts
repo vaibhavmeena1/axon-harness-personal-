@@ -487,7 +487,7 @@ test("idle and overlapping provider hooks are not invented foreground calls", as
     model: "warm",
     data: {},
   });
-  assert.ok(fixture.spans().every((span) => span.name.startsWith("deputydev.")));
+  assert.ok(fixture.spans().every((span) => span.name.startsWith("axon.")));
   await fake.emit("agent_start", {});
   await fake.emit("before_provider_request", { payload: {} });
   await fake.emit("before_provider_request", { payload: {} });

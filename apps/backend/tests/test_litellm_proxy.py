@@ -12,6 +12,8 @@ from fastapi import FastAPI, Request
 
 from app import authentication
 from app.clients.auth_service import AuthenticatedUser
+from app.clients.litellm.identity import LiteLLMIdentityClient
+from app.clients.litellm.transport import LiteLLMTransport
 from app.core import config
 from app.proxies import litellm
 
@@ -114,9 +116,11 @@ def test_proxy_uses_config_not_environment(
 
         app = FastAPI()
         settings = config.get_settings().litellm
-        app.mount("/litellm", authentication.AuthenticatedSessionMiddleware(litellm.LiteLLMProxy(settings)))
+        app.mount("/litellm", authentication.AuthenticatedSessionMiddleware(litellm.LiteLLMProxy()))
         async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as upstream_client:
-            app.state.litellm_proxy_client = upstream_client
+            transport = LiteLLMTransport(settings, client=upstream_client)
+            app.state.litellm_transport = transport
+            app.state.litellm_identity_client = LiteLLMIdentityClient(settings, transport)
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://backend.test"
             ) as client:

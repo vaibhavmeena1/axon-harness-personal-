@@ -8,7 +8,7 @@ export const HARNESS_REGISTRY = Object.freeze([
   {
     id: "pi",
     executableCandidates: ["pi"],
-    executableOverrideVariable: "DEPUTYDEV_PI_BIN",
+    executableOverrideVariable: "AXON_PI_BIN",
   },
 ] as const satisfies readonly HarnessRegistration[]);
 
