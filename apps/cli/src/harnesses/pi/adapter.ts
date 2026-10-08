@@ -16,6 +16,7 @@ import {
   resolveConfiguredPiVersion,
   resolvePiExecutable,
 } from "./installation.ts";
+import { invalidateStalePiRelayModels } from "./model-cache.ts";
 import { applyPiDefaults } from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
@@ -119,6 +120,24 @@ export function createPiAdapter(): HarnessAdapter {
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths);
+        // Startup discovery seeds fresh models, but Pi restores its cached catalog over
+        // them. Old per-launch relay URLs would then hide otherwise available models.
+        // Keep the cache intact whenever the provider will not discover replacements.
+        if (
+          encryptedSession &&
+          !setup.offline &&
+          context.environment["PI_OFFLINE"] === undefined &&
+          context.environment["LITELLM_OFFLINE"] !== "1" &&
+          Number.parseInt(context.environment["LITELLM_DISCOVERY_TIMEOUT_MS"] ?? "", 10) !== 0
+        ) {
+          try {
+            await invalidateStalePiRelayModels(context.paths, relay.origin);
+          } catch {
+            console.error(
+              `${PRODUCT_IDENTITY.command}: could not clean the managed Pi model cache; run /litellm-refresh if models are unavailable`,
+            );
+          }
+        }
         webSearchOverrides = createWebSearchOverrides(
           context.environment,
           relay,

@@ -81,6 +81,9 @@ async function launchSpec(
     disabled?: boolean;
     searchDisabled?: boolean;
     admin?: boolean;
+    providerOffline?: boolean;
+    discoveryDisabled?: boolean;
+    piOfflineEnvironment?: string;
     userArguments?: readonly string[];
   } = {},
 ) {
@@ -120,6 +123,9 @@ async function launchSpec(
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
       PI_ORG_OTEL_ENABLED: options.disabled ? "false" : "true",
       PI_WEB_SEARCH_ENABLED: options.searchDisabled ? "false" : "true",
+      PI_OFFLINE: options.piOfflineEnvironment,
+      LITELLM_OFFLINE: options.providerOffline ? "1" : undefined,
+      LITELLM_DISCOVERY_TIMEOUT_MS: options.discoveryDisabled ? "0" : undefined,
     },
     stdin: "ignore",
     stdout: "pipe",
@@ -248,6 +254,68 @@ describe("real Pi adapter client config integration", () => {
     } finally {
       mode = "valid";
       codemodeEnabled = true;
+    }
+  });
+
+  test("removes obsolete relay models before an online Pi launch", async () => {
+    const oldRelay = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
+    const cachePath = join(root, "pi", "models-store.json");
+    const otherProvider = { models: [{ id: "keep" }], checkedAt: 123 };
+    try {
+      await Bun.write(
+        cachePath,
+        JSON.stringify({
+          litellm: {
+            models: [
+              { id: "old", provider: "litellm", baseUrl: `${oldRelay.url.origin}/litellm/v1` },
+            ],
+          },
+          openrouter: otherProvider,
+        }),
+      );
+      const environment = await launchSpec();
+      expect(environment["PI_DEPUTYDEV_AUTH_RELAY_URL"]).not.toBe(oldRelay.url.origin);
+      expect(await Bun.file(cachePath).json()).toEqual({ openrouter: otherProvider });
+    } finally {
+      oldRelay.stop(true);
+      await rm(cachePath, { force: true });
+    }
+  });
+
+  test("offline, administrative, and discovery-disabled launches leave the model cache unchanged", async () => {
+    const cachePath = join(root, "pi", "models-store.json");
+    const content = JSON.stringify({
+      litellm: {
+        models: [{ id: "old", provider: "litellm", baseUrl: "http://127.0.0.1:54320/litellm/v1" }],
+      },
+    });
+    try {
+      for (const options of [
+        { offline: true },
+        { admin: true },
+        { providerOffline: true },
+        { discoveryDisabled: true },
+        // The provider treats any PI_OFFLINE presence as disabling startup discovery.
+        { piOfflineEnvironment: "false" },
+      ]) {
+        await Bun.write(cachePath, content);
+        await launchSpec(options);
+        expect(await Bun.file(cachePath).text()).toBe(content);
+      }
+    } finally {
+      await rm(cachePath, { force: true });
+    }
+  });
+
+  test("unsafe model cache is left untouched and does not block Pi startup", async () => {
+    const cachePath = join(root, "pi", "models-store.json");
+    try {
+      await Bun.write(cachePath, "{malformed");
+      const environment = await launchSpec();
+      expect(environment["LITELLM_BASE_URL"]).toContain("/litellm");
+      expect(await Bun.file(cachePath).text()).toBe("{malformed");
+    } finally {
+      await rm(cachePath, { force: true });
     }
   });
 });

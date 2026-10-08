@@ -1,6 +1,6 @@
 # Telemetry schema
 
-Schema version: 4 (GenAI development conventions, pinned Pi 1.0.4 lifecycle attribution).
+Schema version: 4 (GenAI development conventions, pinned Pi 1.1.0 lifecycle attribution).
 
 This schema adopts the supplied development conventions; their names are not a promise of stable upstream semantics.
 

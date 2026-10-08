@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readdir, rm } from "node:fs/promises";
+import { lstat, readdir, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { Readable } from "node:stream";
 import { z } from "zod";
@@ -24,12 +24,25 @@ import {
   sessionSchema,
   snapshotSchema,
 } from "./contracts.ts";
-import { atomicJson, fileIntegrity, privateDirectory, readJson } from "./files.ts";
+import { assertInside, atomicJson, fileIntegrity, privateDirectory, readJson } from "./files.ts";
 import { capturePiSession } from "./pi-jsonl.ts";
+import { recoverQueuedDisplayName } from "./queue-metadata.ts";
 
 export const BACKUP_PRIVACY_NOTICE =
   "Session names are stored separately as private listing metadata. Session backups include the complete transcript: source code, pasted secrets, terminal output, prompts, tool arguments/results, thinking and embedded images. They do not back up your checkout or external files. Only the latest committed checkpoint is recoverable. Pending-only snapshots can be lost with this machine. Previously issued signed URLs remain valid for up to five minutes after deletion.";
+export class BackupLocalSettingsError extends Error {
+  constructor() {
+    super(
+      "Local backup settings are invalid, unsafe or unreadable; existing snapshots were retained",
+    );
+  }
+}
+
+const QUEUE_PAUSED =
+  "Backup paused: local queue is incompatible, corrupt, unsafe or busy; files retained. Run /deputydev-backups status";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 const settingsSchema = z.strictObject({
   enabled: z.boolean(),
   owner: z.string().regex(/^[1-9][0-9]*$/),
@@ -97,9 +110,59 @@ export class SessionBackups {
   }
 
   async settings() {
-    await this.initialize();
-    const raw = await readJson(join(this.root, "settings.json"));
-    return raw === undefined ? undefined : settingsSchema.parse(raw);
+    try {
+      await this.initialize();
+      const raw = await readJson(join(this.root, "settings.json"));
+      return raw === undefined ? undefined : settingsSchema.parse(raw);
+    } catch {
+      throw new BackupLocalSettingsError();
+    }
+  }
+
+  /** Caller holds sync.lock; only an unsubmitted next snapshot may change declarations. */
+  private async readStreamState(
+    directory: string,
+    owner: string,
+  ): Promise<StreamState | undefined> {
+    const path = join(directory, "state.json");
+    const saved = await readJson(path);
+    if (saved === undefined) return undefined;
+    await assertInside(this.root, path);
+    const current = streamSchema.safeParse(saved);
+    if (current.success) {
+      this.assertScope(current.data, owner);
+      return current.data;
+    }
+    if (
+      !isObject(saved) ||
+      !isObject(saved["next"]) ||
+      !isObject(saved["next"]["snapshot"]) ||
+      Object.hasOwn(saved["next"]["snapshot"], "display_name") ||
+      Object.hasOwn(saved["next"], "expectedToken")
+    ) {
+      throw new Error("Incompatible local backup queue");
+    }
+    // Validate every other field first, including any pending request. Never rewrite a
+    // pending declaration: it may already have reached the server under its request ID.
+    const state = streamSchema.parse({
+      ...saved,
+      next: { ...saved["next"], snapshot: { ...saved["next"]["snapshot"], display_name: null } },
+    });
+    this.assertScope(state, owner);
+    const next = state.next;
+    if (!next) throw new Error("Missing queued snapshot");
+    try {
+      next.snapshot.display_name = await recoverQueuedDisplayName(
+        directory,
+        next.file,
+        next.snapshot,
+        state.nativeId,
+      );
+      await atomicJson(path, state);
+    } catch {
+      throw new Error("Could not safely repair local backup metadata");
+    }
+    return state;
   }
 
   async enable(): Promise<void> {
@@ -128,7 +191,7 @@ export class SessionBackups {
     });
   }
 
-  async retry(): Promise<void> {
+  async retry(): Promise<number> {
     const settings = await this.settings();
     if (
       !settings?.enabled ||
@@ -138,23 +201,28 @@ export class SessionBackups {
       throw new Error("Verify the original backup account before retrying");
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
+    let skipped = 0;
     for (const entry of await readdir(scope, { withFileTypes: true })) {
       if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
       const directory = join(scope, entry.name);
-      await withFileLock(
-        join(directory, "sync.lock"),
-        async () => {
-          const path = join(directory, "state.json");
-          const saved = await readJson(path);
-          if (!saved) return;
-          const state = streamSchema.parse(saved);
-          this.assertScope(state, settings.owner);
-          delete state.error;
-          await atomicJson(path, state);
-        },
-        { timeoutMs: 100 },
-      );
+      try {
+        await assertInside(this.root, join(directory, "state.json"));
+        await withFileLock(
+          join(directory, "sync.lock"),
+          async () => {
+            const state = await this.readStreamState(directory, settings.owner);
+            if (!state) return;
+            delete state.error;
+            await atomicJson(join(directory, "state.json"), state);
+          },
+          { timeoutMs: 100 },
+        );
+      } catch (error) {
+        // Unrecoverable streams remain untouched/paused; do not prevent healthy retries.
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) skipped++;
+      }
     }
+    return skipped;
   }
 
   async recordLeaf(source: string | undefined, nativeId: string, resume: PiResume): Promise<void> {
@@ -240,18 +308,20 @@ export class SessionBackups {
         join(directory, "sync.lock"),
         async () => {
           const path = join(directory, "state.json");
-          const saved = await readJson(path);
-          const state: StreamState =
-            saved === undefined
-              ? {
-                  clientKey: crypto.randomUUID(),
-                  deviceId: await this.device(),
-                  nativeId,
-                  owner: settings.owner,
-                  origin: settings.origin,
-                }
-              : streamSchema.parse(saved);
-          this.assertScope(state, settings.owner);
+          let saved: StreamState | undefined;
+          try {
+            saved = await this.readStreamState(directory, settings.owner);
+          } catch {
+            this.observed({ stage: "capture", outcome: "failed", reason: "validation" });
+            return QUEUE_PAUSED;
+          }
+          const state: StreamState = saved ?? {
+            clientKey: crypto.randomUUID(),
+            deviceId: await this.device(),
+            nativeId,
+            owner: settings.owner,
+            origin: settings.origin,
+          };
           let capture: Awaited<ReturnType<typeof capturePiSession>>;
           const captureStartedAt = Date.now();
           try {
@@ -526,13 +596,12 @@ export class SessionBackups {
       if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
       const directory = join(scope, entry.name);
       try {
+        await assertInside(this.root, join(directory, "state.json"));
         await withFileLock(
           join(directory, "sync.lock"),
           async () => {
-            const saved = await readJson(join(directory, "state.json"));
-            if (!saved) return;
-            const state = streamSchema.parse(saved);
-            this.assertScope(state, owner);
+            const state = await this.readStreamState(directory, owner);
+            if (!state) return;
             await this.sync(directory, state, "session_start", signal);
           },
           { timeoutMs: 100 },
@@ -550,18 +619,45 @@ export class SessionBackups {
     let pending = 0;
     let paused = 0;
     let latest = "none";
+    let issues = 0;
     try {
+      const scopeInfo = await lstat(scope);
+      if (!scopeInfo.isDirectory() || scopeInfo.isSymbolicLink())
+        throw new BackupLocalSettingsError();
       for (const entry of await readdir(scope, { withFileTypes: true })) {
-        if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
-        const state = streamSchema.parse(await readJson(join(scope, entry.name, "state.json")));
-        if (state.pending || state.next) pending++;
-        if (state.error) paused++;
-        if (state.lastCommitted && (latest === "none" || state.lastCommitted > latest))
-          latest = state.lastCommitted;
+        if (!/^[a-f0-9]{64}$/.test(entry.name)) continue;
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        const directory = join(scope, entry.name);
+        try {
+          // Check parents before creating a lock, so a symlink cannot redirect writes.
+          await assertInside(this.root, join(directory, "state.json"));
+          const state = await withFileLock(
+            join(directory, "sync.lock"),
+            () => this.readStreamState(directory, settings.owner),
+            { timeoutMs: 100 },
+          );
+          if (!state) continue;
+          if (state.pending || state.next) pending++;
+          if (state.error) paused++;
+          if (state.lastCommitted && (latest === "none" || state.lastCommitted > latest))
+            latest = state.lastCommitted;
+        } catch (error) {
+          // Leaf-only directories have no queue yet. Other failures pause only that stream.
+          if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
+          paused++;
+          issues++;
+        }
       }
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+        throw new BackupLocalSettingsError();
+      }
     }
-    return `Backups enabled; last confirmed: ${latest}; pending streams: ${pending}; paused: ${paused}`;
+    return (
+      `Backups enabled; last confirmed: ${latest}; pending streams: ${pending}; paused: ${paused}` +
+      (issues
+        ? `; local queue issues: ${issues} (incompatible, corrupt, unsafe or busy; files retained)`
+        : "")
+    );
   }
 }

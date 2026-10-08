@@ -1,9 +1,27 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resolveDeputyDevPaths } from "../../../product/paths.ts";
-import { BackupApi } from "../../../sessions/api.ts";
-import { BACKUP_PRIVACY_NOTICE, SessionBackups } from "../../../sessions/backup.ts";
+import { BackupApi, BackupApiError } from "../../../sessions/api.ts";
+import {
+  BACKUP_PRIVACY_NOTICE,
+  BackupLocalSettingsError,
+  SessionBackups,
+} from "../../../sessions/backup.ts";
 import type { CaptureReason } from "../../../sessions/contracts.ts";
 import { PRODUCT_EVENT_CHANNEL } from "../../../telemetry/product-events.ts";
+
+export function backupWarning(error: unknown): string {
+  if (error instanceof BackupLocalSettingsError) return error.message;
+  if (error instanceof BackupApiError) {
+    if (error.status === 401) return "Backup login required; sign in to DeputyDev and retry";
+    if (error.status === 403)
+      return "Backup access denied; verify the signed-in account and permissions";
+    if (error.status === 503)
+      return "Backup service is disabled or unavailable; check backend private storage configuration";
+    return `Backup service returned HTTP ${error.status}; retry later. Existing snapshots were retained`;
+  }
+  // Unknown errors can contain private names, paths or credentials; never display their text.
+  return "Backup action failed; check connectivity and retry. Existing snapshots were retained";
+}
 
 export default function sessionBackupExtension(pi: ExtensionAPI): void {
   const origin = process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
@@ -97,15 +115,14 @@ export default function sessionBackupExtension(pi: ExtensionAPI): void {
         else if (args.trim() === "retry") await backups.retry();
         lastStatus = await backups.status();
         if (ctx.hasUI) {
-          ctx.ui.notify(lastStatus, "info");
+          ctx.ui.notify(
+            lastStatus,
+            lastStatus.includes("local queue issues:") ? "warning" : "info",
+          );
           ctx.ui.setStatus("deputydev-backup", lastStatus);
         }
-      } catch {
-        if (ctx.hasUI)
-          ctx.ui.notify(
-            "Backup settings unavailable; check login and private storage configuration",
-            "warning",
-          );
+      } catch (error) {
+        if (ctx.hasUI) ctx.ui.notify(backupWarning(error), "warning");
       }
     },
   });

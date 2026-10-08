@@ -20,9 +20,12 @@ export async function runSessions(
   const backups = new SessionBackups(paths, api);
   try {
     if (operation === "retry") {
-      await backups.retry();
+      const skipped = await backups.retry();
       console.log(
-        "Paused snapshots re-enabled for retry at the next lifecycle boundary; remote conflicts still require a fork",
+        "Compatible snapshots re-enabled for retry at the next lifecycle boundary; remote conflicts still require a fork" +
+          (skipped
+            ? `; ${skipped} local streams could not be repaired and remain paused (files retained)`
+            : ""),
       );
       return;
     }
