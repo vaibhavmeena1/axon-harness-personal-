@@ -12,11 +12,15 @@ import pytest
 from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
+from app.clients.s3 import S3Client
+from app.core.s3 import S3ClientSettings, S3StorageSettings, parse_s3_storage
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
 from app.models.session_backup import SessionBackup
 from app.services.sessions.adapters import ADAPTERS, Adapter, InvalidSessionError, get_adapter, records
+from app.services.sessions.bucket_policy import SessionBucketPolicy
 from app.services.sessions.contracts import MAX_RAW_BYTES, MAX_STORED_BYTES, Snapshot, normalize_display_name
-from app.services.sessions.storage import SessionObjectStore, verify_chunks
+from app.services.sessions.integrity import verify_chunks
+from app.services.sessions.storage import SessionObjectStore
 
 RESUME = {"leaf_known": True, "selected_leaf_id": "a"}
 
@@ -77,7 +81,7 @@ def payload(native: str = "opaque/native-id") -> bytes:
     return ("\n".join(json.dumps(item) for item in entries) + "\n").encode()
 
 
-def declaration(raw: bytes, stored: bytes | None = None, *, display_name: str | None = None) -> Snapshot:
+def declaration(raw: bytes, stored: bytes | None = None, *, display_name: str | None = "synthetic") -> Snapshot:
     stored = stored if stored is not None else raw
     return Snapshot(
         display_name=display_name,
@@ -104,10 +108,10 @@ def named_payload(names: list[str]) -> bytes:
 @pytest.mark.parametrize(
     ("names", "expected"),
     [
-        ([], None),
+        ([], "synthetic"),
         (["Original", "Renamed"], "Renamed"),
-        (["Original", ""], None),
-        ([" \t\n\u00a0\ufeff"], None),
+        (["Original", ""], "synthetic"),
+        ([" \t\n\u00a0\ufeff"], "synthetic"),
         (["  fix\nlogin\tflow\u2028now\x1b  "], "fix login flow now"),
         (["😀" * 257], "😀" * 256),
         (["x" * 255 + " \nignored"], "x" * 255),
@@ -119,8 +123,71 @@ def test_latest_native_name_is_bounded_without_changing_archive(names: list[str]
     assert get_adapter("pi", "pi-jsonl", "3").validate(io.BytesIO(raw), None, RESUME) == expected
     assert raw == named_payload(names)
     if names:
-        assert normalize_display_name(names[-1]) == expected
+        assert (normalize_display_name(names[-1]) or "synthetic") == expected
     assert declaration(raw, display_name=expected).display_name == expected
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ("  Fix\nlogin\tflow  ", "Fix login flow"),
+        (
+            [
+                {"type": "text", "text": "Fix"},
+                {"type": "image", "data": "synthetic"},
+                {"type": "text", "text": "login flow"},
+            ],
+            "Fix login flow",
+        ),
+        ([{"type": "image", "data": "synthetic"}], None),
+        ([None, {"type": "text", "text": 123}, {"type": "image", "text": "ignore"}], None),
+        (" \t\n\ufeff", None),
+        ("😀" * 257, "😀" * 256),
+    ],
+)
+def test_first_user_message_fallback_is_bounded_and_stable(content: str | list, expected: str | None) -> None:
+    entries = [
+        {"type": "session", "version": 3, "id": "native", "timestamp": "t", "cwd": "/synthetic"},
+        *[
+            {
+                "type": "message",
+                "id": f"skip-{i}",
+                "parentId": None,
+                "timestamp": "t",
+                "message": {"role": role, "content": [{"type": "text", "text": "Not the title"}]},
+            }
+            for i, role in enumerate(["system", "assistant", "toolResult"])
+        ],
+        {
+            "type": "message",
+            "id": "a",
+            "parentId": None,
+            "timestamp": "t",
+            "message": {"role": "user", "content": content},
+        },
+    ]
+    raw = ("\n".join(json.dumps(entry) for entry in entries) + "\n").encode()
+    adapter = get_adapter("pi", "pi-jsonl", "3")
+    assert adapter.validate(io.BytesIO(raw), "native", RESUME) == expected
+    later = [
+        {
+            "type": "context_edit",
+            "id": "edit",
+            "parentId": "a",
+            "timestamp": "t",
+            "targetId": "a",
+            "replacement": {"content": "Changed context"},
+        },
+        {
+            "type": "message",
+            "id": "branch",
+            "parentId": None,
+            "timestamp": "t",
+            "message": {"role": "user", "content": "Later prompt"},
+        },
+    ]
+    extended = raw + ("\n".join(json.dumps(entry) for entry in later) + "\n").encode()
+    assert adapter.validate(io.BytesIO(extended), "native", RESUME) == (expected or "Later prompt")
 
 
 def test_display_name_is_required_even_when_null() -> None:
@@ -132,18 +199,17 @@ def test_display_name_is_required_even_when_null() -> None:
 
 @pytest.mark.parametrize("declared", [None, "Forged"])
 def test_object_validation_rejects_name_not_matching_archive(declared: str | None) -> None:
-    store = SessionObjectStore(
-        SessionStorageSettings("private-test", "ap-south-1", access_key_id="test", secret_access_key="test")
-    )
+    settings = SessionStorageSettings(S3StorageSettings("private-test", S3ClientSettings("ap-south-1")))
+    client = Mock()
+    store = SessionObjectStore(settings, S3Client(settings.s3.client, client=client))
     raw = named_payload(["Committed title"])
-    store.client = Mock()
     body = io.BytesIO(raw)
-    store.client.get_object.return_value = {"ContentLength": len(raw), "Body": body}
+    client.get_object.return_value = {"ContentLength": len(raw), "Body": body}
     with pytest.raises(InvalidSessionError, match="Display name does not match"):
         store.validate("synthetic", declaration(raw, display_name=declared), get_adapter("pi", "pi-jsonl", "3"), None)
     assert body.closed
     body = io.BytesIO(raw)
-    store.client.get_object.return_value = {"ContentLength": len(raw), "Body": body}
+    client.get_object.return_value = {"ContentLength": len(raw), "Body": body}
     store.validate(
         "synthetic", declaration(raw, display_name="Committed title"), get_adapter("pi", "pi-jsonl", "3"), None
     )
@@ -259,38 +325,43 @@ def test_config_is_separate_optional_and_secret_repr() -> None:
     assert parse_session_storage({}) is None
     assert parse_session_storage({"SESSION_BACKUPS": {"ENABLED": False}}) is None
     with pytest.raises(ValueError):
-        parse_session_storage({"SESSION_BACKUPS": {"ENABLED": True, "AWS_BUCKET_NAME": "bad"}})
+        parse_session_storage({"SESSION_BACKUPS": {"ENABLED": True, "S3": {"BUCKET": "bad"}}})
     settings = SessionStorageSettings(
-        "private-test", "ap-south-1", access_key_id="secret-id", secret_access_key="secret-value"
+        S3StorageSettings(
+            "private-test", S3ClientSettings("ap-south-1", access_key_id="secret-id", secret_access_key="secret-value")
+        )
     )
     assert "secret" not in repr(settings)
 
 
 @pytest.mark.parametrize("require_policy", [True, False])
 def test_presign_required_conditional_headers_and_checksum(require_policy: bool) -> None:
-    store = SessionObjectStore(
-        SessionStorageSettings(
-            "private-test",
-            "ap-south-1",
-            access_key_id="test",
-            secret_access_key="test",
-            require_create_only_policy=require_policy,
-        )
+    settings = SessionStorageSettings(
+        parse_s3_storage(
+            {
+                "BUCKET": "private-test",
+                "REGION": "ap-south-1",
+                "CREDENTIALS": {"ACCESS_KEY_ID": "test", "SECRET_ACCESS_KEY": "test"},
+            },
+            "S3",
+        ),
+        require_create_only_policy=require_policy,
     )
-    snapshot = declaration(payload())
-    result = store.put_url(f"deputydev/sessions/{uuid4()}/{uuid4()}", snapshot)
-    assert result["headers"]["If-None-Match"] == "*"
-    assert "if-none-match" in result["url"]
-    assert "x-amz-checksum-sha256" in result["url"]
-    assert "content-length" in result["url"]
+    with S3Client(settings.s3.client) as s3:
+        store = SessionObjectStore(settings, s3)
+        snapshot = declaration(payload())
+        result = store.put_url(f"axon/sessions/{uuid4()}/{uuid4()}", snapshot)
+        assert result["headers"]["If-None-Match"] == "*"
+        assert "if-none-match" in result["url"]
+        assert "x-amz-checksum-sha256" in result["url"]
+        assert "content-length" in result["url"]
 
 
 def test_policy_check_fails_closed() -> None:
     from types import SimpleNamespace
 
-    settings = SessionStorageSettings("private-test", "ap-south-1", access_key_id="test", secret_access_key="test")
-    store = SessionObjectStore(settings)
-    resource = f"arn:aws:s3:::{settings.bucket}/{settings.key_prefix}*"
+    settings = SessionStorageSettings(S3StorageSettings("private-test", S3ClientSettings("ap-south-1")))
+    resource = f"arn:aws:s3:::{settings.s3.bucket}/{settings.key_prefix}*"
     statements = [
         {"Effect": "Deny", "Principal": "*", "Action": "s3:PutObject", "Resource": resource, "Condition": condition}
         for condition in [
@@ -298,7 +369,7 @@ def test_policy_check_fails_closed() -> None:
             {"StringNotEquals": {"s3:if-none-match": "*"}},
         ]
     ]
-    store.client = SimpleNamespace(
+    client = SimpleNamespace(
         get_public_access_block=lambda **_: {
             "PublicAccessBlockConfiguration": dict.fromkeys(
                 [
@@ -314,20 +385,21 @@ def test_policy_check_fails_closed() -> None:
         get_bucket_versioning=lambda **_: {},
         get_bucket_lifecycle_configuration=lambda **_: {"Rules": []},
     )
-    store.assert_private_create_only()
+    policy = SessionBucketPolicy(settings, client)
+    policy.assert_private_create_only()
     statements.pop()
     with pytest.raises(RuntimeError):
-        store.assert_private_create_only()
-    store.client.get_bucket_policy = Mock(
+        policy.assert_private_create_only()
+    client.get_bucket_policy = Mock(
         side_effect=ClientError({"Error": {"Code": "NoSuchBucketPolicy"}}, "GetBucketPolicy")
     )
     with pytest.raises(ClientError):
-        store.assert_private_create_only()
+        policy.assert_private_create_only()
 
 
 @pytest.mark.parametrize("value", ["absent", True, False])
 def test_config_create_only_policy_toggle(value: str | bool) -> None:
-    config = {"ENABLED": True, "AWS_BUCKET_NAME": "private-test", "AWS_REGION": "ap-south-1"}
+    config = {"ENABLED": True, "S3": {"BUCKET": "private-test", "REGION": "ap-south-1"}}
     if value != "absent":
         config["REQUIRE_CREATE_ONLY_POLICY"] = value
     settings = parse_session_storage({"SESSION_BACKUPS": config})
@@ -342,31 +414,22 @@ def test_config_rejects_non_boolean_policy_toggle(value: object) -> None:
             {
                 "SESSION_BACKUPS": {
                     "ENABLED": True,
-                    "AWS_BUCKET_NAME": "private-test",
-                    "AWS_REGION": "ap-south-1",
+                    "S3": {"BUCKET": "private-test", "REGION": "ap-south-1"},
                     "REQUIRE_CREATE_ONLY_POLICY": value,
-                }
+                },
             }
         )
 
 
 @pytest.mark.parametrize("failure", [None, "public", "Enabled", "Suspended", "expiry"])
 def test_disabled_policy_check_preserves_other_storage_guards(failure: str | None) -> None:
-    store = SessionObjectStore(
-        SessionStorageSettings(
-            "private-test",
-            "ap-south-1",
-            access_key_id="test",
-            secret_access_key="test",
-            require_create_only_policy=False,
-        )
+    settings = SessionStorageSettings(
+        S3StorageSettings("private-test", S3ClientSettings("ap-south-1")), require_create_only_policy=False
     )
     client = Mock()
     client.get_bucket_versioning.return_value = {"Status": failure} if failure in {"Enabled", "Suspended"} else {}
     client.get_bucket_lifecycle_configuration.return_value = {
-        "Rules": [{"Status": "Enabled", "Prefix": "deputydev/", "Expiration": {"Days": 1}}]
-        if failure == "expiry"
-        else []
+        "Rules": [{"Status": "Enabled", "Prefix": "axon/", "Expiration": {"Days": 1}}] if failure == "expiry" else []
     }
     client.get_public_access_block.return_value = {
         "PublicAccessBlockConfiguration": dict.fromkeys(
@@ -375,10 +438,10 @@ def test_disabled_policy_check_preserves_other_storage_guards(failure: str | Non
         )
     }
     client.get_bucket_policy.side_effect = AssertionError("Policy must not be queried when disabled")
-    store.client = client
+    policy = SessionBucketPolicy(settings, client)
     if failure is None:
-        store.assert_private_create_only()
+        policy.assert_private_create_only()
     else:
         with pytest.raises(RuntimeError):
-            store.assert_private_create_only()
+            policy.assert_private_create_only()
     client.get_bucket_policy.assert_not_called()

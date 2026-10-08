@@ -46,7 +46,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     app = FastAPI()
     app.include_router(router)
     web_search = WebSearchSettings()
-    public_search = web_search.cli_config().model_dump(by_alias=True, mode="json")
+    public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
         cli_pi=CliPiConfig.model_validate({"codemodeEnabled": True}),

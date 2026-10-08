@@ -3,14 +3,14 @@
 set -eu
 set -f
 
-PROGRAM=ddcli
+PROGRAM=axon
 TARGET=darwin-arm64
-ARCHIVE_NAME=ddcli-darwin-arm64.gz
-BINARY_ASSET_NAME=ddcli-darwin-arm64
+ARCHIVE_NAME=axon-darwin-arm64.gz
+BINARY_ASSET_NAME=axon-darwin-arm64
 # The backend substitutes this default when serving /install.sh.
-# When running this source file directly, set _DDCLI_RELEASES_URL to your backend's HTTPS release endpoint.
+# When running this source file directly, set _AXON_RELEASES_URL to your backend's HTTPS release endpoint.
 DEFAULT_RELEASES_URL='https://YOUR_ORIGIN/api/v1/cli/releases'
-RELEASES_URL=${_DDCLI_RELEASES_URL:-$DEFAULT_RELEASES_URL}
+RELEASES_URL=${_AXON_RELEASES_URL:-$DEFAULT_RELEASES_URL}
 
 VERSION_FILE=
 CHECKSUMS_FILE=
@@ -142,10 +142,10 @@ case "$RELEASES_URL" in
 esac
 
 : "${HOME:?HOME must be set}"
-MANAGED_HOME=${DEPUTYDEV_HOME:-"$HOME/.deputydev"}
+MANAGED_HOME=${AXON_HOME:-"$HOME/.axon"}
 case "$MANAGED_HOME" in
   /*) ;;
-  *) die "DEPUTYDEV_HOME must be an absolute path" ;;
+  *) die "AXON_HOME must be an absolute path" ;;
 esac
 
 BIN_DIR=$MANAGED_HOME/bin
@@ -156,12 +156,12 @@ umask 077
 mkdir -p "$MANAGED_HOME" "$BIN_DIR"
 chmod 700 "$MANAGED_HOME" "$BIN_DIR"
 
-VERSION_FILE=$(mktemp "$BIN_DIR/.ddcli-version.XXXXXX")
-CHECKSUMS_FILE=$(mktemp "$BIN_DIR/.ddcli-checksums.XXXXXX")
-ARCHIVE_FILE=$(mktemp "$BIN_DIR/.ddcli-archive.XXXXXX")
-STAGED_BINARY=$(mktemp "$BIN_DIR/.ddcli-install.XXXXXX")
+VERSION_FILE=$(mktemp "$BIN_DIR/.axon-version.XXXXXX")
+CHECKSUMS_FILE=$(mktemp "$BIN_DIR/.axon-checksums.XXXXXX")
+ARCHIVE_FILE=$(mktemp "$BIN_DIR/.axon-archive.XXXXXX")
+STAGED_BINARY=$(mktemp "$BIN_DIR/.axon-install.XXXXXX")
 
-say "Resolving the latest ddcli release..."
+say "Resolving the latest axon release..."
 download "$RELEASES_URL/latest/VERSION" "$VERSION_FILE" || die "could not download the latest VERSION asset"
 
 VERSION=
@@ -178,7 +178,7 @@ printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_PATTERN" || die "VERSION is not can
 
 # Pin all remaining requests to the version resolved above, never to mutable latest.
 EXACT_RELEASE_URL=$RELEASES_URL/$VERSION
-say "Downloading ddcli $VERSION for $TARGET..."
+say "Downloading axon $VERSION for $TARGET..."
 download "$EXACT_RELEASE_URL/checksums.txt" "$CHECKSUMS_FILE" || die "could not download checksums.txt for $VERSION"
 download "$EXACT_RELEASE_URL/$ARCHIVE_NAME" "$ARCHIVE_FILE" || die "could not download $ARCHIVE_NAME for $VERSION"
 
@@ -206,16 +206,16 @@ fi
 
 if [ -e "$BINARY" ]; then
   [ -f "$BINARY" ] || die "existing managed path is not a regular file: $BINARY"
-  BACKUP_TEMP=$(mktemp "$BIN_DIR/.ddcli-backup.XXXXXX")
+  BACKUP_TEMP=$(mktemp "$BIN_DIR/.axon-backup.XXXXXX")
   cp -p "$BINARY" "$BACKUP_TEMP" || die "could not preserve the existing installation"
   mv -f "$BACKUP_TEMP" "$PREVIOUS_BINARY" || die "could not activate the installation backup"
   BACKUP_TEMP=
 fi
 
-mv -f "$STAGED_BINARY" "$BINARY" || die "could not atomically activate ddcli"
+mv -f "$STAGED_BINARY" "$BINARY" || die "could not atomically activate axon"
 STAGED_BINARY=
 
-say "Installed ddcli $VERSION at $BINARY"
+say "Installed axon $VERSION at $BINARY"
 [ ! -e "$PREVIOUS_BINARY" ] || say "Previous installation preserved at $PREVIOUS_BINARY"
 
 case ":${PATH:-}:" in
@@ -237,11 +237,11 @@ fi
 if command -v pi >/dev/null 2>&1; then
   say "Detected Pi: $(command -v pi)"
 else
-  say "Pi is not bundled; ddcli pi will install its pinned Pi release on first use."
+  say "Pi is not bundled; axon pi will install its pinned Pi release on first use."
 fi
 
 if [ "$PATH_HAS_MANAGED_BIN" -eq 1 ]; then
-  say "Next, run: ddcli doctor"
+  say "Next, run: axon doctor"
 else
-  say "After updating PATH, run: ddcli doctor"
+  say "After updating PATH, run: axon doctor"
 fi

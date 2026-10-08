@@ -1,5 +1,6 @@
 """API guards, non-reflective metadata errors and private cache behavior."""
 
+from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -7,12 +8,17 @@ from fastapi.testclient import TestClient
 
 from app.authentication import require_authenticated_user
 from app.clients.auth_service import AuthData
-from app.routers.sessions import _upload_rates, router, service
+from app.core.config import get_settings
+from app.routers.sessions import _upload_rates, router
+from app.services.storage_dependencies import get_backup_service
 
 
 class RouteService:
     def __init__(self) -> None:
         self.owner = None
+
+    async def ready(self) -> None:
+        pass
 
     async def register(self, owner: int, declaration: object) -> dict:
         self.owner = owner
@@ -26,7 +32,9 @@ def client(authenticated: bool = True) -> tuple[TestClient, RouteService]:
     app = FastAPI()
     app.include_router(router)
     fake = RouteService()
-    app.dependency_overrides[service] = lambda: fake
+    app.state.backup_service = fake
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(session_backups=object())
+    app.dependency_overrides[get_backup_service] = lambda: fake
     if authenticated:
         app.dependency_overrides[require_authenticated_user] = lambda: AuthData(user_team_id=123)
     _upload_rates.clear()
@@ -55,6 +63,22 @@ def test_all_routes_require_authentication() -> None:
         response = api.request(method, "/api/v1/sessions" + path, json=body)
         assert response.status_code == 401
         assert response.headers["cache-control"] == "no-store"
+
+
+def test_status_advertises_administrator_policy_and_verified_owner() -> None:
+    api, _ = client()
+    response = api.get("/api/v1/sessions/status")
+    assert response.status_code == 200
+    assert response.json()["enabled"] is True
+    assert response.json()["owner_user_team_id"] == "123"
+    api.app.dependency_overrides[get_settings] = lambda: SimpleNamespace(session_backups=None)
+    response = api.get("/api/v1/sessions/status")
+    assert response.status_code == 200
+    assert response.json() == {"enabled": False, "owner_user_team_id": "123"}
+    assert response.headers["cache-control"] == "no-store"
+    # Unlike policy discovery, data operations remain unavailable when disabled.
+    api.app.dependency_overrides.pop(get_backup_service)
+    assert api.post("/api/v1/sessions", json=registration()).status_code == 503
 
 
 def test_verified_owner_not_caller_fields_and_no_error_reflection() -> None:

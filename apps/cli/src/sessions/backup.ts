@@ -7,7 +7,7 @@ import { z } from "zod";
 import { loadEncryptedSession } from "../cli/auth/session.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { SERVICE_ENDPOINTS } from "../product/endpoints.ts";
-import type { DeputyDevPaths } from "../product/paths.ts";
+import type { AxonPaths } from "../product/paths.ts";
 import {
   emitProductEvent,
   observeProductEvent,
@@ -29,7 +29,7 @@ import { capturePiSession } from "./pi-jsonl.ts";
 import { recoverQueuedDisplayName } from "./queue-metadata.ts";
 
 export const BACKUP_PRIVACY_NOTICE =
-  "Session names are stored separately as private listing metadata. Session backups include the complete transcript: source code, pasted secrets, terminal output, prompts, tool arguments/results, thinking and embedded images. They do not back up your checkout or external files. Only the latest committed checkpoint is recoverable. Pending-only snapshots can be lost with this machine. Previously issued signed URLs remain valid for up to five minutes after deletion.";
+  "Session names or first-message excerpts are stored separately as private listing metadata. Session backups include the complete transcript: source code, pasted secrets, terminal output, prompts, tool arguments/results, thinking and embedded images. They do not back up your checkout or external files. Only the latest committed checkpoint is recoverable. Pending-only snapshots can be lost with this machine. Previously issued signed URLs remain valid for up to five minutes after deletion.";
 export class BackupLocalSettingsError extends Error {
   constructor() {
     super(
@@ -38,13 +38,19 @@ export class BackupLocalSettingsError extends Error {
   }
 }
 
+export class BackupPolicyError extends Error {
+  constructor(reason: "account changed" | "backend origin changed") {
+    super(`Backup paused: ${reason}`);
+  }
+}
+
 const QUEUE_PAUSED =
-  "Backup paused: local queue is incompatible, corrupt, unsafe or busy; files retained. Run /deputydev-backups status";
+  "Backup paused: local queue is incompatible, corrupt, unsafe or busy; files retained. Run /axon-backups status";
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 const isObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
-const settingsSchema = z.strictObject({
-  enabled: z.boolean(),
+// Local state binds queues to an account; it cannot enable or disable backups.
+const settingsSchema = z.object({
   owner: z.string().regex(/^[1-9][0-9]*$/),
   origin: z.string(),
   credentialHash: z.string().length(64),
@@ -93,7 +99,7 @@ function contentKey(snapshot: Snapshot): string {
 export class SessionBackups {
   readonly root: string;
   constructor(
-    readonly paths: DeputyDevPaths,
+    readonly paths: AxonPaths,
     readonly api: BackupApi,
     private readonly observer: ProductEventObserver = emitProductEvent,
   ) {
@@ -165,24 +171,33 @@ export class SessionBackups {
     return state;
   }
 
-  async enable(): Promise<void> {
-    const owner = await this.api.owner();
+  async prepare(signal?: AbortSignal) {
+    const policy = await this.api.policy(signal);
+    if (!policy.enabled) return undefined;
     await this.initialize();
-    await withFileLock(join(this.root, "settings.lock"), () =>
-      atomicJson(join(this.root, "settings.json"), {
-        enabled: true,
-        owner,
+    return withFileLock(join(this.root, "settings.lock"), async () => {
+      const existing = await this.settings();
+      if (existing) {
+        if (existing.origin !== this.api.origin)
+          throw new BackupPolicyError("backend origin changed");
+        if (existing.owner !== policy.owner_user_team_id)
+          throw new BackupPolicyError("account changed");
+        return existing; // Never move a queue to another account/origin.
+      }
+      const binding = {
+        owner: policy.owner_user_team_id,
         origin: this.api.origin,
         credentialHash: this.api.credentialFingerprint(),
-      }),
-    );
-    this.observed({ stage: "consent", outcome: "success", reason: "consent" });
+      };
+      await atomicJson(join(this.root, "settings.json"), binding);
+      return binding;
+    });
   }
 
   private async rememberCredential(owner: string): Promise<void> {
     await withFileLock(join(this.root, "settings.lock"), async () => {
       const settings = await this.settings();
-      if (settings?.enabled && settings.owner === owner && settings.origin === this.api.origin) {
+      if (settings && settings.owner === owner && settings.origin === this.api.origin) {
         await atomicJson(join(this.root, "settings.json"), {
           ...settings,
           credentialHash: this.api.credentialFingerprint(),
@@ -192,12 +207,8 @@ export class SessionBackups {
   }
 
   async retry(): Promise<number> {
-    const settings = await this.settings();
-    if (
-      !settings?.enabled ||
-      settings.origin !== this.api.origin ||
-      (await this.api.owner()) !== settings.owner
-    )
+    const settings = await this.prepare();
+    if (!settings || settings.origin !== this.api.origin)
       throw new Error("Verify the original backup account before retrying");
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
@@ -230,7 +241,7 @@ export class SessionBackups {
     const token = await loadEncryptedSession(this.paths);
     if (
       !source ||
-      !settings?.enabled ||
+      !settings ||
       settings.origin !== this.api.origin ||
       !token ||
       digest(token) !== settings.credentialHash
@@ -241,16 +252,6 @@ export class SessionBackups {
     const directory = join(scope, digest(`${source}\n${nativeId}`));
     await privateDirectory(directory);
     await atomicJson(join(directory, "selected-leaf.json"), resume);
-  }
-
-  async disable(): Promise<void> {
-    await this.initialize();
-    await withFileLock(join(this.root, "settings.lock"), async () => {
-      const settings = await this.settings();
-      if (settings)
-        await atomicJson(join(this.root, "settings.json"), { ...settings, enabled: false });
-    });
-    this.observed({ stage: "consent", outcome: "skipped", reason: "disabled" });
   }
 
   private scope(owner: string): string {
@@ -276,10 +277,24 @@ export class SessionBackups {
     reason: CaptureReason,
     cancellation?: AbortSignal,
   ): Promise<string> {
-    const settings = await this.settings();
-    if (!settings?.enabled) {
-      this.observed({ stage: "capture", outcome: "skipped", reason: "disabled" });
-      return "Backups disabled (opt-in required)";
+    const deadline = AbortSignal.timeout(15_000);
+    const signal = cancellation ? AbortSignal.any([deadline, cancellation]) : deadline;
+    if (!(await loadEncryptedSession(this.paths))) {
+      this.observed({ stage: "capture", outcome: "skipped", reason: "login_required" });
+      return "Backup paused: login required";
+    }
+    let settings: z.infer<typeof settingsSchema> | undefined;
+    try {
+      settings = await this.prepare(signal);
+    } catch (error) {
+      if (error instanceof BackupLocalSettingsError) throw error;
+      if (error instanceof BackupPolicyError) return error.message;
+      this.observed({ stage: "capture", outcome: "skipped", reason: productFailureReason(error) });
+      return "Backup paused: backend policy unavailable; existing snapshots retained";
+    }
+    if (!settings) {
+      this.observed({ stage: "capture", outcome: "skipped", reason: "policy_disabled" });
+      return "Backups disabled by administrator";
     }
     if (settings.origin !== this.api.origin) {
       this.observed({ stage: "capture", outcome: "skipped", reason: "origin_changed" });
@@ -290,13 +305,9 @@ export class SessionBackups {
       this.observed({ stage: "capture", outcome: "skipped", reason: "login_required" });
       return "Backup paused: login required";
     }
-    const deadline = AbortSignal.timeout(15_000);
-    const signal = cancellation ? AbortSignal.any([deadline, cancellation]) : deadline;
-    if (digest(token) !== settings.credentialHash) {
-      if ((await this.api.owner(signal)) !== settings.owner)
-        return "Backup paused: account changed";
-      await this.rememberCredential(settings.owner);
-    }
+    // Login may change after policy verification but before local capture starts.
+    if (digest(token) !== this.api.credentialFingerprint()) return "Backup paused: account changed";
+    if (digest(token) !== settings.credentialHash) await this.rememberCredential(settings.owner);
     const scope = this.scope(settings.owner);
     await privateDirectory(scope);
     let message = "No persisted session to back up";
@@ -426,9 +437,9 @@ export class SessionBackups {
     try {
       if ((await this.api.owner(signal)) !== state.owner) return "Backup paused: account changed";
       await this.rememberCredential(state.owner);
-      const consent = await this.settings();
-      if (!consent?.enabled || consent.owner !== state.owner || consent.origin !== this.api.origin)
-        return "Backup paused: consent changed";
+      const binding = await this.settings();
+      if (!binding || binding.owner !== state.owner || binding.origin !== this.api.origin)
+        return "Backup paused: account binding changed";
       const remote = await this.register(state, signal);
       if (!state.pending) {
         if (state.token && state.token !== remote.update_token) throw new BackupApiError(409);
@@ -495,13 +506,15 @@ export class SessionBackups {
           response.upload.headers["If-None-Match"] !== "*"
         )
           throw new Error("Invalid create-only storage headers");
-        const currentConsent = await this.settings();
+        const currentBinding = await this.settings();
         if (
-          !currentConsent?.enabled ||
-          currentConsent.owner !== state.owner ||
-          currentConsent.origin !== this.api.origin
+          !currentBinding ||
+          currentBinding.owner !== state.owner ||
+          currentBinding.origin !== this.api.origin
         )
-          return "Backup paused: consent changed";
+          return "Backup paused: account binding changed";
+        // Recheck administrator policy and ownership immediately before object transfer.
+        if ((await this.api.owner(signal)) !== state.owner) return "Backup paused: account changed";
         await this.rememberCredential(state.owner);
         const credential = await loadEncryptedSession(this.paths);
         if (!credential || digest(credential) !== this.api.credentialFingerprint())
@@ -613,8 +626,9 @@ export class SessionBackups {
   }
 
   async status(): Promise<string> {
-    const settings = await this.settings();
-    if (!settings?.enabled) return "Backups disabled (opt-in required)";
+    const settings = await this.prepare();
+    if (!settings) return "Backups disabled by administrator";
+    if (settings.origin !== this.api.origin) return "Backup paused: backend origin changed";
     const scope = this.scope(settings.owner);
     let pending = 0;
     let paused = 0;

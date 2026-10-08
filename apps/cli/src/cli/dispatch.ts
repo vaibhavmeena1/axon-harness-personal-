@@ -3,7 +3,7 @@ import { resolveHarnessRegistration } from "../harnesses/registry.ts";
 import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { launchRegisteredHarness } from "../launcher/launch-harness.ts";
-import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { resolveAxonPaths } from "../product/paths.ts";
 import { runBackgroundUpdate } from "../updater/update.ts";
 import { ensureAuthenticatedSession } from "./auth/ensure-session.ts";
 import { runPiSessionPreflight } from "./auth/preflight.ts";
@@ -20,15 +20,15 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
   if (registration !== undefined) {
     if (registration.id === "pi" && harnessArguments[0] === "update") {
       throw new LauncherError(
-        "ddcli pi update is disabled: DeputyDev pins its own Pi executable",
+        "axon pi update is disabled: Axon pins its own Pi executable",
         LAUNCHER_EXIT_STATUS.usage,
         {
           remediation:
-            "Upgrade ddcli for a reviewed Pi version change; use pi directly for your separate global installation.",
+            "Upgrade axon for a reviewed Pi version change; use pi directly for your separate global installation.",
         },
       );
     }
-    const paths = resolveDeputyDevPaths();
+    const paths = resolveAxonPaths();
     const invocationKind = classifyPiInvocation(harnessArguments);
     await runPiSessionPreflight(paths, harnessArguments, process.env);
     if (
@@ -45,7 +45,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
   }
 
   // Help, updates, diagnostics, and explicit auth commands remain usable while signed out.
-  if (head === undefined && !(await ensureAuthenticatedSession(resolveDeputyDevPaths()))) {
+  if (head === undefined && !(await ensureAuthenticatedSession(resolveAxonPaths()))) {
     return;
   }
   await runLauncherProgram(argumentsVector);

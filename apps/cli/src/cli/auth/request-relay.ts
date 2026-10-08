@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 import { createSessionRecovery, type SessionRecovery } from "./session-recovery.ts";
@@ -74,14 +74,14 @@ function authorizedLocalRequest(request: Request, capability: string): boolean {
 async function forwardManagedRequest(
   request: Request,
   url: URL,
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   recovery: SessionRecovery,
 ): Promise<Response> {
   // Only the bounded request body is replayable. Successful response/SSE bodies stay streaming.
   const body =
     request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
   if (body !== undefined && body.byteLength > 10 * 1024 * 1024) {
-    return relayError(413, "DeputyDev request is too large.");
+    return relayError(413, "Axon request is too large.");
   }
   // Recommendations have their own short-lived picker. Recover on the ensuing model
   // request instead of opening a second dialog over that picker.
@@ -89,7 +89,7 @@ async function forwardManagedRequest(
   const loginRequired = (): Response =>
     relayError(
       401,
-      "Your DeputyDev session is invalid or expired. Your chat is still open. Run ddcli auth login in another terminal, then retry here.",
+      "Your Axon session is invalid or expired. Your chat is still open. Run axon auth login in another terminal, then retry here.",
     );
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -122,7 +122,7 @@ async function forwardManagedRequest(
         signal: request.signal,
       });
     } catch {
-      return relayError(502, "DeputyDev is temporarily unavailable. Check connectivity and retry.");
+      return relayError(502, "Axon is temporarily unavailable. Check connectivity and retry.");
     }
 
     const refreshedSession = upstream.headers.get("x-session-refresh-token");
@@ -145,7 +145,7 @@ async function forwardManagedRequest(
           reason: "rotation_failed",
         });
         await upstream.body?.cancel();
-        return relayError(503, "Your refreshed DeputyDev session could not be saved safely.");
+        return relayError(503, "Your refreshed Axon session could not be saved safely.");
       }
     }
     if (upstream.status === 401) {
@@ -158,18 +158,15 @@ async function forwardManagedRequest(
         if (attempt === 0 && latestSession !== undefined && latestSession !== encryptedSession) {
           continue;
         }
-        // A model-provider 401 with a valid DeputyDev session is not a reason to log in again.
+        // A model-provider 401 with a valid Axon session is not a reason to log in again.
         if ((await verifyEncryptedSession(encryptedSession)) === "VERIFIED") {
           return relayError(
             401,
-            "The model service rejected this request; your DeputyDev session is still valid.",
+            "The model service rejected this request; your Axon session is still valid.",
           );
         }
       } catch {
-        return relayError(
-          503,
-          "Could not verify your DeputyDev session. Check connectivity and retry.",
-        );
+        return relayError(503, "Could not verify your Axon session. Check connectivity and retry.");
       }
       if (attempt === 0 && (await recovery.recover(request.signal))) continue;
       return loginRequired();
@@ -187,8 +184,8 @@ async function forwardManagedRequest(
   return loginRequired();
 }
 
-/** A per-launch, capability-protected loopback transport owned by ddcli, not a provider fork. */
-export function startAuthenticatedRequestRelay(paths: DeputyDevPaths): AuthenticatedRequestRelay {
+/** A per-launch, capability-protected loopback transport owned by axon, not a provider fork. */
+export function startAuthenticatedRequestRelay(paths: AxonPaths): AuthenticatedRequestRelay {
   const capability = `${crypto.randomUUID()}${crypto.randomUUID()}`;
   const recovery = createSessionRecovery(paths);
   let pendingRequest = Promise.resolve();
@@ -199,11 +196,11 @@ export function startAuthenticatedRequestRelay(paths: DeputyDevPaths): Authentic
     idleTimeout: 0,
     maxRequestBodySize: 10 * 1024 * 1024,
     error() {
-      return relayError(503, "DeputyDev could not process this request safely");
+      return relayError(503, "Axon could not process this request safely");
     },
     async fetch(request) {
       if (!authorizedLocalRequest(request, capability)) {
-        return relayError(401, "Invalid local DeputyDev request credential");
+        return relayError(401, "Invalid local Axon request credential");
       }
       const url = new URL(request.url);
       // Control calls must bypass the queue so Pi can approve login while a model request waits.
@@ -211,9 +208,8 @@ export function startAuthenticatedRequestRelay(paths: DeputyDevPaths): Authentic
       if (controlResponse !== undefined) return controlResponse;
       const allowed =
         url.pathname.startsWith("/litellm/") ||
-        (url.pathname === "/api/v1/model-recommendations" && request.method === "POST") ||
-        (url.pathname === "/api/v1/web-search" && request.method === "POST");
-      if (!allowed) return relayError(404, "DeputyDev endpoint is not available");
+        (url.pathname === "/api/v1/model-recommendations" && request.method === "POST");
+      if (!allowed) return relayError(404, "Axon endpoint is not available");
 
       // Serialize only until response headers arrive: streams remain concurrent,
       // while subsequent requests observe a token rotated by the auth service.
@@ -227,7 +223,7 @@ export function startAuthenticatedRequestRelay(paths: DeputyDevPaths): Authentic
         return await forwardManagedRequest(request, url, paths, recovery);
       } catch {
         // Do not let Bun's development error page disclose request headers or locals.
-        return relayError(503, "DeputyDev could not process this request safely");
+        return relayError(503, "Axon could not process this request safely");
       } finally {
         releaseRequest();
       }

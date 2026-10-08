@@ -19,6 +19,7 @@ from app.core.cli_config import (
     parse_cli_telemetry,
     parse_otel_proxy,
 )
+from app.core.s3 import S3StorageSettings, parse_s3_storage
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
 from app.core.web_search import WebSearchSettings, parse_web_search
 from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
@@ -146,15 +147,14 @@ class CliReleaseAsset:
 
 @dataclass(frozen=True, slots=True)
 class CliReleaseSettings:
-    bucket: str
-    region: str
+    s3: S3StorageSettings
     key_prefix: str
-    upload_auth_key: str
+    upload_auth_key: str = field(repr=False)
     put_url_expiry_seconds: int
     get_url_expiry_seconds: int
     distribution_url: str
     key_pair_id: str
-    private_key: str
+    private_key: str = field(repr=False)
     latest_version: str
     versions: dict[str, CliReleaseAsset]
 
@@ -222,7 +222,7 @@ def _optional_string(source: dict[str, Any], key: str, path: str) -> str:
 def _upstream_api_key(source: dict[str, Any], key: str, path: str) -> str:
     value = _optional_string(source, key, path)
     # A private stock LiteLLM deployment may not require its own API key.
-    # DeputyDev session authentication remains mandatory even when this is empty.
+    # Axon session authentication remains mandatory even when this is empty.
     if any(not 33 <= ord(character) <= 126 for character in value):
         raise ConfigurationError(f"{path}.{key} must contain only printable ASCII characters without spaces")
     return value
@@ -335,7 +335,7 @@ def _release_assets(config: dict[str, Any], prefix: str) -> dict[str, CliRelease
         key = _string(value, "s3_key", path)
         if (
             not key.startswith(f"{prefix}{version}/")
-            or not key.endswith("/ddcli-darwin-arm64.gz")
+            or not key.endswith("/axon-darwin-arm64.gz")
             or not S3_KEY_PATTERN.fullmatch(key)
             or any(segment in {"", ".", ".."} for segment in key.split("/"))
         ):
@@ -367,7 +367,6 @@ def _cloudfront_credentials(config: dict[str, Any]) -> tuple[str, str, str]:
 
 
 def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
-    # Older local config.json files continue to start with distribution disabled.
     if "CLI_RELEASES" not in raw:
         return None
     config = _mapping(raw, "CLI_RELEASES", "config")
@@ -386,15 +385,12 @@ def _cli_releases(raw: dict[str, Any]) -> CliReleaseSettings | None:
     upload_auth_key = _string(config, "UPLOAD_AUTH_KEY", "config.CLI_RELEASES")
     if len(upload_auth_key) < 32:
         raise ConfigurationError("config.CLI_RELEASES.UPLOAD_AUTH_KEY must have at least 32 characters")
-    bucket = _string(config, "BUCKET", "config.CLI_RELEASES")
-    region = _string(config, "REGION", "config.CLI_RELEASES")
-    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket):
-        raise ConfigurationError("config.CLI_RELEASES.BUCKET must be a valid S3 bucket name")
-    if not re.fullmatch(r"[a-z0-9-]+", region):
-        raise ConfigurationError("config.CLI_RELEASES.REGION must be an AWS region")
+    try:
+        s3 = parse_s3_storage(config.get("S3"), "config.CLI_RELEASES.S3")
+    except ValueError as exc:
+        raise ConfigurationError(str(exc)) from None
     return CliReleaseSettings(
-        bucket=bucket,
-        region=region,
+        s3=s3,
         key_prefix=prefix,
         upload_auth_key=upload_auth_key,
         put_url_expiry_seconds=_integer(config, "PUT_URL_EXPIRY_SECONDS", "config.CLI_RELEASES", maximum=3600),

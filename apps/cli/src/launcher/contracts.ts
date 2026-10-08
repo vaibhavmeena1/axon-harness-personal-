@@ -1,11 +1,11 @@
-import type { DeputyDevPaths } from "../product/paths.ts";
+import type { AxonPaths } from "../product/paths.ts";
 
 export type StableHarnessId = "pi";
 
 export interface LaunchContext {
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
-  readonly paths: DeputyDevPaths;
+  readonly paths: AxonPaths;
 }
 
 export interface HarnessLaunchContext extends LaunchContext {

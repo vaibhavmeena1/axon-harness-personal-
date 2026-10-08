@@ -2,13 +2,13 @@ import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path";
 
 import { withFileLock } from "../../launcher/file-lock.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 
 const AUTH_TOKEN_KEY = "extension_auth_token";
 export const SESSION_FILE_NAME = "264325ba-cbd0-47d5-9269-ac4bd19067c2.json";
 const MAX_SESSION_FILE_BYTES = 1024 * 1024;
 
-function sessionPath(paths: DeputyDevPaths): string {
+function sessionPath(paths: AxonPaths): string {
   return join(paths.home, SESSION_FILE_NAME);
 }
 
@@ -62,8 +62,8 @@ async function readSessionFile(
   }
 }
 
-/** Read the shared DeputyDev token without exposing it in CLI output or Pi history. */
-export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<string | undefined> {
+/** Read the shared Axon token without exposing it in CLI output or Pi history. */
+export async function loadEncryptedSession(paths: AxonPaths): Promise<string | undefined> {
   const destination = sessionPath(paths);
   try {
     await assertRegularDirectory(dirname(destination));
@@ -85,7 +85,7 @@ export async function loadEncryptedSession(paths: DeputyDevPaths): Promise<strin
 
 /** Merge only our token into the shared session file and atomically set owner-only permissions. */
 async function persistEncryptedSession(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   encryptedSession: string,
   expectedSession?: string,
   signal?: AbortSignal,
@@ -125,7 +125,7 @@ async function persistEncryptedSession(
 }
 
 export async function saveEncryptedSession(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   encryptedSession: string,
   expectedSession?: string,
 ): Promise<void> {
@@ -134,7 +134,7 @@ export async function saveEncryptedSession(
 
 /** Rotate only the credential that produced this response, never a newer login. */
 export async function refreshEncryptedSession(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   expectedSession: string,
   refreshedSession: string,
   signal?: AbortSignal,

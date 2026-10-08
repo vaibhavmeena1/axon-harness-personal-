@@ -4,7 +4,7 @@ import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.t
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
 import { assertCanonicalSemVer, requireEnvironmentVariable } from "./release-contract.ts";
 
-const ARCHIVE = "ddcli-darwin-arm64.gz";
+const ARCHIVE = "axon-darwin-arm64.gz";
 
 async function hashStream(response: Response): Promise<string> {
   if (!response.body) throw new Error("release download verification has no body");
@@ -55,7 +55,7 @@ async function verifyCloudFrontArchive(url: string, expected: string): Promise<v
 export async function publishS3Release(): Promise<void> {
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const token = requireEnvironmentVariable("CLI_UPLOAD_AUTH_KEY");
-  const origin = parseServiceOrigin(requireEnvironmentVariable("DEPUTYDEV_SERVICE_ORIGIN"), {
+  const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
     allowLoopbackHttp: false,
   });
   assertCanonicalSemVer(version, "release version");
@@ -127,7 +127,7 @@ export async function publishS3Release(): Promise<void> {
   // Download through the same public CloudFront path as users, not an S3 HEAD/ETag.
   await verifyCloudFrontArchive(`${root}/${encodeURIComponent(version)}/${ARCHIVE}`, expected);
   console.log(
-    `Published and verified ddcli ${version}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
+    `Published and verified axon ${version}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
   );
 }
 

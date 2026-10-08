@@ -25,7 +25,7 @@ The extension does not inject distributed trace context into AI gateway or shell
 
 Pi emits `session_shutdown` on quit, SIGINT, SIGTERM, and SIGHUP. Shutdown waiting is bounded to two seconds and idempotent. Managed transport is aborted at that deadline and its complete send promise is deadline-bounded, including hanging stream cancellation; filesystem operations remain cooperatively cancelled, with abort checks before persistence (an already-started filesystem syscall cannot be undone). Environment HTTP/gRPC exporters use the SDK transport: two seconds bounds waiting, not termination of in-flight transport work, which can last until the configured export timeout (up to 60 seconds). A SIGKILL/crash or collector outage can lose queued records; there is no durable spool or loss-window guarantee.
 
-DeputyDev product operations are explicitly observed in their owned code, not inferred from
+Axon product operations are explicitly observed in their owned code, not inferred from
 generic Pi events. Product export is best-effort, uses no durable spool, and requires an enabled
 managed policy/authentication for launcher events. Short-lived counter series can be undercounted
 by PromQL `increase`; use traces/logs for individual-operation investigation. Backend stats require

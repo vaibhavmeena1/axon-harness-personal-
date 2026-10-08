@@ -12,7 +12,7 @@ import {
 } from "./release-contract.ts";
 
 const RELEASE_TARGET = "darwin-arm64";
-const RELEASE_ASSET_BASENAME = "ddcli-darwin-arm64";
+const RELEASE_ASSET_BASENAME = "axon-darwin-arm64";
 
 function resolveOutputPath(repositoryRoot: string): string {
   const configuredPath = optionalEnvironmentVariable("RELEASE_BINARY_PATH");
@@ -30,7 +30,7 @@ export async function buildRelease(): Promise<void> {
   const repositoryRoot = process.cwd();
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const commit = requireEnvironmentVariable("BUILD_COMMIT");
-  const serviceOrigin = requireEnvironmentVariable("DEPUTYDEV_SERVICE_ORIGIN");
+  const serviceOrigin = requireEnvironmentVariable("AXON_SERVICE_ORIGIN");
   const target = optionalEnvironmentVariable("BUILD_TARGET") || RELEASE_TARGET;
   const packageVersion = await readPackageVersion(join(repositoryRoot, "package.json"));
   await checkPiVersion(repositoryRoot);

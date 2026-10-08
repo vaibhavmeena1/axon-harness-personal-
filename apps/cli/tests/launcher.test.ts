@@ -10,8 +10,8 @@ import {
 } from "../src/harnesses/pi/setup/packages/manifest.ts";
 import { resolveHarnessRegistration } from "../src/harnesses/registry.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
-import { DEPUTYDEV_MANIFEST } from "../src/product/manifest.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { AXON_MANIFEST } from "../src/product/manifest.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 const projectRoot = resolve(import.meta.dir, "..");
 let fixtureDirectory: string;
@@ -34,7 +34,7 @@ beforeAll(async () => {
       return new Response(null, { status: 404 });
     },
   });
-  fixtureDirectory = await mkdtemp(join(tmpdir(), "deputydev launcher "));
+  fixtureDirectory = await mkdtemp(join(tmpdir(), "axon launcher "));
   fakeHarnessPath = join(fixtureDirectory, "fake harness");
   await Bun.write(
     fakeHarnessPath,
@@ -48,7 +48,7 @@ if (argumentsVector[0] === "--version") {
 }
 const [action, source] = argumentsVector;
 const managedInstallTargets = new Set(${JSON.stringify(
-      normalizeManifestPackages(DEPUTYDEV_MANIFEST).map((entry) => entry.configuredSource),
+      normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
     )});
 if (action === "install" && source !== undefined && managedInstallTargets.has(source)) {
   const packageSource = source.slice("npm:".length);
@@ -67,22 +67,23 @@ if (action === "install" && source !== undefined && managedInstallTargets.has(so
 
 console.log(JSON.stringify({
   arguments: argumentsVector,
-  deputyDevEnvironment: Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => name.startsWith("DEPUTYDEV_")),
+  axonEnvironment: Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => name.startsWith("AXON_")),
   ),
   harnessEnvironment: Object.fromEntries(
     Object.entries(process.env).filter(([name]) => [
       "PI_CODING_AGENT_DIR",
       "PI_CODING_AGENT_SESSION_DIR",
       "PI_SKIP_VERSION_CHECK",
-      "PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN",
-      "PI_DEPUTYDEV_BACKUP_HOME",
+      "PI_AXON_BACKUP_SERVICE_ORIGIN",
+      "PI_AXON_BACKUP_HOME",
       "ANTHROPIC_API_KEY",
       "OPENAI_API_KEY",
       "GEMINI_API_KEY",
       "OPENCODE_API_KEY",
       "LITELLM_API_KEY",
       "LITELLM_BASE_URL",
+      "LITELLM_DISPLAY_NAME",
       "OTEL_EXPORTER_OTLP_ENDPOINT",
       "OTEL_EXPORTER_OTLP_HEADERS",
       "PI_ORG_OTEL_ENABLED",
@@ -99,7 +100,7 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
   );
   await chmod(fakeHarnessPath, 0o755);
   for (const [home, version] of [
-    [join(fixtureDirectory, ".deputydev"), PI_INSTALL_VERSION],
+    [join(fixtureDirectory, ".axon"), PI_INSTALL_VERSION],
     ...["managed home", "resource home", "print home", "setup home", "signal home"].map((name) => [
       join(fixtureDirectory, name),
       PI_INSTALL_VERSION,
@@ -107,7 +108,7 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     [join(fixtureDirectory, "dev home"), DEVELOPMENT_VERSION],
   ]) {
     if (home === undefined || version === undefined) throw new Error("invalid Pi test fixture");
-    await saveEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }), "fixture-session");
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "fixture-session");
     const directory = join(home, "pi-runtime", version, "node_modules");
     const packageDirectory = join(directory, PI_PACKAGE_NAME);
     const binaryDirectory = join(directory, ".bin");
@@ -119,10 +120,7 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     );
     await Bun.write(join(binaryDirectory, "pi"), Bun.file(fakeHarnessPath));
     await chmod(join(binaryDirectory, "pi"), 0o755);
-    await saveEncryptedSession(
-      resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }),
-      "launcher-fixture-session",
-    );
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "launcher-fixture-session");
   }
 });
 
@@ -131,9 +129,9 @@ afterAll(async () => {
   await rm(fixtureDirectory, { force: true, recursive: true });
 });
 
-async function installEmbeddedPiPackages(deputyDevHome: string): Promise<void> {
-  const piAgentDirectory = join(deputyDevHome, "pi");
-  const packages = normalizeManifestPackages(DEPUTYDEV_MANIFEST);
+async function installEmbeddedPiPackages(axonHome: string): Promise<void> {
+  const piAgentDirectory = join(axonHome, "pi");
+  const packages = normalizeManifestPackages(AXON_MANIFEST);
 
   for (const packageEntry of packages) {
     if (packageEntry.packageName === undefined) {
@@ -168,7 +166,7 @@ function runLauncher(
     env: {
       ...process.env,
       HOME: fixtureDirectory,
-      DEPUTYDEV_SERVICE_ORIGIN: authService.url.origin,
+      AXON_SERVICE_ORIGIN: authService.url.origin,
       ...environment,
     },
     stdin: "ignore",
@@ -188,13 +186,13 @@ describe("harness registry", () => {
 });
 
 describe("harness environment", () => {
-  test("strips every DeputyDev variable and retains unrelated credentials", () => {
+  test("strips every Axon variable and retains unrelated credentials", () => {
     const environment = createHarnessEnvironment({
       PATH: "/bin",
       ANTHROPIC_API_KEY: "provider-secret",
-      DEPUTYDEV_DEBUG: "1",
-      DEPUTYDEV_PIN: "1.2.3",
-      DEPUTYDEV_FUTURE_INTERNAL_CONTROL: "hidden",
+      AXON_DEBUG: "1",
+      AXON_PIN: "1.2.3",
+      AXON_FUTURE_INTERNAL_CONTROL: "hidden",
     });
 
     expect(environment).toEqual({
@@ -237,10 +235,10 @@ describe("harness environment", () => {
 
 describe("managed paths", () => {
   test("resolves dedicated Pi agent and session directories without creating legacy paths", () => {
-    const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: "/managed/deputydev" });
+    const paths = resolveAxonPaths({ AXON_HOME: "/managed/axon" });
 
-    expect(paths.pi).toBe("/managed/deputydev/pi");
-    expect(paths.piSessions).toBe("/managed/deputydev/pi/sessions");
+    expect(paths.pi).toBe("/managed/axon/pi");
+    expect(paths.piSessions).toBe("/managed/axon/pi/sessions");
     expect(Object.keys(paths)).not.toContain("profiles");
     expect(Object.keys(paths)).not.toContain("opencodeStateRoot");
   });
@@ -260,22 +258,23 @@ test("rejects a manifest with a removed harness section", () => {
 describe("launcher dispatch", () => {
   test("preserves Pi arguments and applies its isolated environment", async () => {
     const userArguments = ["--help", "--", "", "line one\nline two", "-leading-dash"];
-    const deputyDevHome = join(fixtureDirectory, "managed home");
+    const axonHome = join(fixtureDirectory, "managed home");
     const subprocess = runLauncher(["pi", ...userArguments], {
-      DEPUTYDEV_HOME: deputyDevHome,
-      DEPUTYDEV_DEBUG: "0",
-      DEPUTYDEV_PIN: "1.2.3",
+      AXON_HOME: axonHome,
+      AXON_DEBUG: "0",
+      AXON_PIN: "1.2.3",
       PI_CODING_AGENT_DIR: "/inherited/pi",
       PI_CODING_AGENT_SESSION_DIR: "/inherited/pi/sessions",
       PI_SKIP_VERSION_CHECK: "0",
-      PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
-      PI_DEPUTYDEV_BACKUP_HOME: "/inherited/backup-home",
+      PI_AXON_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
+      PI_AXON_BACKUP_HOME: "/inherited/backup-home",
       ANTHROPIC_API_KEY: "anthropic-secret",
       OPENAI_API_KEY: "openai-secret",
       GEMINI_API_KEY: "gemini-secret",
       OPENCODE_API_KEY: "provider-secret",
       LITELLM_API_KEY: "litellm-token",
       LITELLM_BASE_URL: "https://litellm.example",
+      LITELLM_DISPLAY_NAME: "Company AI Gateway",
       OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=secret",
       PI_ORG_OTEL_ENABLED: "true",
@@ -290,15 +289,16 @@ describe("launcher dispatch", () => {
     expect(stderr).toBe("");
     expect(stdout).toEqual({
       arguments: userArguments,
-      deputyDevEnvironment: {},
+      axonEnvironment: {},
       harnessEnvironment: {
-        PI_CODING_AGENT_DIR: join(deputyDevHome, "pi"),
-        PI_CODING_AGENT_SESSION_DIR: join(deputyDevHome, "pi", "sessions"),
+        PI_CODING_AGENT_DIR: join(axonHome, "pi"),
+        PI_CODING_AGENT_SESSION_DIR: join(axonHome, "pi", "sessions"),
         PI_SKIP_VERSION_CHECK: "1",
-        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: authService.url.origin,
-        PI_DEPUTYDEV_BACKUP_HOME: deputyDevHome,
+        PI_AXON_BACKUP_SERVICE_ORIGIN: authService.url.origin,
+        PI_AXON_BACKUP_HOME: axonHome,
         LITELLM_API_KEY: "litellm-token",
         LITELLM_BASE_URL: "https://litellm.example",
+        LITELLM_DISPLAY_NAME: "Company AI Gateway",
         OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example",
         OTEL_EXPORTER_OTLP_HEADERS: "authorization=secret",
         PI_ORG_OTEL_ENABLED: "true",
@@ -307,11 +307,11 @@ describe("launcher dispatch", () => {
     });
   });
 
-  test("injects the materialized DeputyDev extension for an ordinary Pi launch", async () => {
-    const deputyDevHome = join(fixtureDirectory, "resource home");
-    await installEmbeddedPiPackages(deputyDevHome);
+  test("injects the materialized Axon extension for an ordinary Pi launch", async () => {
+    const axonHome = join(fixtureDirectory, "resource home");
+    await installEmbeddedPiPackages(axonHome);
     const subprocess = runLauncher(["pi", "hello"], {
-      DEPUTYDEV_HOME: deputyDevHome,
+      AXON_HOME: axonHome,
     });
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
@@ -321,21 +321,21 @@ describe("launcher dispatch", () => {
     expect(exitCode).toBe(0);
     // Pi is pointed at the immutable content-addressed runtime, never at the
     // mutable runtime/current symlink that another launcher version could repoint.
-    const activeRuntime = await readlink(join(deputyDevHome, "runtime", "current"));
+    const activeRuntime = await readlink(join(axonHome, "runtime", "current"));
     expect(activeRuntime).not.toBe("current");
     expect(stdout.arguments).toEqual([
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "deputydev.ts"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon.ts"),
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "model-recommender.ts"),
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "session-backup.mjs"),
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),
       "--extension",
-      join(deputyDevHome, "runtime", activeRuntime, "pi", "extensions", "compaction.ts"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "compaction.ts"),
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");
@@ -355,10 +355,10 @@ describe("launcher dispatch", () => {
   });
 
   test("skips the organization MCP request for non-interactive launches", async () => {
-    const deputyDevHome = join(fixtureDirectory, "print home");
-    await installEmbeddedPiPackages(deputyDevHome);
+    const axonHome = join(fixtureDirectory, "print home");
+    await installEmbeddedPiPackages(axonHome);
     const subprocess = runLauncher(["pi", "-p", "hello"], {
-      DEPUTYDEV_HOME: deputyDevHome,
+      AXON_HOME: axonHome,
     });
     const [stdout, exitCode] = await Promise.all([
       new Response(subprocess.stdout).json() as Promise<{ arguments: string[] }>,
@@ -367,7 +367,7 @@ describe("launcher dispatch", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout.arguments.slice(-2)).toEqual(["-p", "hello"]);
-    expect(await Bun.file(join(deputyDevHome, "pi-mcp-sync.json")).exists()).toBe(false);
+    expect(await Bun.file(join(axonHome, "pi-mcp-sync.json")).exists()).toBe(false);
   });
 
   test("keeps forwarded Pi package commands free of setup arguments", async () => {
@@ -384,8 +384,8 @@ describe("launcher dispatch", () => {
   test("source runs use the developer's exact Pi version without touching global Pi", async () => {
     const home = join(fixtureDirectory, "dev home");
     const subprocess = runLauncher(["pi", "--help"], {
-      DEPUTYDEV_HOME: home,
-      DEPUTYDEV_PI_VERSION: DEVELOPMENT_VERSION,
+      AXON_HOME: home,
+      AXON_PI_VERSION: DEVELOPMENT_VERSION,
       FAKE_PI_VERSION: DEVELOPMENT_VERSION,
     });
     const [stdout, status] = await Promise.all([
@@ -402,8 +402,8 @@ describe("launcher dispatch", () => {
   });
 
   test("doctor reports the isolated exact Pi executable without installing", async () => {
-    await chmod(join(fixtureDirectory, ".deputydev"), 0o700);
-    await installEmbeddedPiPackages(join(fixtureDirectory, ".deputydev"));
+    await chmod(join(fixtureDirectory, ".axon"), 0o700);
+    await installEmbeddedPiPackages(join(fixtureDirectory, ".axon"));
     const installed = runLauncher(["doctor", "pi"]);
     const [output, status] = await Promise.all([
       new Response(installed.stdout).text(),
@@ -414,11 +414,8 @@ describe("launcher dispatch", () => {
     expect(output).toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
 
     const absentHome = join(fixtureDirectory, "doctor missing home");
-    await saveEncryptedSession(
-      resolveDeputyDevPaths({ DEPUTYDEV_HOME: absentHome }),
-      "fixture-session",
-    );
-    const absent = runLauncher(["doctor", "pi"], { DEPUTYDEV_HOME: absentHome });
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: absentHome }), "fixture-session");
+    const absent = runLauncher(["doctor", "pi"], { AXON_HOME: absentHome });
     const [missingOutput, missingStatus] = await Promise.all([
       new Response(absent.stdout).text(),
       absent.exited,
@@ -438,21 +435,21 @@ describe("launcher dispatch", () => {
       ["pi", "update", "npm:example"],
     ]) {
       const subprocess = runLauncher(argumentsVector, {
-        DEPUTYDEV_HOME: join(fixtureDirectory, "no installed Pi"),
+        AXON_HOME: join(fixtureDirectory, "no installed Pi"),
       });
       const [stderr, status] = await Promise.all([
         new Response(subprocess.stderr).text(),
         subprocess.exited,
       ]);
       expect(status).toBe(120);
-      expect(stderr).toContain("ddcli pi update is disabled");
+      expect(stderr).toContain("axon pi update is disabled");
     }
   });
 
   test("runs explicit Pi setup", async () => {
-    const deputyDevHome = join(fixtureDirectory, "setup home");
+    const axonHome = join(fixtureDirectory, "setup home");
     const subprocess = runLauncher(["setup", "pi", "--sync-packages"], {
-      DEPUTYDEV_HOME: deputyDevHome,
+      AXON_HOME: axonHome,
     });
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(subprocess.stdout).text(),
@@ -461,7 +458,7 @@ describe("launcher dispatch", () => {
     ]);
 
     expect(exitCode).toBe(0);
-    for (const entry of normalizeManifestPackages(DEPUTYDEV_MANIFEST)) {
+    for (const entry of normalizeManifestPackages(AXON_MANIFEST)) {
       expect(stderr).toContain(`Installing ${entry.configuredSource}...`);
     }
     expect(stdout).toContain("Pi resources ready:");
@@ -485,7 +482,7 @@ describe("launcher dispatch", () => {
     const harnesses = runLauncher(["harnesses"]);
     const help = runLauncher(["--help"]);
     const removed = runLauncher(["opencode2"], {
-      DEPUTYDEV_OPENCODE_BIN: fakeHarnessPath,
+      AXON_OPENCODE_BIN: fakeHarnessPath,
     });
     const removedDoctor = runLauncher(["doctor", "opencode"]);
     const removedOption = runLauncher(["uninstall", "--remove-profiles"]);
@@ -501,7 +498,7 @@ describe("launcher dispatch", () => {
     expect(await harnesses.exited).toBe(0);
     expect(harnessesOutput.trim()).toBe("pi");
     expect(await help.exited).toBe(0);
-    expect(helpOutput).toContain("ddcli pi [pi arguments...]");
+    expect(helpOutput).toContain("axon pi [pi arguments...]");
     expect(helpOutput).not.toContain("opencode");
     expect(removedStatus).toBe(120);
     expect(doctorStatus).toBe(120);
@@ -509,10 +506,10 @@ describe("launcher dispatch", () => {
   });
 
   test("re-raises a child termination signal", async () => {
-    const deputyDevHome = join(fixtureDirectory, "signal home");
-    await installEmbeddedPiPackages(deputyDevHome);
+    const axonHome = join(fixtureDirectory, "signal home");
+    await installEmbeddedPiPackages(axonHome);
     const subprocess = runLauncher(["pi"], {
-      DEPUTYDEV_HOME: deputyDevHome,
+      AXON_HOME: axonHome,
       FAKE_SIGNAL: "SIGTERM",
     });
 
@@ -525,7 +522,7 @@ describe("launcher dispatch", () => {
   test("uses reserved launcher statuses before a harness starts", async () => {
     const unknown = runLauncher(["not-a-command"]);
     const missingExecutable = runLauncher(["pi"], {
-      DEPUTYDEV_PI_BIN: join(fixtureDirectory, "missing"),
+      AXON_PI_BIN: join(fixtureDirectory, "missing"),
     });
 
     const [unknownStatus, missingStatus] = await Promise.all([

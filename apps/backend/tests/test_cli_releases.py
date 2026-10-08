@@ -4,24 +4,31 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from botocore.client import BaseClient
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.clients.cloudfront import CloudFrontUrlSigner
+from app.clients.s3 import S3Client
 from app.core import config as config_module
 from app.core.config import CliReleaseAsset, CliReleaseSettings, ConfigurationError, get_settings
+from app.core.s3 import S3ClientSettings, S3StorageSettings
 from app.routers.cli_releases import router
 from app.services import cli_releases
+from app.services.cli_releases import CliReleaseService
+from app.services.storage_dependencies import CLI_RELEASE_SERVICE_STATE_KEY
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 VERSION = "0.2.0"
 ARCHIVE_HASH = "a" * 64
 BINARY_HASH = "b" * 64
-KEY = f"cli/releases/{VERSION}/ddcli-darwin-arm64.gz"
+KEY = f"cli/releases/{VERSION}/axon-darwin-arm64.gz"
 
 
 def release_settings() -> CliReleaseSettings:
@@ -32,8 +39,7 @@ def release_settings() -> CliReleaseSettings:
         encryption_algorithm=serialization.NoEncryption(),
     ).decode()
     return CliReleaseSettings(
-        bucket="private-cli",
-        region="ap-south-1",
+        s3=S3StorageSettings("private-cli", S3ClientSettings("ap-south-1")),
         key_prefix="cli/releases/",
         upload_auth_key="test-secret-not-public-very-long-key",
         put_url_expiry_seconds=900,
@@ -46,10 +52,17 @@ def release_settings() -> CliReleaseSettings:
     )
 
 
-def client_for(settings: CliReleaseSettings | None) -> TestClient:
+def client_for(settings: CliReleaseSettings | None, sdk_client: BaseClient | None = None) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(cli_releases=settings)
+    if settings is not None:
+        service = CliReleaseService(
+            settings,
+            S3Client(settings.s3.client, client=sdk_client if sdk_client is not None else Mock()),
+            CloudFrontUrlSigner(settings.distribution_url, settings.key_pair_id, settings.private_key),
+        )
+        setattr(app.state, CLI_RELEASE_SERVICE_STATE_KEY, service)
     return TestClient(app, follow_redirects=False)
 
 
@@ -67,14 +80,14 @@ def test_public_exact_version_download_and_checksums() -> None:
     assert latest.headers["cache-control"] == "no-store"
     assert client.get(f"{root}/latest/VERSION").text == f"{VERSION}\n"
     checksums = client.get(f"{root}/{VERSION}/checksums.txt")
-    assert checksums.text == (f"{ARCHIVE_HASH}  ddcli-darwin-arm64.gz\n{BINARY_HASH}  ddcli-darwin-arm64\n")
-    redirect = client.get(f"{root}/{VERSION}/ddcli-darwin-arm64.gz")
+    assert checksums.text == (f"{ARCHIVE_HASH}  axon-darwin-arm64.gz\n{BINARY_HASH}  axon-darwin-arm64\n")
+    redirect = client.get(f"{root}/{VERSION}/axon-darwin-arm64.gz")
     assert redirect.status_code == 302
     assert redirect.headers["cache-control"] == "no-store"
     assert redirect.headers["location"].startswith(f"https://cdn.example.test/{KEY}?")
     assert "Signature=" in redirect.headers["location"]
     assert "Key-Pair-Id=TEST_KEY" in redirect.headers["location"]
-    assert client.get(f"{root}/0.1.0/ddcli-darwin-arm64.gz").status_code == 404
+    assert client.get(f"{root}/0.1.0/axon-darwin-arm64.gz").status_code == 404
     assert client.get(f"{root}/0.1.0/checksums.txt").status_code == 404
 
 
@@ -85,9 +98,16 @@ def test_first_release_can_be_staged_without_publishing_latest() -> None:
     assert client.get(f"/api/v1/cli/releases/{VERSION}/checksums.txt").status_code == 200
 
 
-def test_upload_requires_secret_and_only_configured_version(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_upload_requires_secret_and_only_configured_version() -> None:
     settings = release_settings()
-    client = client_for(settings)
+    seen = []
+
+    def sign(method: str, *, Params: dict, ExpiresIn: int, HttpMethod: str) -> str:  # noqa: N803
+        seen.append((method, Params, ExpiresIn, HttpMethod))
+        return "https://s3.example.test/signed-upload"
+
+    sdk = Mock(generate_presigned_url=sign)
+    client = client_for(settings, sdk)
     root = "/api/v1/cli/releases/uploads/presign"
     assert client.post(root, json={"version": VERSION}).status_code == 401
     assert (
@@ -99,16 +119,7 @@ def test_upload_requires_secret_and_only_configured_version(monkeypatch: pytest.
         ).status_code
         == 404
     )
-    seen = []
-
-    def fake_client(_settings: CliReleaseSettings) -> SimpleNamespace:
-        def sign(method: str, *, Params: dict, ExpiresIn: int, HttpMethod: str) -> str:  # noqa: N803
-            seen.append((method, Params, ExpiresIn, HttpMethod))
-            return "https://s3.example.test/signed-upload"
-
-        return SimpleNamespace(generate_presigned_url=sign)
-
-    monkeypatch.setattr(cli_releases, "_s3_client", fake_client)
+    assert seen == []
     response = client.post(
         root, headers={"Authorization": "Bearer test-secret-not-public-very-long-key"}, json={"version": VERSION}
     )
@@ -122,7 +133,8 @@ def test_upload_requires_secret_and_only_configured_version(monkeypatch: pytest.
     assert seen[0][1]["Key"] == KEY
     assert seen[0][1]["ChecksumSHA256"] == body["headers"]["x-amz-checksum-sha256"]
     assert seen[0][2:] == (900, "PUT")
-    assert cli_releases.presign_s3_get(settings, settings.versions[VERSION]) == "https://s3.example.test/signed-upload"
+    service = getattr(client.app.state, CLI_RELEASE_SERVICE_STATE_KEY)
+    assert service.presign_s3_get(settings.versions[VERSION]) == "https://s3.example.test/signed-upload"
     assert seen[-1][0] == "get_object"
 
 
@@ -131,7 +143,11 @@ def test_real_s3_put_signing_includes_immutability_and_checksum(monkeypatch: pyt
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "local-test-secret")
     monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
     release = release_settings()
-    url, headers = cli_releases.presign_s3_put(release, release.versions[VERSION])
+    with S3Client(release.s3.client) as s3:
+        service = CliReleaseService(
+            release, s3, CloudFrontUrlSigner(release.distribution_url, release.key_pair_id, release.private_key)
+        )
+        url, headers = service.presign_s3_put(release.versions[VERSION])
     signed = parse_qs(urlsplit(url).query)["X-Amz-SignedHeaders"][0].split(";")
     assert "cache-control" in signed
     assert "content-type" in signed
@@ -146,8 +162,7 @@ def test_enabled_release_settings_load_from_config(tmp_path: Path, monkeypatch: 
     config["CLI_RELEASES"].update(
         {
             "ENABLED": True,
-            "BUCKET": release.bucket,
-            "REGION": release.region,
+            "S3": {"BUCKET": release.s3.bucket, "REGION": release.s3.client.region},
             "UPLOAD_AUTH_KEY": release.upload_auth_key,
             "LATEST_VERSION": VERSION,
             "CLOUDFRONT": {
@@ -184,7 +199,7 @@ def test_enabled_release_settings_load_from_config(tmp_path: Path, monkeypatch: 
         {
             "VERSIONS": {
                 VERSION: {
-                    "s3_key": "../../evil/ddcli-darwin-arm64.gz",
+                    "s3_key": "../../evil/axon-darwin-arm64.gz",
                     "archive_sha256": ARCHIVE_HASH,
                     "binary_sha256": BINARY_HASH,
                 }
@@ -198,8 +213,7 @@ def test_rejects_unsafe_release_config(change: dict, tmp_path: Path, monkeypatch
     config["CLI_RELEASES"].update(
         {
             "ENABLED": True,
-            "BUCKET": "private-cli",
-            "REGION": "ap-south-1",
+            "S3": {"BUCKET": "private-cli", "REGION": "ap-south-1"},
             "UPLOAD_AUTH_KEY": "secret",
             "LATEST_VERSION": VERSION,
             "CLOUDFRONT": {

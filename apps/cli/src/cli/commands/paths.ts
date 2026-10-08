@@ -1,6 +1,6 @@
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 
-export function printPaths(paths: DeputyDevPaths): void {
+export function printPaths(paths: AxonPaths): void {
   const entries = [
     ["home", paths.home],
     ["managed binary", paths.managedBinary],

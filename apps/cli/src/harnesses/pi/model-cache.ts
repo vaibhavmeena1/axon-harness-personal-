@@ -3,7 +3,7 @@ import { lstat, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import lockfile from "proper-lockfile";
 
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 
 const MAX_CACHE_BYTES = 16 * 1024 * 1024;
 const CACHE_TIMEOUT_MS = 700;
@@ -59,9 +59,9 @@ function sameRevision(before: Stats, after: Stats): boolean {
   );
 }
 
-/** Remove only obsolete DeputyDev relay URLs; fresh discovery remains authoritative. */
+/** Remove only obsolete Axon relay URLs; fresh discovery remains authoritative. */
 export async function invalidateStalePiRelayModels(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   relayOrigin: string,
 ): Promise<number> {
   const relay = new URL(relayOrigin);
@@ -75,7 +75,7 @@ export async function invalidateStalePiRelayModels(
     relay.search ||
     relay.hash
   ) {
-    throw new Error("Invalid DeputyDev relay origin");
+    throw new Error("Invalid Axon relay origin");
   }
   const path = join(paths.pi, "models-store.json");
   try {

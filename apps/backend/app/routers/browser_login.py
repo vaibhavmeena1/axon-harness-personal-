@@ -1,4 +1,4 @@
-"""Browser-login handshake for DeputyDev CLI sessions."""
+"""Browser-login handshake for Axon CLI sessions."""
 
 import logging
 from typing import Annotated, Literal
@@ -83,7 +83,7 @@ async def get_browser_login_session(
     request: Request,
     response: Response,
 ) -> BrowserLoginSession:
-    """Poll deputydev-auth; never log or cache the encrypted credential."""
+    """Poll axon-auth; never log or cache the encrypted credential."""
     if get_settings().auth_service is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Browser login is not configured")
     client: AuthServiceClient = get_auth_service_client(request)

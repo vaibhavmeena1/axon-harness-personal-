@@ -340,7 +340,7 @@ export function createOtelRuntime(
       "pi.extension.name": EXTENSION_NAME,
       "pi.extension.version": environment.extensionVersion,
       ...(environment.piVersion ? { [ATTR_PI_VERSION]: environment.piVersion } : {}),
-      ...(environment.cliVersion ? { "deputydev.cli.version": environment.cliVersion } : {}),
+      ...(environment.cliVersion ? { "axon.cli.version": environment.cliVersion } : {}),
       [ATTR_OS_TYPE]: environment.osType,
       [ATTR_HOST_ARCH]: environment.hostArch,
       [ATTR_RUNTIME_NAME]: environment.runtimeName,

@@ -3,7 +3,6 @@
 from collections import OrderedDict
 from collections.abc import Awaitable
 from datetime import datetime
-from functools import cache
 from time import monotonic
 from uuid import UUID
 
@@ -15,13 +14,12 @@ from tortoise.expressions import Q
 
 from app.authentication import require_authenticated_user
 from app.clients.auth_service import AuthData
-from app.core.config import get_settings
-from app.core.session_storage import SessionStorageSettings
+from app.core.config import Settings, get_settings
 from app.models.session_backup import SessionBackup
 from app.services.sessions.adapters import InvalidSessionError
 from app.services.sessions.contracts import FinalizeRequest, Registration, UploadRequest
 from app.services.sessions.service import BackupService, metadata
-from app.services.sessions.storage import SessionObjectStore
+from app.services.storage_dependencies import get_backup_service
 
 
 class PrivateMetadataRoute(APIRoute):
@@ -62,25 +60,6 @@ router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"], route_class=Pri
 _upload_rates: OrderedDict[int, list[float]] = OrderedDict()
 
 
-@cache
-def cached_service(settings: SessionStorageSettings) -> BackupService:
-    return BackupService(SessionObjectStore(settings))
-
-
-async def service() -> BackupService:
-    settings = get_settings().session_backups
-    if settings is None:
-        raise HTTPException(503, "Session backups are disabled", headers={"Cache-Control": "no-store"})
-    result = cached_service(settings)
-    try:
-        await result.ready()
-    except Exception:  # noqa: BLE001 - sanitize storage SDK/configuration errors at the API boundary
-        raise HTTPException(
-            503, "Private create-only session storage is unavailable", headers={"Cache-Control": "no-store"}
-        ) from None
-    return result
-
-
 def rate_limit(owner: int) -> None:
     stamp = monotonic()
     calls = [value for value in _upload_rates.pop(owner, []) if value > stamp - 60]
@@ -110,8 +89,14 @@ async def run[T](operation: Awaitable[T]) -> T:
 
 @router.get("/status")
 async def status(
-    auth: AuthData = Depends(require_authenticated_user), backups: BackupService = Depends(service)
+    request: Request,
+    auth: AuthData = Depends(require_authenticated_user),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
+    if settings.session_backups is None:
+        return {"enabled": False, "owner_user_team_id": str(auth.user_team_id)}
+    # Enabled policy is advertised only after private storage is ready.
+    await get_backup_service(request, settings)
     return {
         "enabled": True,
         "owner_user_team_id": str(auth.user_team_id),
@@ -123,7 +108,9 @@ async def status(
 
 @router.post("")
 async def register(
-    body: Registration, auth: AuthData = Depends(require_authenticated_user), backups: BackupService = Depends(service)
+    body: Registration,
+    auth: AuthData = Depends(require_authenticated_user),
+    backups: BackupService = Depends(get_backup_service),
 ) -> dict:
     rate_limit(auth.user_team_id)
     return await run(backups.register(auth.user_team_id, body))
@@ -132,7 +119,7 @@ async def register(
 @router.get("")
 async def list_sessions(
     auth: AuthData = Depends(require_authenticated_user),
-    backups: BackupService = Depends(service),
+    backups: BackupService = Depends(get_backup_service),
     limit: int = Query(50, ge=1, le=100),
     before: datetime | None = None,
     before_id: UUID | None = None,
@@ -162,7 +149,7 @@ async def upload(
     session_id: UUID,
     body: UploadRequest,
     auth: AuthData = Depends(require_authenticated_user),
-    backups: BackupService = Depends(service),
+    backups: BackupService = Depends(get_backup_service),
 ) -> dict:
     rate_limit(auth.user_team_id)
     return await run(backups.reserve(session_id, auth.user_team_id, body))
@@ -173,7 +160,7 @@ async def finalize(
     session_id: UUID,
     body: FinalizeRequest,
     auth: AuthData = Depends(require_authenticated_user),
-    backups: BackupService = Depends(service),
+    backups: BackupService = Depends(get_backup_service),
 ) -> dict:
     rate_limit(auth.user_team_id)
     return await run(backups.finalize(session_id, auth.user_team_id, body.request_id))
@@ -181,14 +168,18 @@ async def finalize(
 
 @router.get("/{session_id}/backup-download")
 async def download(
-    session_id: UUID, auth: AuthData = Depends(require_authenticated_user), backups: BackupService = Depends(service)
+    session_id: UUID,
+    auth: AuthData = Depends(require_authenticated_user),
+    backups: BackupService = Depends(get_backup_service),
 ) -> dict:
     return await run(backups.download(session_id, auth.user_team_id))
 
 
 @router.delete("/{session_id}", status_code=204)
 async def delete(
-    session_id: UUID, auth: AuthData = Depends(require_authenticated_user), backups: BackupService = Depends(service)
+    session_id: UUID,
+    auth: AuthData = Depends(require_authenticated_user),
+    backups: BackupService = Depends(get_backup_service),
 ) -> Response:
     await run(backups.delete(session_id, auth.user_team_id))
     return Response(status_code=204, headers={"Cache-Control": "no-store"})

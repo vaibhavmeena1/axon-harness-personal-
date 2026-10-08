@@ -1,6 +1,6 @@
 // Content-free product telemetry shared by the launcher and bundled extensions.
 // Never pass prompts, paths, URLs, credentials, free-text reasons or tool payloads here.
-export const PRODUCT_EVENT_CHANNEL = "deputydev:telemetry";
+export const PRODUCT_EVENT_CHANNEL = "axon:telemetry";
 export const PRODUCT_STAGES = {
   recommender: [
     "eligible",

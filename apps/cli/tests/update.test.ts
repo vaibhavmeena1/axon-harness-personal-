@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { BUILD_INFO } from "../src/build-info.ts";
 import { LAUNCHER_EXIT_STATUS } from "../src/launcher/exit-status.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 import {
   checkForUpdate,
   installUpdate,
@@ -23,16 +23,16 @@ function sha256(bytes: Uint8Array): string {
 
 interface Fixture {
   readonly context: UpdateContext;
-  readonly paths: ReturnType<typeof resolveDeputyDevPaths>;
+  readonly paths: ReturnType<typeof resolveAxonPaths>;
   readonly requests: string[];
   readonly setHash: (hash: string) => void;
   readonly setVersion: (version: string) => void;
 }
 
 async function fixture(binaryVersion = version): Promise<Fixture> {
-  const root = await mkdtemp(join(tmpdir(), "ddcli-update-"));
+  const root = await mkdtemp(join(tmpdir(), "axon-update-"));
   roots.push(root);
-  const paths = resolveDeputyDevPaths({}, root);
+  const paths = resolveAxonPaths({}, root);
   await mkdir(paths.bin, { recursive: true, mode: 0o700 });
   await chmod(paths.home, 0o700);
   await chmod(paths.bin, 0o700);
@@ -53,10 +53,10 @@ async function fixture(binaryVersion = version): Promise<Fixture> {
       if (path === "/api/v1/cli/releases/latest/VERSION") return new Response(`${latest}\n`);
       if (path === `/api/v1/cli/releases/${version}/checksums.txt`) {
         return new Response(
-          `${archiveHash}  ddcli-darwin-arm64.gz\n${sha256(binary)}  ddcli-darwin-arm64\n`,
+          `${archiveHash}  axon-darwin-arm64.gz\n${sha256(binary)}  axon-darwin-arm64\n`,
         );
       }
-      if (path === `/api/v1/cli/releases/${version}/ddcli-darwin-arm64.gz`) {
+      if (path === `/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`) {
         return Response.redirect(`http://127.0.0.1:${server.port}/archive`, 302);
       }
       if (path === "/archive") return new Response(archive);
@@ -107,9 +107,9 @@ describe("CLI manual and background updates", () => {
     expect(await Bun.file(f.paths.previousBinary).text()).toBe("old binary\n");
     expect(f.requests).toContain(`/api/v1/cli/releases/${version}/checksums.txt`);
     expect(f.requests).toContain("/archive");
-    expect(
-      (await readdir(f.paths.bin)).filter((name) => name.startsWith(".ddcli-update-")),
-    ).toEqual([]);
+    expect((await readdir(f.paths.bin)).filter((name) => name.startsWith(".axon-update-"))).toEqual(
+      [],
+    );
   });
 
   test("never replaces an existing binary on checksum or version mismatch", async () => {

@@ -49,8 +49,8 @@ export function createPiAdapter(): HarnessAdapter {
       const resourceArguments = setup.materialization?.arguments ?? [];
       let relay: AuthenticatedRequestRelay | undefined;
       let litellmOverrides: EnvironmentOverrides = {
-        PI_DEPUTYDEV_AUTH_RELAY_URL: undefined,
-        PI_DEPUTYDEV_AUTH_RELAY_KEY: undefined,
+        PI_AXON_AUTH_RELAY_URL: undefined,
+        PI_AXON_AUTH_RELAY_KEY: undefined,
       };
       let telemetryOverrides: EnvironmentOverrides = {};
       let webSearchOverrides: EnvironmentOverrides = {};
@@ -60,7 +60,7 @@ export function createPiAdapter(): HarnessAdapter {
           encryptedSession = await loadEncryptedSession(context.paths);
         } catch {
           throw new LauncherError(
-            "Saved DeputyDev session could not be read safely",
+            "Saved Axon session could not be read safely",
             LAUNCHER_EXIT_STATUS.profileFailure,
             { remediation: `Run ${PRODUCT_IDENTITY.command} auth login --browser.` },
           );
@@ -152,8 +152,8 @@ export function createPiAdapter(): HarnessAdapter {
             "/api/v1/model-recommendations",
             relay.origin,
           ).toString(),
-          PI_DEPUTYDEV_AUTH_RELAY_URL: relay.origin,
-          PI_DEPUTYDEV_AUTH_RELAY_KEY: relay.capability,
+          PI_AXON_AUTH_RELAY_URL: relay.origin,
+          PI_AXON_AUTH_RELAY_KEY: relay.capability,
         };
       }
       return Object.freeze({

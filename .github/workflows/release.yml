@@ -33,8 +33,8 @@ env:
   BUILD_TARGET: darwin-arm64
   CLI_DIR: apps/cli
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
-  RELEASE_BINARY_PATH: dist/ddcli-darwin-arm64
-  RELEASE_ARCHIVE_PATH: release/ddcli-darwin-arm64.gz
+  RELEASE_BINARY_PATH: dist/axon-darwin-arm64
+  RELEASE_ARCHIVE_PATH: release/axon-darwin-arm64.gz
   RELEASE_OUTPUT_DIR: release
   RELEASE_SERVICE_ENVIRONMENT: production
   REPLACE_ASSETS: ${{ github.event_name == 'workflow_dispatch' && inputs.replace_assets && 'true' || 'false' }}
@@ -50,7 +50,7 @@ jobs:
       run:
         working-directory: apps/cli
     env:
-      DEPUTYDEV_SERVICE_ORIGIN: ${{ vars.DEPUTYDEV_SERVICE_ORIGIN }}
+      AXON_SERVICE_ORIGIN: ${{ vars.AXON_SERVICE_ORIGIN }}
 
     steps:
       - name: Check out exact release tag
@@ -103,8 +103,8 @@ jobs:
         run: |
           bun -e '
             import { parseServiceOrigin } from "./src/product/service-origin.ts";
-            const value = process.env.DEPUTYDEV_SERVICE_ORIGIN;
-            if (value === undefined || value.trim() === "") throw new Error("DEPUTYDEV_SERVICE_ORIGIN must be set");
+            const value = process.env.AXON_SERVICE_ORIGIN;
+            if (value === undefined || value.trim() === "") throw new Error("AXON_SERVICE_ORIGIN must be set");
             parseServiceOrigin(value, { allowLoopbackHttp: false });
           '
 
@@ -114,8 +114,8 @@ jobs:
         run: |
           existing=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
           for asset in \
-            ddcli-darwin-arm64.gz \
-            ddcli-darwin-arm64.map \
+            axon-darwin-arm64.gz \
+            axon-darwin-arm64.map \
             checksums.txt \
             release-metadata.json \
             VERSION \
@@ -165,17 +165,17 @@ jobs:
           mkdir -p "$RELEASE_OUTPUT_DIR"
           COPYFILE_DISABLE=1 gzip -9 -n -c "$RELEASE_BINARY_PATH" > "$RELEASE_ARCHIVE_PATH"
           gzip -t "$RELEASE_ARCHIVE_PATH"
-          cp "${RELEASE_BINARY_PATH}.map" "$RELEASE_OUTPUT_DIR/ddcli-darwin-arm64.map"
+          cp "${RELEASE_BINARY_PATH}.map" "$RELEASE_OUTPUT_DIR/axon-darwin-arm64.map"
           cp install.sh "$RELEASE_OUTPUT_DIR/install.sh"
           cmp install.sh "$RELEASE_OUTPUT_DIR/install.sh"
           bun run release:metadata
 
       - name: Verify packaged hashes
         run: |
-          expected_archive=$(awk '$2 == "ddcli-darwin-arm64.gz" { print $1 }' release/checksums.txt)
-          expected_binary=$(awk '$2 == "ddcli-darwin-arm64" { print $1 }' release/checksums.txt)
-          test "$(shasum -a 256 release/ddcli-darwin-arm64.gz | awk '{ print $1 }')" = "$expected_archive"
-          test "$(gzip -dc release/ddcli-darwin-arm64.gz | shasum -a 256 | awk '{ print $1 }')" = "$expected_binary"
+          expected_archive=$(awk '$2 == "axon-darwin-arm64.gz" { print $1 }' release/checksums.txt)
+          expected_binary=$(awk '$2 == "axon-darwin-arm64" { print $1 }' release/checksums.txt)
+          test "$(shasum -a 256 release/axon-darwin-arm64.gz | awk '{ print $1 }')" = "$expected_archive"
+          test "$(gzip -dc release/axon-darwin-arm64.gz | shasum -a 256 | awk '{ print $1 }')" = "$expected_binary"
           test "$(cat release/VERSION)" = "$RELEASE_VERSION"
 
       - name: Upload release assets
@@ -184,16 +184,16 @@ jobs:
         run: |
           if [ "$REPLACE_ASSETS" = "true" ]; then
             gh release upload "$RELEASE_TAG" --clobber \
-              release/ddcli-darwin-arm64.gz \
-              release/ddcli-darwin-arm64.map \
+              release/axon-darwin-arm64.gz \
+              release/axon-darwin-arm64.map \
               release/checksums.txt \
               release/release-metadata.json \
               release/VERSION \
               release/install.sh
           else
             gh release upload "$RELEASE_TAG" \
-              release/ddcli-darwin-arm64.gz \
-              release/ddcli-darwin-arm64.map \
+              release/axon-darwin-arm64.gz \
+              release/axon-darwin-arm64.map \
               release/checksums.txt \
               release/release-metadata.json \
               release/VERSION \
@@ -204,7 +204,7 @@ jobs:
         uses: actions/attest-build-provenance@v3
         with:
           # `uses:` steps ignore the job's working-directory default.
-          subject-path: apps/cli/release/ddcli-darwin-arm64.gz
+          subject-path: apps/cli/release/axon-darwin-arm64.gz
 
       - name: Promote stable semantic versions
         env:

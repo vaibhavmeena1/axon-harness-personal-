@@ -11,10 +11,10 @@ from app.core.config import CliReleaseSettings, Settings, get_settings
 from app.services.cli_releases import (
     ARCHIVE_NAME,
     BINARY_NAME,
+    CliReleaseService,
     archive_for_version,
-    presign_s3_put,
-    signed_cloudfront_get,
 )
+from app.services.storage_dependencies import get_cli_release_service
 
 router = APIRouter(prefix="/api/v1/cli/releases", tags=["cli-releases"])
 NO_STORE = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
@@ -41,6 +41,7 @@ def presign_upload(
     request: PresignUploadRequest,
     settings: Annotated[Settings, Depends(get_settings)],
     response: Response,
+    release_service: Annotated[CliReleaseService, Depends(get_cli_release_service)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> PresignUploadResponse:
     releases = enabled(settings)
@@ -49,7 +50,7 @@ def presign_upload(
     asset = archive_for_version(releases, request.version)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Release not found")
-    url, headers = presign_s3_put(releases, asset)
+    url, headers = release_service.presign_s3_put(asset)
     response.headers.update(NO_STORE)
     return PresignUploadResponse(url=url, headers=headers, expires_in=releases.put_url_expiry_seconds)
 
@@ -84,9 +85,13 @@ def checksums(version: str, settings: Annotated[Settings, Depends(get_settings)]
 
 
 @router.get(f"/{{version}}/{ARCHIVE_NAME}")
-def download(version: str, settings: Annotated[Settings, Depends(get_settings)]) -> RedirectResponse:
+def download(
+    version: str,
+    settings: Annotated[Settings, Depends(get_settings)],
+    release_service: Annotated[CliReleaseService, Depends(get_cli_release_service)],
+) -> RedirectResponse:
     releases = enabled(settings)
     asset = archive_for_version(releases, version)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Release not found")
-    return RedirectResponse(signed_cloudfront_get(releases, asset), status_code=302, headers=NO_STORE)
+    return RedirectResponse(release_service.signed_cloudfront_get(asset), status_code=302, headers=NO_STORE)

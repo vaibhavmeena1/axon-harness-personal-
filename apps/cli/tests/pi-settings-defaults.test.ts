@@ -5,15 +5,15 @@ import { join } from "node:path";
 
 import { applyPiDefaults } from "../src/harnesses/pi/settings-defaults.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
-import { type DeputyDevPaths, resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 
 let root: string;
-let paths: DeputyDevPaths;
+let paths: AxonPaths;
 let settingsPath: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "ddcli-pi-defaults-"));
-  paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+  root = await mkdtemp(join(tmpdir(), "axon-pi-defaults-"));
+  paths = resolveAxonPaths({ AXON_HOME: root });
   settingsPath = join(paths.pi, "settings.json");
 });
 afterEach(async () => {

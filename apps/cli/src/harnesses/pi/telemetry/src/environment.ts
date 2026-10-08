@@ -10,7 +10,7 @@ export interface ResourceEnvironment {
 
 export type PiModuleImporter = () => Promise<{ VERSION?: unknown }>;
 
-export const PI_ORG_TELEMETRY_VERSION = "0.5.0-deputydev.1";
+export const PI_ORG_TELEMETRY_VERSION = "0.5.0-axon.1";
 
 const OS_TYPES: Readonly<Record<string, string>> = {
   win32: "windows",
@@ -24,7 +24,7 @@ const HOST_ARCHS: Readonly<Record<string, string>> = {
 };
 
 /**
- * The extension is bundled into the DeputyDev executable and materialized as a
+ * The extension is bundled into the Axon executable and materialized as a
  * standalone ESM asset, so no adjacent package.json exists at runtime.
  */
 export function readExtensionVersion(): string {
@@ -57,9 +57,9 @@ export function describeEnvironment(
   return {
     extensionVersion,
     ...(piVersion ? { piVersion } : {}),
-    ...(process.env["PI_DEPUTYDEV_CLI_VERSION"] &&
-    /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_DEPUTYDEV_CLI_VERSION"])
-      ? { cliVersion: process.env["PI_DEPUTYDEV_CLI_VERSION"] }
+    ...(process.env["PI_AXON_CLI_VERSION"] &&
+    /^[a-zA-Z0-9._+-]{1,80}$/.test(process.env["PI_AXON_CLI_VERSION"])
+      ? { cliVersion: process.env["PI_AXON_CLI_VERSION"] }
       : {}),
     osType: OS_TYPES[platform] ?? platform,
     hostArch: HOST_ARCHS[arch] ?? arch,

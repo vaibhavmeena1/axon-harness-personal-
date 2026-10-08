@@ -1,5 +1,5 @@
 import { loadHarnessAdapter } from "../harnesses/registry.ts";
-import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { resolveAxonPaths } from "../product/paths.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import type { HarnessLaunchContext, HarnessRegistration, LaunchSpec } from "./contracts.ts";
 import { isTrue, printDebugLaunchPreview } from "./debug-preview.ts";
@@ -9,7 +9,7 @@ import { resolveExecutablePath } from "./executable.ts";
 import { LAUNCHER_EXIT_STATUS } from "./exit-status.ts";
 import { spawnHarness } from "./spawn-harness.ts";
 
-const DEBUG_ENVIRONMENT_VARIABLE = "DEPUTYDEV_DEBUG";
+const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 
 export async function launchRegisteredHarness(
   registration: HarnessRegistration,
@@ -18,7 +18,7 @@ export async function launchRegisteredHarness(
   const startedAt = Date.now();
   const cwd = process.cwd();
   const inheritedEnvironment = process.env;
-  const paths = resolveDeputyDevPaths(inheritedEnvironment);
+  const paths = resolveAxonPaths(inheritedEnvironment);
   const adapter = await loadHarnessAdapter(registration.id);
   const executable =
     adapter.resolveExecutable === undefined
@@ -54,7 +54,7 @@ export async function launchRegisteredHarness(
     throw new LauncherError(
       `failed to prepare the ${registration.id} harness`,
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { cause: error, remediation: `Run ddcli doctor ${registration.id}.` },
+      { cause: error, remediation: `Run axon doctor ${registration.id}.` },
     );
   }
 
@@ -76,7 +76,7 @@ export async function launchRegisteredHarness(
     throw new LauncherError(
       `failed to build the ${registration.id} launch command`,
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { cause: error, remediation: `Run ddcli doctor ${registration.id}.` },
+      { cause: error, remediation: `Run axon doctor ${registration.id}.` },
     );
   }
 
@@ -85,7 +85,7 @@ export async function launchRegisteredHarness(
     throw new LauncherError(
       `${registration.id} adapter attempted to replace the allowlisted executable`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
-      { remediation: `Run ddcli doctor ${registration.id}.` },
+      { remediation: `Run axon doctor ${registration.id}.` },
     );
   }
 
@@ -107,7 +107,7 @@ export async function launchRegisteredHarness(
   return spawnHarness({
     ...specification,
     environment: createHarnessEnvironment(specification.environment, {
-      PI_DEPUTYDEV_LAUNCH_STARTED_AT: String(startedAt),
+      PI_AXON_LAUNCH_STARTED_AT: String(startedAt),
     }),
   });
 }

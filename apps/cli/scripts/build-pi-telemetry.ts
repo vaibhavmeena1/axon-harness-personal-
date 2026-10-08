@@ -35,7 +35,7 @@ async function buildBundle(repositoryRoot: string): Promise<string> {
     repositoryRoot,
     "node_modules",
     ".cache",
-    `deputydev-telemetry-${process.pid}-${crypto.randomUUID()}`,
+    `axon-telemetry-${process.pid}-${crypto.randomUUID()}`,
   );
   const temporaryOutput = join(temporaryDirectory, "pi-org-telemetry.mjs");
   await mkdir(temporaryDirectory, { recursive: true });

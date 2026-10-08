@@ -12,11 +12,11 @@ from starlette.types import Message, Receive, Scope, Send
 
 from app.authentication import AuthenticatedSessionMiddleware
 from app.clients.auth_service import AuthenticatedUser
-from app.clients.litellm import LITELLM_IDENTITY_CLIENT_STATE_KEY, LiteLLMIdentityClient, LiteLLMIdentityError
-from app.core.config import LiteLLMSettings, get_settings
+from app.clients.litellm.dependencies import LITELLM_IDENTITY_CLIENT_STATE_KEY, LITELLM_TRANSPORT_STATE_KEY
+from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
+from app.clients.litellm.transport import LiteLLMTransport
 
 LITELLM_MOUNT_PATH = "/litellm"
-LITELLM_CLIENT_STATE_KEY = "litellm_proxy_client"
 
 _HOP_BY_HOP_HEADERS = {
     b"connection",
@@ -118,25 +118,6 @@ def _relative_raw_path(scope: Scope, *, strip_mount_path: bool) -> bytes:
     return relative_path
 
 
-def _upstream_url(scope: Scope, settings: LiteLLMSettings, *, strip_mount_path: bool) -> httpx.URL:
-    """Build the fixed-origin upstream URL while preserving path encoding and query order."""
-    relative_path = _relative_raw_path(scope, strip_mount_path=strip_mount_path)
-    upstream_root_path = settings.upstream_root_path.encode("ascii")
-
-    if upstream_root_path == b"/":
-        raw_path = relative_path
-    elif relative_path == b"/":
-        raw_path = upstream_root_path + b"/"
-    else:
-        raw_path = upstream_root_path + relative_path
-
-    query_string = scope.get("query_string", b"")
-    if isinstance(query_string, bytes) and query_string:
-        raw_path += b"?" + query_string
-
-    return httpx.URL(settings.upstream_url).copy_with(raw_path=raw_path)
-
-
 async def _request_body(first_message: Message, receive: Receive) -> AsyncIterator[bytes]:
     """Stream the downstream request body without buffering it in memory."""
     message = first_message
@@ -173,7 +154,7 @@ async def _send_upstream_response(
     """Stream an upstream response and always release its pooled connection."""
     try:
         if upstream_response.status_code in {401, 403}:
-            # Native key failures do not invalidate the DeputyDev session, and
+            # Native key failures do not invalidate the Axon session, and
             # their response bodies can expose backend-only credentials.
             await _send_error(send, 403, _ACCESS_DENIED_BODY)
             return
@@ -213,23 +194,12 @@ def _safe_identifier(value: str | None, fallback: str) -> str:
     return fallback
 
 
-async def authenticated_upstream_key(scope: Scope, settings: LiteLLMSettings, user: AuthenticatedUser) -> str:
-    """Resolve a native user/team key for both proxy traffic and backend tools."""
-    if not settings.identity_sync_enabled:
-        return settings.api_key
-    app = scope.get("app")
-    identity_client = getattr(getattr(app, "state", None), LITELLM_IDENTITY_CLIENT_STATE_KEY, None)
-    if not isinstance(identity_client, LiteLLMIdentityClient):
-        raise LiteLLMIdentityError("LiteLLM identity synchronization client is unavailable")
-    return await identity_client.ensure_identity(user)
-
-
 async def _forward_authenticated_request(
     scope: Scope,
     receive: Receive,
     send: Send,
-    client: httpx.AsyncClient,
-    settings: LiteLLMSettings,
+    transport: LiteLLMTransport,
+    identity: LiteLLMIdentityClient,
     strip_mount_path: bool,
     user: AuthenticatedUser,
     request_id: str,
@@ -243,14 +213,13 @@ async def _forward_authenticated_request(
     content: AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
 
     try:
-        upstream_api_key = await authenticated_upstream_key(scope, settings, user)
+        upstream_api_key = await identity.authenticated_key(user)
     except LiteLLMIdentityError as exc:
         logger.warning("LiteLLM identity synchronization failed: %s", exc)
         body = _ACCESS_DENIED_BODY if exc.status_code == 403 else _IDENTITY_SYNC_UNAVAILABLE_BODY
         await _send_error(send, exc.status_code, body)
         return
 
-    upstream_url = _upstream_url(scope, settings, strip_mount_path=strip_mount_path)
     request_headers = [
         (name, value)
         for name, value in _end_to_end_headers(scope.get("headers", []))
@@ -268,13 +237,13 @@ async def _forward_authenticated_request(
         request_headers.append((b"authorization", f"Bearer {upstream_api_key}".encode("ascii")))
 
     try:
-        upstream_request = httpx.Request(
-            method=method,
-            url=upstream_url,
+        upstream_response = await transport.send_stream(
+            method,
+            _relative_raw_path(scope, strip_mount_path=strip_mount_path),
+            query_string=scope.get("query_string", b""),
             headers=request_headers,
             content=content,
         )
-        upstream_response = await client.send(upstream_request, stream=True)
     except httpx.HTTPError:
         logger.warning("LiteLLM upstream request failed", exc_info=True)
         await _send_error(send, 502, _BAD_GATEWAY_BODY)
@@ -286,8 +255,7 @@ async def _forward_authenticated_request(
 class LiteLLMProxy:
     """Authenticate and stream all LiteLLM HTTP paths without inspecting bodies."""
 
-    def __init__(self, settings: LiteLLMSettings, *, strip_mount_path: bool = False) -> None:
-        self.settings = settings
+    def __init__(self, *, strip_mount_path: bool = False) -> None:
         self.strip_mount_path = strip_mount_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -297,8 +265,8 @@ class LiteLLMProxy:
             return
 
         app = scope.get("app")
-        client: httpx.AsyncClient | None = getattr(getattr(app, "state", None), LITELLM_CLIENT_STATE_KEY, None)
-        if client is None:
+        transport = getattr(getattr(app, "state", None), LITELLM_TRANSPORT_STATE_KEY, None)
+        if transport is None:
             await _send_error(send, 503, _SERVICE_UNAVAILABLE_BODY)
             return
 
@@ -311,12 +279,17 @@ class LiteLLMProxy:
             await _send_error(send, 401, _UNAUTHORIZED_BODY)
             return
 
+        identity = getattr(getattr(app, "state", None), LITELLM_IDENTITY_CLIENT_STATE_KEY, None)
+        if identity is None:
+            await _send_error(send, 503, _IDENTITY_SYNC_UNAVAILABLE_BODY)
+            return
+
         await _forward_authenticated_request(
             scope=scope,
             receive=receive,
             send=send,
-            client=client,
-            settings=self.settings,
+            transport=transport,
+            identity=identity,
             strip_mount_path=self.strip_mount_path,
             user=user,
             request_id=request_id,
@@ -325,12 +298,11 @@ class LiteLLMProxy:
 
 def mount_litellm_proxy(app: FastAPI) -> None:
     """Expose authenticated LiteLLM traffic before the frontend catch-all."""
-    settings = get_settings().litellm
     app.add_route(
         LITELLM_MOUNT_PATH,
-        AuthenticatedSessionMiddleware(LiteLLMProxy(settings, strip_mount_path=True)),
+        AuthenticatedSessionMiddleware(LiteLLMProxy(strip_mount_path=True)),
         name="litellm-proxy-root",
         include_in_schema=False,
     )
-    app.mount(LITELLM_MOUNT_PATH, AuthenticatedSessionMiddleware(LiteLLMProxy(settings)), name="litellm-proxy")
+    app.mount(LITELLM_MOUNT_PATH, AuthenticatedSessionMiddleware(LiteLLMProxy()), name="litellm-proxy")
     logger.info("LiteLLM proxy mounted at %s", LITELLM_MOUNT_PATH)

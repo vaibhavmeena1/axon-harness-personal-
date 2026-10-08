@@ -23,7 +23,7 @@ import type { ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace";
 
 import { loadEncryptedSession, refreshEncryptedSession } from "../../../../../cli/auth/session.ts";
-import { resolveDeputyDevPaths } from "../../../../../product/paths.ts";
+import { resolveAxonPaths } from "../../../../../product/paths.ts";
 
 const MAX_RESPONSE_BYTES = 65536;
 const RETRYABLE = new Set([429, 502, 503, 504]);
@@ -72,7 +72,7 @@ export class ManagedOtlpTransport implements IExporterTransport {
     private readonly url: string,
     home: string,
   ) {
-    this.paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+    this.paths = resolveAxonPaths({ AXON_HOME: home });
   }
 
   async send(data: Uint8Array, timeoutMillis: number): Promise<ExportResponse> {

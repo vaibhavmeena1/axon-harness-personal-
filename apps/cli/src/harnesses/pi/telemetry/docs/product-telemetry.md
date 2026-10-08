@@ -1,4 +1,4 @@
-# DeputyDev product telemetry
+# Axon product telemetry
 
 Product telemetry is additive to schema 4's LLM, tool, session, context and user-intervention
 observations. No feedback, productivity inference, prompts, recommendation explanations, source
@@ -27,9 +27,9 @@ not inject trace context into Jev/AI-gateway requests. Policy versions hash the 
 
 ## Signals and schema
 
-For each category, `deputydev.<category>.events` is a counter with unit `{event}`. Timed observations
-also record `deputydev.<category>.duration` (`s`), and applicable transfers record
-`deputydev.<category>.transfer` (`By`). Each observation emits a fixed-body structured log and an
+For each category, `axon.<category>.events` is a counter with unit `{event}`. Timed observations
+also record `axon.<category>.duration` (`s`), and applicable transfers record
+`axon.<category>.transfer` (`By`). Each observation emits a fixed-body structured log and an
 operation span. Failure text and automatic exception recording are deliberately excluded.
 
 Dimensions are allowlisted: component, stage, outcome, bounded reason, model, selected rank,
@@ -38,14 +38,14 @@ proxy. Session/recommendation IDs and repository identity stay on product traces
 metric labels. Numeric complexity/confidence/reasoning/speed/candidate counts are histogram values,
 not dimensions. Histograms use explicit boundaries appropriate to seconds, bytes and scores.
 
-Recommender histograms are `deputydev.recommender.complexity`, `.confidence`,
+Recommender histograms are `axon.recommender.complexity`, `.confidence`,
 `.high_complexity_probability`, `.needs_deep_reasoning`, `.prioritizes_speed`, and `.candidate_count`.
 Complexity is 0–3; the four confidence/probability/preference observations are 0–1. These are routing
 assessments, not measurements of task correctness or recommendation quality.
 
 Prometheus queries in the bundled dashboard assume standard OTLP metric-name/unit translation:
-`deputydev_recommender_events_total`, `deputydev_recommender_duration_seconds_bucket`, and
-`deputydev_backup_transfer_bytes_bucket`. Validate actual names in the org collector/backend before
+`axon_recommender_events_total`, `axon_recommender_duration_seconds_bucket`, and
+`axon_backup_transfer_bytes_bucket`. Validate actual names in the org collector/backend before
 rollout. The User email selector includes both Pi activity and product-event metrics.
 
 ## Export policy and lifetime
@@ -62,7 +62,7 @@ After activation they export live, with remaining records flushed at command/har
 Config fetch has the existing 700 ms deadline; export shutdown waiting is bounded to two seconds.
 Failures preserve the command's original outcome. Events are not persisted to a disk spool.
 
-Managed Pi extensions communicate through the allowlisted `deputydev:telemetry` event bus. Telemetry
+Managed Pi extensions communicate through the allowlisted `axon:telemetry` event bus. Telemetry
 loads last so backup shutdown outcomes are emitted before its providers close. Startup bus events
 are bounded and drained after telemetry initialization. Extension reload/session replacement can
 lose events while telemetry is unavailable; it is not a durable audit log.
@@ -81,7 +81,7 @@ Enable backend-owned recommender stats separately from `CLI_CLIENT_CONFIG`:
 ```json
 "OPEN_TELEMETRY": {
   "ENABLED": true,
-  "SERVICE_NAME": "deputydev-console-backend",
+  "SERVICE_NAME": "axon-console-backend",
   "ENDPOINT": "http://opentelemetry-collector-otelcol.monitoring.svc.cluster.local:4318",
   "PROTOCOL": "http/protobuf",
   "HEADERS": {},
@@ -117,7 +117,7 @@ With authorized staging access, validate the following separately:
 1. Inspect actual metric names and labels in Prometheus/Grafana. Confirm event counters end in
    `_events_total`, duration buckets in `_duration_seconds_bucket`, archive sizes in
    `_transfer_bytes_bucket`, and assessment histograms match the dashboard's names. Check retained
-   `user_email`, `component`, `stage`, `outcome`, `deputydev_cli_version`, and `le` labels; request IDs
+   `user_email`, `component`, `stage`, `outcome`, `axon_cli_version`, and `le` labels; request IDs
    and session/repository identity must not become product metric labels.
 2. Run a known small number of content-free operations in a process shorter than the export
    interval. Confirm its final OTLP cumulative count and histogram count/sum reach the collector.

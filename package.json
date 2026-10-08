@@ -1,7 +1,7 @@
 {
-  "name": "deputydev",
+  "name": "axon",
   "version": "0.0.0",
-  "description": "DeputyDev monorepo: the ddcli launcher plus the centralized management backend and frontend",
+  "description": "Axon monorepo: the axon launcher plus the centralized management backend and frontend",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -25,7 +25,7 @@
     "check:backend": "make -C apps/backend check",
     "test:backend": "make -C apps/backend test",
     "build:frontend": "cd apps/frontend && pnpm build",
-    "build:backend-image": "docker build --build-arg SERVICE_NAME=deputydev-console-backend -t deputydev-console-backend .",
+    "build:backend-image": "docker build --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend .",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "format:check": "biome format ."

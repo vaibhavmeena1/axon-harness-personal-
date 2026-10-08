@@ -11,7 +11,7 @@ function boundedSetting(raw: string | undefined, maximum: number): string {
   return String(Number.isSafeInteger(value) && value > 0 ? Math.min(value, maximum) : maximum);
 }
 
-/** Managed routing is fixed; users can opt out and lower limits, not bypass policy. */
+/** Pin authenticated routing; backend preferences configure the extension, not LiteLLM authorization. */
 export function createWebSearchOverrides(
   environment: NodeJS.ProcessEnv,
   relay: { readonly origin: string; readonly capability: string },
@@ -19,15 +19,23 @@ export function createWebSearchOverrides(
   offline = false,
 ): EnvironmentOverrides {
   const overrides: Record<string, string | undefined> = {
-    PI_WEB_SEARCH_MODE: "backend",
-    PI_WEB_SEARCH_URL: new URL("/api/v1/web-search", relay.origin).toString(),
+    PI_WEB_SEARCH_URL: new URL("/litellm/v1/chat/completions", relay.origin).toString(),
     PI_WEB_SEARCH_BASE_URL: undefined,
+    PI_WEB_SEARCH_MODE: undefined,
+    PI_WEB_SEARCH_SEARCH_TOOL: undefined,
     PI_WEB_SEARCH_API_KEY: relay.capability,
     PI_WEB_SEARCH_ENABLED:
       offline || isWebSearchDisabled(environment) || policy?.enabled === false ? "false" : "true",
   };
   if (policy === undefined) return overrides;
 
+  Object.assign(overrides, {
+    PI_WEB_SEARCH_TEMPERATURE: String(policy.temperature),
+    PI_WEB_SEARCH_THINKING_LEVEL: policy.thinkingLevel ?? undefined,
+    PI_WEB_SEARCH_SEARCH_CONTEXT_SIZE: policy.searchContextSize ?? undefined,
+    PI_WEB_SEARCH_USE_URL_CONTEXT: String(policy.useUrlContext),
+    PI_WEB_SEARCH_REQUIRE_GROUNDING: String(policy.requireGrounding),
+  });
   const preferredModel = (
     Reflect.get(environment, "PI_WEB_SEARCH_MODEL") as string | undefined
   )?.trim();
@@ -37,8 +45,7 @@ export function createWebSearchOverrides(
     preferredModel && policy.allowedModels.includes(preferredModel) ? preferredModel : policy.model,
   );
   for (const [name, maximum] of [
-    // Give the backend time to return its own sanitized timeout response.
-    ["PI_WEB_SEARCH_TIMEOUT_MS", policy.timeoutMs + 5_000],
+    ["PI_WEB_SEARCH_TIMEOUT_MS", policy.timeoutMs],
     ["PI_WEB_SEARCH_MAX_QUERY_CHARACTERS", policy.maxQueryCharacters],
     ["PI_WEB_SEARCH_MAX_RESULT_CHARACTERS", policy.maxResultCharacters],
     ["PI_WEB_SEARCH_MAX_OUTPUT_TOKENS", policy.maxOutputTokens],

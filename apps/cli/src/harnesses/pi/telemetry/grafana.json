@@ -697,8 +697,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count by (deputydev_cli_version) (max by (user_email, deputydev_cli_version) (max_over_time(deputydev_release_events_total{user_email=~\"$user\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
-          "legendFormat": "{{deputydev_cli_version}}"
+          "expr": "count by (axon_cli_version) (max by (user_email, axon_cli_version) (max_over_time(axon_release_events_total{user_email=~\"$user\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
+          "legendFormat": "{{axon_cli_version}}"
         }
       ],
       "fieldConfig": {
@@ -730,7 +730,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, outcome) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (stage, outcome) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "{{stage}} · {{outcome}}"
         }
       ],
@@ -763,7 +763,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (model, selected_rank, outcome) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]))",
+          "expr": "sum by (model, selected_rank, outcome) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]))",
           "legendFormat": "{{model}} · rank {{selected_rank}} · {{outcome}}"
         }
       ],
@@ -796,7 +796,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, component) (rate(deputydev_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, component) (rate(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__rate_interval])))",
           "legendFormat": "{{component}} request"
         }
       ],
@@ -829,12 +829,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(deputydev_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
           "legendFormat": "Complexity p50 (0–3)"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(deputydev_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
           "legendFormat": "Confidence p50 (0–1)"
         }
       ],
@@ -867,7 +867,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, reason) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]))",
+          "expr": "sum by (stage, reason) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]))",
           "legendFormat": "{{stage}} · {{reason}}"
         }
       ],
@@ -900,7 +900,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (model) (increase(deputydev_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]))",
+          "expr": "sum by (model) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]))",
           "legendFormat": "{{model}}"
         }
       ],
@@ -933,7 +933,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, outcome) (increase(deputydev_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (stage, outcome) (increase(axon_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "{{stage}} · {{outcome}}"
         }
       ],
@@ -966,7 +966,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, outcome) (increase(deputydev_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (stage, outcome) (increase(axon_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "{{stage}} · {{outcome}}"
         }
       ],
@@ -999,12 +999,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
           "legendFormat": "Backup {{stage}}"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
           "legendFormat": "Restore {{stage}}"
         }
       ],
@@ -1037,12 +1037,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(deputydev_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__rate_interval])))",
           "legendFormat": "Uploaded archive"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(deputydev_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__rate_interval])))",
           "legendFormat": "Downloaded archive"
         }
       ],
@@ -1075,7 +1075,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(deputydev_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
           "legendFormat": "{{stage}}"
         }
       ],
@@ -1108,12 +1108,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, outcome) (increase(deputydev_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (stage, outcome) (increase(axon_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "Auth {{stage}} · {{outcome}}"
         },
         {
           "refId": "B",
-          "expr": "sum by (outcome, reason) (increase(deputydev_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (outcome, reason) (increase(axon_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "Config {{outcome}} · {{reason}}"
         }
       ],
@@ -1146,7 +1146,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (stage, outcome, reason) (increase(deputydev_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+          "expr": "sum by (stage, outcome, reason) (increase(axon_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
           "legendFormat": "{{stage}} · {{outcome}} · {{reason}}"
         }
       ],
@@ -1213,7 +1213,7 @@
         {
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ name = \"deputydev.recommender.request\" && (resource.\"user.email\" =~ \"$user\" || span.\"user.email\" =~ \"$user\") }",
+          "query": "{ name = \"axon.recommender.request\" && (resource.\"user.email\" =~ \"$user\" || span.\"user.email\" =~ \"$user\") }",
           "limit": 50
         }
       ],
@@ -1235,8 +1235,8 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "query": "label_values({__name__=~\"pi_interaction_count_total|deputydev_.*_events_total\",user_email!=\"\"}, user_email)",
-        "definition": "label_values({__name__=~\"pi_interaction_count_total|deputydev_.*_events_total\",user_email!=\"\"}, user_email)",
+        "query": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
+        "definition": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
         "includeAll": true,
         "allValue": ".+",
         "multi": true,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +9,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import sessionBackupExtension, { backupWarning } from "../src/harnesses/pi/session-backup/index.ts";
 import { withFileLock } from "../src/launcher/file-lock.ts";
-import { type DeputyDevPaths, resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 import { BackupApi, BackupApiError } from "../src/sessions/api.ts";
 import { BackupLocalSettingsError, SessionBackups } from "../src/sessions/backup.ts";
 import { atomicJson, privateDirectory } from "../src/sessions/files.ts";
@@ -19,19 +19,21 @@ const nativeId = "synthetic-recovery-session";
 const timestamp = "2026-01-01T00:00:00.000Z";
 const digest = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 let root: string;
-let paths: DeputyDevPaths;
+let paths: AxonPaths;
 let backups: SessionBackups;
 let scope: string;
 let calls: string[];
+let policyEnabled: boolean;
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "dd-backup-recovery-"));
-  paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: root });
+  paths = resolveAxonPaths({ AXON_HOME: root });
   await saveEncryptedSession(paths, "synthetic-token");
   calls = [];
+  policyEnabled = true;
   const fetcher = (async (input: string | URL | Request) => {
     calls.push(new URL(String(input)).pathname);
-    return Response.json({ enabled: true, owner_user_team_id: "1" });
+    return Response.json({ enabled: policyEnabled, owner_user_team_id: "1" });
   }) as typeof fetch;
   backups = new SessionBackups(paths, new BackupApi(paths, origin, fetcher), () => {});
   await atomicJson(join(backups.root, "settings.json"), {
@@ -111,8 +113,8 @@ async function expectUntouched(item: Awaited<ReturnType<typeof queue>>, content:
 describe("local backup queue recovery", () => {
   test.each([
     { names: ["Old", "  Last\nname  "], expected: "Last name" },
-    { names: [], expected: null },
-    { names: ["Old", ""], expected: null },
+    { names: [], expected: "synthetic" },
+    { names: ["Old", ""], expected: "synthetic" },
   ])(
     "status repairs unsubmitted metadata from exact archived bytes: %j",
     async ({ names, expected }) => {
@@ -129,7 +131,7 @@ describe("local backup queue recovery", () => {
         },
       });
       expect(await readFile(item.file)).toEqual(item.compressed);
-      expect(calls).toEqual([]); // Status is local, not a backend health check or an upload.
+      expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
       const content = await readFile(item.path, "utf8");
       await backups.status();
       await expectUntouched(item, content);
@@ -153,7 +155,7 @@ describe("local backup queue recovery", () => {
     expect(status).toContain("pending streams: 1; paused: 1; local queue issues: 1");
     expect(status).not.toContain("malformed-private-data");
     await expectUntouched(broken, "{malformed-private-data");
-    expect(calls).toEqual([]);
+    expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
   });
 
   test("does not rewrite uncertain pending declarations or already-tokened next requests", async () => {
@@ -166,7 +168,7 @@ describe("local backup queue recovery", () => {
       expect(await backups.status()).toContain("local queue issues:");
       await expectUntouched(item, content);
     }
-    expect(calls).toEqual([]);
+    expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
   });
 
   test.each([
@@ -190,7 +192,7 @@ describe("local backup queue recovery", () => {
     const content = await readFile(item.path, "utf8");
     expect(await backups.status()).toContain("paused: 1; local queue issues: 1");
     await expectUntouched(item, content);
-    expect(calls).toEqual([]);
+    expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
   });
 
   test("missing or symlinked archives remain paused without losing pointers or touching targets", async () => {
@@ -224,7 +226,7 @@ describe("local backup queue recovery", () => {
     await symlink(target, linked);
     expect(await backups.status()).toContain("local queue issues: 3");
     expect(await readdir(target)).toEqual(["state.json"]);
-    expect(calls).toEqual([]);
+    expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
   });
 
   test("busy queues are reported, and retry repairs only compatible streams", async () => {
@@ -241,7 +243,7 @@ describe("local backup queue recovery", () => {
       "Archive title",
     );
     await expectUntouched(bad, "{corrupt");
-    expect(calls).toEqual(["/api/v1/sessions/status"]);
+    expect(calls).toEqual(["/api/v1/sessions/status", "/api/v1/sessions/status"]);
   });
 
   test("leaf-only directories are not errors and disabled backups do not migrate queues", async () => {
@@ -254,7 +256,7 @@ describe("local backup queue recovery", () => {
     expect(await backups.status()).toContain("pending streams: 0; paused: 0");
     const item = await queue();
     const content = await readFile(item.path, "utf8");
-    await backups.disable();
+    policyEnabled = false;
     expect(await backups.status()).toContain("disabled");
     await expectUntouched(item, content);
   });
@@ -273,7 +275,11 @@ describe("local backup queue recovery", () => {
     const state = JSON.parse(await readFile(item.path, "utf8"));
     expect(state.next.snapshot.display_name).toBe("Archive title");
     expect(await readFile(item.file)).toEqual(item.compressed);
-    expect(calls).toEqual(["/api/v1/sessions/status", "/api/v1/sessions"]);
+    expect(calls).toEqual([
+      "/api/v1/sessions/status",
+      "/api/v1/sessions/status",
+      "/api/v1/sessions",
+    ]);
   });
 });
 
@@ -293,10 +299,13 @@ describe("backup diagnostics", () => {
   test("slash status reports a local queue warning rather than blaming login/storage", async () => {
     const item = await queue();
     await writeFile(item.path, "{broken");
-    const oldOrigin = process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
-    const oldHome = process.env["PI_DEPUTYDEV_BACKUP_HOME"];
-    process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"] = origin;
-    process.env["PI_DEPUTYDEV_BACKUP_HOME"] = root;
+    const oldOrigin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    const oldHome = process.env["PI_AXON_BACKUP_HOME"];
+    process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = origin;
+    process.env["PI_AXON_BACKUP_HOME"] = root;
+    const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
+      _input: string | URL | Request,
+    ) => Response.json({ enabled: true, owner_user_team_id: "1" })) as typeof fetch);
     const notices: { message: string; level: string }[] = [];
     let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
     try {
@@ -304,7 +313,7 @@ describe("backup diagnostics", () => {
         events: { emit: () => {} },
         on: () => {},
         registerCommand: (name: string, command: { handler: typeof handler }) => {
-          if (name === "deputydev-backups") handler = command.handler;
+          if (name === "axon-backups") handler = command.handler;
         },
       } as unknown as ExtensionAPI);
       if (!handler) throw new Error("Missing backup command");
@@ -319,12 +328,13 @@ describe("backup diagnostics", () => {
       expect(notices[0]?.level).toBe("warning");
       expect(notices[0]?.message).toContain("local queue issues: 1");
       expect(notices[0]?.message).not.toContain("check login");
-      expect(calls).toEqual([]);
+      expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
     } finally {
-      if (oldOrigin === undefined) delete process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
-      else process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"] = oldOrigin;
-      if (oldHome === undefined) delete process.env["PI_DEPUTYDEV_BACKUP_HOME"];
-      else process.env["PI_DEPUTYDEV_BACKUP_HOME"] = oldHome;
+      fetcher.mockRestore();
+      if (oldOrigin === undefined) delete process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+      else process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = oldOrigin;
+      if (oldHome === undefined) delete process.env["PI_AXON_BACKUP_HOME"];
+      else process.env["PI_AXON_BACKUP_HOME"] = oldHome;
     }
   });
 
@@ -335,17 +345,18 @@ describe("backup diagnostics", () => {
       "../src/harnesses/pi/resources/extensions/session-backup.mjs",
     );
     const script = `
+      globalThis.fetch = async () => Response.json({ enabled: true, owner_user_team_id: "1" });
       const { default: factory } = await import(${JSON.stringify(bundle)});
       const commands = new Map(); const notices = [];
       factory({ on() {}, events: { emit() {} }, registerCommand(name, command) { commands.set(name, command); } });
-      await commands.get("deputydev-backups").handler("status", { hasUI: true, ui: { notify(message, level) { notices.push({ message, level }); }, setStatus() {} } });
+      await commands.get("axon-backups").handler("status", { hasUI: true, ui: { notify(message, level) { notices.push({ message, level }); }, setStatus() {} } });
       console.log(JSON.stringify(notices));
     `;
     const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
       env: {
         ...process.env,
-        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: origin,
-        PI_DEPUTYDEV_BACKUP_HOME: root,
+        PI_AXON_BACKUP_SERVICE_ORIGIN: origin,
+        PI_AXON_BACKUP_HOME: root,
       },
       stdout: "pipe",
       stderr: "pipe",

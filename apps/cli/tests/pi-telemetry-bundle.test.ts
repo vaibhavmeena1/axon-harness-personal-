@@ -30,7 +30,7 @@ describe("embedded Pi telemetry bundle", () => {
     expect(source).not.toContain('from"@opentelemetry/');
     expect(source).not.toContain("node_modules/@opentelemetry");
 
-    const temporaryDirectory = await mkdtemp(join(tmpdir(), "deputydev-telemetry-import-"));
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "axon-telemetry-import-"));
     const stubDirectory = join(
       temporaryDirectory,
       "node_modules",

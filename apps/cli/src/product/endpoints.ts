@@ -1,5 +1,5 @@
 /**
- * Central registry for every DeputyDev service endpoint.
+ * Central registry for every Axon service endpoint.
  *
  * Add new backend routes here instead of scattering string literals across
  * feature folders. Callers compose a full URL with {@link resolveServiceUrl}

@@ -6,7 +6,7 @@ import {
   resolveServiceUrl,
   SERVICE_ENDPOINTS,
 } from "../product/endpoints.ts";
-import type { DeputyDevPaths } from "../product/paths.ts";
+import type { AxonPaths } from "../product/paths.ts";
 
 export class BackupApiError extends Error {
   constructor(readonly status: number) {
@@ -15,7 +15,7 @@ export class BackupApiError extends Error {
 }
 
 export const statusSchema = z.object({
-  enabled: z.literal(true),
+  enabled: z.boolean(),
   owner_user_team_id: z.string().regex(/^[1-9][0-9]*$/),
 });
 
@@ -24,7 +24,7 @@ export class BackupApi {
   private responseToken: string | undefined;
 
   constructor(
-    readonly paths: DeputyDevPaths,
+    readonly paths: AxonPaths,
     readonly origin: string,
     readonly fetcher: typeof fetch = fetch,
   ) {}
@@ -57,7 +57,7 @@ export class BackupApi {
     // If a login changed during a request, do not chain its response under a different account.
     const expected = refreshed || token;
     if ((await loadEncryptedSession(this.paths)) !== expected)
-      throw new Error("DeputyDev account changed; backup paused");
+      throw new Error("Axon account changed; backup paused");
     this.responseToken = expected;
     if (path !== SERVICE_ENDPOINTS.sessions.status) this.verifiedToken = expected;
     if (!response.ok) {
@@ -87,11 +87,17 @@ export class BackupApi {
     }
   }
 
-  async owner(signal?: AbortSignal): Promise<string> {
+  async policy(signal?: AbortSignal): Promise<z.infer<typeof statusSchema>> {
     const result = statusSchema.parse(
       await this.request(SERVICE_ENDPOINTS.sessions.status, "GET", undefined, signal),
     );
-    this.verifiedToken = this.responseToken;
+    this.verifiedToken = result.enabled ? this.responseToken : undefined;
+    return result;
+  }
+
+  async owner(signal?: AbortSignal): Promise<string> {
+    const result = await this.policy(signal);
+    if (!result.enabled) throw new BackupApiError(503);
     return result.owner_user_team_id;
   }
 

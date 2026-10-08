@@ -1,10 +1,10 @@
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { runAuthLogin } from "../commands/auth.ts";
 import { loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
 
-const CONTROL_PATH = "/_deputydev/auth";
+const CONTROL_PATH = "/_axon/auth";
 const UI_HEARTBEAT_MS = 10_000;
 const RECOVERY_TIMEOUT_MS = 5 * 60_000;
 
@@ -31,7 +31,7 @@ function controlResponse(payload: unknown, status = 200): Response {
 }
 
 /** Control requests are capability-protected by the relay and never expose the real session. */
-export function createSessionRecovery(paths: DeputyDevPaths): SessionRecovery {
+export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
   let connectedUntil = 0;
   let pending: PendingRecovery | undefined;
   let disposed = false;

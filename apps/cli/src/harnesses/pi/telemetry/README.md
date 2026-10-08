@@ -1,6 +1,6 @@
 # Embedded Pi organization telemetry
 
-This directory vendors and adapts `pi-org-telemetry` version `0.2.0` for DeputyDev.
+This directory vendors and adapts `pi-org-telemetry` version `0.2.0` for Axon.
 The imported source was provided from:
 
 ```text
@@ -10,13 +10,13 @@ The imported source was provided from:
 The source repository had no commits when imported, so the files in this directory are the
 reviewable source of truth for the imported snapshot. `UPSTREAM_SNAPSHOT.sha256` records every
 imported source/test/doc/dashboard hash, and `UPSTREAM_PACKAGE.json` preserves the original package
-metadata. DeputyDev changes include:
+metadata. Axon changes include:
 
-- Bun tests and DeputyDev TypeScript/Biome compatibility;
+- Bun tests and Axon TypeScript/Biome compatibility;
 - a compile-time extension version because the materialized bundle has no adjacent package.json;
 - deterministic bundling of OpenTelemetry dependencies into one standalone ESM extension;
-- embedding and checksum-protected materialization through DeputyDev's Pi resource manifest;
-- authenticated managed HTTP/protobuf export through DeputyDev, with live session reads/rotation
+- embedding and checksum-protected materialization through Axon's Pi resource manifest;
+- authenticated managed HTTP/protobuf export through Axon, with live session reads/rotation
   and backend-authoritative user identity, separate from standard environment exporters;
 - schema 4 GenAI development semantics: INTERNAL `invoke_agent pi`, observed CLIENT inference,
   INTERNAL `execute_tool {name}`, inclusive standard input tokens, separate gateway/response IDs,
@@ -25,7 +25,7 @@ metadata. DeputyDev changes include:
   cancellation without invented exceptions, and content collection kept OFF.
 
 The upstream snapshot metadata remains archival; current adapted source and the generated bundle
-are authoritative. The adapted runtime version is `0.5.0-deputydev.1` with schema version 4; the archival upstream package version is unchanged.
+are authoritative. The adapted runtime version is `0.5.0-axon.1` with schema version 4; the archival upstream package version is unchanged.
 
 ## Build
 
@@ -42,15 +42,15 @@ file. Loading it with `--extension` does not install packages or contact a regis
 
 ## Runtime
 
-The extension is loaded for every non-administrative `ddcli pi` invocation. It stays inert when a
+The extension is loaded for every non-administrative `axon pi` invocation. It stays inert when a
 OTLP endpoint is absent. Interactive online Pi can receive sampling/interval policy from authenticated
 CLI config, with higher priority than environment settings (except explicit local disable). Managed
-export always uses HTTP/protobuf to the pinned DeputyDev backend proxy and reads the saved session
+export always uses HTTP/protobuf to the pinned Axon backend proxy and reads the saved session
 for each batch; the backend replaces user identity with verified auth-service data. Configure
 `OTEL_EXPORTER_OTLP_ENDPOINT`, or all three per-signal endpoints, as environment fallback; standard
 headers/API keys and HTTP/protobuf or gRPC remain supported there. Offline Pi disables export.
-See [Deployment](docs/deployment.md). Users receive this bundle by installing an updated DeputyDev
-CLI release and starting a new `ddcli pi` process; existing processes retain their loaded extension.
+See [Deployment](docs/deployment.md). Users receive this bundle by installing an updated Axon
+CLI release and starting a new `axon pi` process; existing processes retain their loaded extension.
 See the [schema migration](docs/telemetry-schema.md#migration-from-schema-version-3) before updating
 collector span filters or token totals. No skill/workflow/plan, streaming, or process observations
 are invented from these public events.

@@ -82,7 +82,7 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
     identity = {"user.email": "verified@example.com", "user.id": "42"}
 
     async def run() -> ModelRecommendationResponse:
-        with telemetry.operation("request", identity, **{"deputydev.recommendation.id": str(request.request_id)}):
+        with telemetry.operation("request", identity, **{"axon.recommendation.id": str(request.request_id)}):
             return await ModelRecommendationService(OpenRouter()).recommend(request, telemetry, identity)
 
     if invalid:
@@ -109,7 +109,7 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
     ]
     assert points
     assert all(point.attributes["user.email"] == "verified@example.com" for point in points)
-    assert all("deputydev.recommendation.id" not in point.attributes for point in points)
+    assert all("axon.recommendation.id" not in point.attributes for point in points)
     assert all("secret prompt" not in repr(point.attributes) for point in points)
     traces.shutdown()
     metrics.shutdown()
@@ -133,12 +133,12 @@ def test_product_identity_reuses_auth_and_never_attributes_client_supplied_heade
     monkeypatch.setattr("app.clients.auth_service.get_auth_service_client", unexpected_lookup)
     auth = AuthData(user_team_id=12, user_id=42, user_email=" verified@example.com ")
     assert asyncio.run(verified_telemetry_identity(identity_request(auth))) == {
-        "deputydev.user_team_id": "12",
+        "axon.user_team_id": "12",
         "user.id": "42",
         "user.email": "verified@example.com",
     }
     assert asyncio.run(verified_telemetry_identity(identity_request(AuthData(user_team_id=12), enabled=False))) == {
-        "deputydev.user_team_id": "12"
+        "axon.user_team_id": "12"
     }
 
 
@@ -169,7 +169,7 @@ def test_product_identity_failure_is_best_effort(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr("app.clients.auth_service.get_auth_service_client", lambda request: Client())
     auth = AuthData(user_team_id=12, user_id=42, session_refresh_token="saved")
     assert asyncio.run(verified_telemetry_identity(identity_request(auth))) == {
-        "deputydev.user_team_id": "12",
+        "axon.user_team_id": "12",
         "user.id": "42",
     }
     assert auth.session_refresh_token == "saved"

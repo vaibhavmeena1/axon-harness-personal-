@@ -98,11 +98,37 @@ async function* jsonlLines(input: AsyncIterable<Buffer>): AsyncGenerator<string>
   if (tail) yield tail;
 }
 
+function userMessageText(message: Record<string, unknown>): string | null {
+  if (message["role"] !== "user") return null;
+  const content = message["content"];
+  const text =
+    typeof content === "string"
+      ? content
+      : (content as unknown[])
+          .filter(
+            (block): block is { type: "text"; text: string } =>
+              block !== null &&
+              typeof block === "object" &&
+              "type" in block &&
+              block.type === "text" &&
+              "text" in block &&
+              typeof block.text === "string",
+          )
+          .map((block) => block.text)
+          .join(" ");
+  return normalizeDisplayName(text);
+}
+
 export async function validatePiJsonl(
   path: string,
   nativeId: string | null,
   resume: PiResume,
-): Promise<{ nativeId: string; entries: number; displayName: string | null }> {
+): Promise<{
+  nativeId: string;
+  entries: number;
+  displayName: string | null;
+  nativeDisplayName: string | null;
+}> {
   resumeSchema.parse(resume);
   const info = await lstat(path);
   if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_RAW_BYTES || info.size === 0)
@@ -117,6 +143,7 @@ export async function validatePiJsonl(
     await handle.close();
   }
   let displayName: string | null = null;
+  let firstMessage: string | null = null;
   const ids = new Set<string>();
   const refs: string[] = [];
   let header: z.infer<typeof headerSchema> | undefined;
@@ -144,6 +171,8 @@ export async function validatePiJsonl(
       if (ids.has(entry.id) || (entry.parentId !== null && !ids.has(entry.parentId)))
         throw new Error("Invalid Pi session tree");
       validateEntryPayload(entry);
+      if (firstMessage === null && entry.type === "message")
+        firstMessage = userMessageText(entry["message"] as Record<string, unknown>);
       if (entry.type === "session_info")
         displayName = normalizeDisplayName(entry["name"] as string);
       if (entry.type === "compaction") {
@@ -161,7 +190,13 @@ export async function validatePiJsonl(
     throw new Error("Empty or invalid Pi session");
   if (resume.leaf_known && resume.selected_leaf_id !== null && !ids.has(resume.selected_leaf_id))
     throw new Error("Selected leaf is absent from captured tree");
-  return { nativeId: header.id, entries: ids.size, displayName };
+  // File order keeps this fallback stable across appends, branches and context edits.
+  return {
+    nativeId: header.id,
+    entries: ids.size,
+    displayName: displayName ?? firstMessage,
+    nativeDisplayName: displayName,
+  };
 }
 
 export interface CapturedSnapshot {

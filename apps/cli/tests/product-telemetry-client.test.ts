@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 import {
   closeProductTelemetry,
   flushProductTelemetry,
@@ -21,8 +21,8 @@ const policy = {
 };
 
 test("launcher product events export authenticated protobuf to the pinned backend without mutating ambient env", async () => {
-  const home = await mkdtemp(join(tmpdir(), "ddcli-products-"));
-  const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+  const home = await mkdtemp(join(tmpdir(), "axon-products-"));
+  const paths = resolveAxonPaths({ AXON_HOME: home });
   const received: {
     path: string;
     auth: string | null;
@@ -74,9 +74,7 @@ test("launcher product events export authenticated protobuf to the pinned backen
           request.contentType === "application/x-protobuf",
       ),
     );
-    assert.ok(
-      received.some((request) => request.body.includes(Buffer.from("deputydev.update.events"))),
-    );
+    assert.ok(received.some((request) => request.body.includes(Buffer.from("axon.update.events"))));
     assert.ok(
       received.every((request) => !request.body.includes(Buffer.from("product-test-session"))),
     );
@@ -89,8 +87,8 @@ test("launcher product events export authenticated protobuf to the pinned backen
 });
 
 test("concurrent close waits for initialization, shares shutdown and detaches the event observer", async () => {
-  const home = await mkdtemp(join(tmpdir(), "ddcli-product-close-"));
-  const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+  const home = await mkdtemp(join(tmpdir(), "axon-product-close-"));
+  const paths = resolveAxonPaths({ AXON_HOME: home });
   const received: string[] = [];
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -122,8 +120,8 @@ test("concurrent close waits for initialization, shares shutdown and detaches th
 });
 
 test("a short-lived CLI process exports product metrics, traces and logs before exit", async () => {
-  const home = await mkdtemp(join(tmpdir(), "ddcli-product-exit-"));
-  const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: home });
+  const home = await mkdtemp(join(tmpdir(), "axon-product-exit-"));
+  const paths = resolveAxonPaths({ AXON_HOME: home });
   const received = new Map<string, Buffer[]>();
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -150,8 +148,8 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
         "--eval",
         `import { initializeProductTelemetry, flushProductTelemetry } from ${JSON.stringify(client)};
        import { emitProductEvent } from ${JSON.stringify(events)};
-       import { resolveDeputyDevPaths } from ${JSON.stringify(pathsModule)};
-       const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: ${JSON.stringify(home)} });
+       import { resolveAxonPaths } from ${JSON.stringify(pathsModule)};
+       const paths = resolveAxonPaths({ AXON_HOME: ${JSON.stringify(home)} });
        await initializeProductTelemetry(paths, ${JSON.stringify(policy)}, { serviceOrigin: ${JSON.stringify(server.url.origin)} });
        emitProductEvent({ category: "backup", stage: "upload", outcome: "success", durationMs: 20, bytes: 1024 });
        emitProductEvent({ category: "backup", stage: "upload", outcome: "success", durationMs: 30, bytes: 2048 });
@@ -172,7 +170,7 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
       "shutdown exports without waiting for the 10s periodic interval",
     );
     for (const name of ["events", "duration", "transfer"])
-      assert.ok(metrics?.[0]?.includes(Buffer.from(`deputydev.backup.${name}`)), name);
+      assert.ok(metrics?.[0]?.includes(Buffer.from(`axon.backup.${name}`)), name);
     assert.ok(
       [...received.values()]
         .flat()
@@ -188,7 +186,7 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
 test("disabled policy discards events without contacting a collector", async () => {
   takeProductEvents();
   emitProductEvent({ category: "config", stage: "fetch", outcome: "failed", reason: "timeout" });
-  await initializeProductTelemetry(resolveDeputyDevPaths(), { ...policy, enabled: false });
+  await initializeProductTelemetry(resolveAxonPaths(), { ...policy, enabled: false });
   assert.equal(takeProductEvents().length, 0);
-  await flushProductTelemetry(resolveDeputyDevPaths());
+  await flushProductTelemetry(resolveAxonPaths());
 });

@@ -1,15 +1,15 @@
 import type { DoctorFinding, LaunchContext } from "../../../../launcher/contracts.ts";
 import { PRODUCT_IDENTITY } from "../../../../product/identity.ts";
-import { DEPUTYDEV_MANIFEST } from "../../../../product/manifest.ts";
+import { AXON_MANIFEST } from "../../../../product/manifest.ts";
 import { inspectInstalledPackage } from "./inspect.ts";
-import { type DeputyDevManifest, normalizePiPackage } from "./manifest.ts";
+import { type AxonManifest, normalizePiPackage } from "./manifest.ts";
 import { findPackageSetting, piSettingsPath, readPiSettings } from "./settings.ts";
 import { readPiPackageState } from "./state.ts";
 import { canUseExactFallback } from "./sync.ts";
 
 export async function inspectPiPackages(
   context: LaunchContext,
-  manifest: DeputyDevManifest = DEPUTYDEV_MANIFEST,
+  manifest: AxonManifest = AXON_MANIFEST,
 ): Promise<readonly DoctorFinding[]> {
   const packages = manifest.pi.packages.map(normalizePiPackage);
   if (packages.length === 0) {
@@ -36,7 +36,7 @@ export async function inspectPiPackages(
       }
 
       // The same rule the launcher applies: only a verified, non-revoked exact
-      // version recorded by DeputyDev may keep running in place of the policy version.
+      // version recorded by Axon may keep running in place of the policy version.
       const fallbackMatches = canUseExactFallback(
         packageEntry,
         inspection,

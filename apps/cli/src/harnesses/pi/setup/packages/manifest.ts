@@ -131,7 +131,7 @@ export const piResourceManifestEntrySchema = z.strictObject({
   destination: z.string().trim().min(1),
 });
 
-export const deputyDevManifestSchema = z
+export const axonManifestSchema = z
   .strictObject({
     schemaVersion: z.literal(PI_PACKAGE_MANIFEST_SCHEMA_VERSION),
     revision: z.string().trim().min(1),
@@ -196,7 +196,7 @@ export const deputyDevManifestSchema = z
 export type PiPackageVersionPolicy = z.infer<typeof piPackageVersionPolicySchema>;
 export type PiPackageManifestEntry = z.infer<typeof piPackageManifestEntrySchema>;
 export type PiResourceManifestEntry = z.infer<typeof piResourceManifestEntrySchema>;
-export type DeputyDevManifest = z.infer<typeof deputyDevManifestSchema>;
+export type AxonManifest = z.infer<typeof axonManifestSchema>;
 export type PiPackageSourceKind = "npm" | "git";
 
 export interface ParsedGitSource {
@@ -359,16 +359,16 @@ export function normalizePiPackage(entry: PiPackageManifestEntry): NormalizedPiP
   });
 }
 
-export function parseDeputyDevManifest(input: unknown): DeputyDevManifest {
-  return deputyDevManifestSchema.parse(input);
+export function parseAxonManifest(input: unknown): AxonManifest {
+  return axonManifestSchema.parse(input);
 }
 
 export function normalizeManifestPackages(input: unknown): readonly NormalizedPiPackage[] {
-  const manifest = parseDeputyDevManifest(input);
+  const manifest = parseAxonManifest(input);
   return Object.freeze(manifest.pi.packages.map(normalizePiPackage));
 }
 
-export function hashDeputyDevManifest(manifest: DeputyDevManifest): string {
+export function hashAxonManifest(manifest: AxonManifest): string {
   const hasher = new Bun.CryptoHasher("sha256");
   hasher.update(JSON.stringify(manifest));
   return hasher.digest("hex");
