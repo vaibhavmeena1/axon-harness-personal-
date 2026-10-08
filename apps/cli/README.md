@@ -17,7 +17,7 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 - Authenticated, best-effort Pi telemetry preferences, with fetched config taking priority over OTEL environment settings
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${DEPUTYDEV_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.0.4 pin: DeputyDev uses only its isolated executable under `${DEPUTYDEV_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.1.0 pin: DeputyDev uses only its isolated executable under `${DEPUTYDEV_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified DeputyDev Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -39,7 +39,7 @@ Native Bun/TypeScript launcher for running Pi with DeputyDev-managed configurati
 
 ## Installation
 
-The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` installs and uses its own exact Pi 1.0.4 release on first use, independently of any user-installed Pi.
+The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `ddcli`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `ddcli pi` installs and uses its own exact Pi 1.1.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -101,7 +101,7 @@ Interactive online Pi launches fetch `/api/v1/cli/config` using that session, ca
 
 ### Pi installation bootstrap
 
-`ddcli pi` uses **only** the DeputyDev-managed executable at `${DEPUTYDEV_HOME}/pi-runtime/1.0.4/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `ddcli pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. DeputyDev's own required-package reconciliation still works through its pinned executable.
+`ddcli pi` uses **only** the DeputyDev-managed executable at `${DEPUTYDEV_HOME}/pi-runtime/1.1.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `ddcli pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. DeputyDev's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so DeputyDev does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -131,6 +131,8 @@ PI_CODING_AGENT_SESSION_DIR=${DEPUTYDEV_HOME}/pi/sessions
 With the default DeputyDev home, these resolve to `~/.deputydev/pi` and `~/.deputydev/pi/sessions`. Pi settings, auth, installed npm/git packages, temporary package caches, and sessions used through DeputyDev therefore remain separate from the user's normal `~/.pi/agent` directory. The values override inherited `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings, including for forwarded Pi package commands.
 
 Pi launches set `PI_SKIP_VERSION_CHECK=1` to disable Pi's startup version request. They also remove every provider API-key variable documented by Pi (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `XAI_API_KEY`, and the rest of the list exported as `PI_STRIPPED_PROVIDER_VARIABLES` in [`src/harnesses/pi/environment.ts`](src/harnesses/pi/environment.ts)) so ambient personal credentials never select a provider implicitly. `LITELLM_*` variables, `GOOGLE_APPLICATION_CREDENTIALS`, cloud SDK configuration, and proxy variables are kept because the pinned `pi-provider-litellm` package is the organization provider path. This provider-key policy applies to every `ddcli pi` launch without mutating `process.env`.
+
+Before an authenticated online Pi launch, DeputyDev removes cached `litellm` models whose base URLs point to an obsolete DeputyDev loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
 ### Pi resources and required packages
 

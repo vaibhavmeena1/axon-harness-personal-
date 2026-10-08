@@ -9,7 +9,7 @@ This is the current implementation and operations reference for DeputyDev sessio
 | Concern | Current behavior |
 | --- | --- |
 | Supported production adapter | `harness=pi`, `session_format=pi-jsonl`, `session_format_version="3"` |
-| Managed Pi runtime | **1.0.4**, pinned in [`apps/cli/pi-version.json`](../apps/cli/pi-version.json); restore loads that managed package, not global Pi |
+| Managed Pi runtime | **1.1.0**, pinned in [`apps/cli/pi-version.json`](../apps/cli/pi-version.json); restore loads that managed package, not global Pi |
 | Backup artifact | Complete original JSONL bytes: header, all branches, messages, tool calls/results, compactions, model changes, thinking, embedded media, and opaque fields |
 | Remote retention | One latest committed checkpoint per stream, not revision history |
 | Size limits | Raw: **100 MiB / 104,857,600 bytes**; stored: **101 MiB / 105,906,176 bytes** |
@@ -50,8 +50,8 @@ Managed Pi exposes:
 - Backups include source code, pasted secrets, terminal output, prompts, tool arguments/results, thinking, and embedded images. There is **no transcript redaction or client-side encryption layer** in this implementation. Session names are also private metadata.
 - `enable` binds consent to the verified membership and compiled backend origin. A different account/origin does not inherit the old account's queue.
 - `disable` and in-Pi `pause` stop subsequent attempts and retain local pending data. They do not delete remote objects or cancel an already-issued signed URL.
-- `retry` clears queue error flags for the original verified account. It does **not** immediately upload: work resumes at a later lifecycle/manual boundary. A changed remote stream still requires a local fork.
-- `status` reports local consent, last acknowledged backup, pending stream count, and paused stream count. It is not a fresh remote health check.
+- `retry` clears queue error flags for compatible streams of the original verified account. Unrecoverable or busy streams remain untouched/paused and are reported rather than preventing healthy streams from retrying. It does **not** immediately upload: work resumes at a later lifecycle/manual boundary. A changed remote stream still requires a local fork.
+- `status` reports local consent, last acknowledged backup, pending stream count, and paused stream count. Incompatible, corrupt, unsafe, or busy queue entries are reported as local queue issues without hiding healthy streams. It is not a fresh remote health check.
 - `list` follows backend pagination and shows committed ID, quoted name or `(untitled)`, harness/format, backup time, and raw size. It does not return transcript previews or original cwd.
 - `restore` prints a launch instruction; it does not launch Pi automatically. Listing/restoring/deleting owned backups does not require enabling automatic capture.
 - Remote deletion hides the stream immediately. Cleanup is asynchronous, and previously issued URLs cannot be instantly revoked; their maximum configured lifetime is five minutes.
@@ -99,6 +99,8 @@ Validation preserves native bytes; it does not rebuild a transcript or export on
 A known root is `{"leaf_known": true, "selected_leaf_id": null}`; an unknown selection is `{"leaf_known": false, "selected_leaf_id": null}`. Known non-root leaves must belong to the captured tree.
 
 Each stream retains at most one uncertain request (`pending`) and one coalesced newer checkpoint (`next`). Duplicate raw content/name/version/resume state is a no-op. A superseded `next` file is removed only after its replacement pointer is durable. A confirmed request is removed only after acknowledged state is durable; newer queued work can wait for the next boundary rather than forcing a second full upload.
+
+An older **unsubmitted `next`** snapshot missing only `display_name` is repaired under its stream lock when status, retry, or lifecycle work reads it. Repair uses a private copy of the queued archive, verifies stored/raw hashes and sizes with bounded decompression, validates the Pi identity/tree/selected leaf, and extracts the last native session name. Only metadata is atomically updated; payload bytes, request IDs, tokens, and queue pointers are preserved. A declaration already in `pending`, or a `next` carrying an expected token, is never rewritten automatically because it may already have reached the server. Failed repair retains all original files and reports that stream as paused. Local-state errors are distinguished from backend authentication/storage errors in Pi notifications.
 
 Network/storage failures retain pending state. Invalid/oversized/unsafe capture and API access, validation, or stale-token failures can pause the stream for explicit review. Lost commit responses are reconciled against remote state; an uncertain old checkpoint is not blindly submitted under a new UUID. A stale remote token does not silently replace another client's newer checkpoint.
 
