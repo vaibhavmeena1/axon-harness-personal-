@@ -15,6 +15,7 @@ export function recordProductEvent(
     stage: event.stage,
     outcome: event.outcome,
     ...(event.reason ? { reason: event.reason } : {}),
+    ...(event.trigger ? { trigger: event.trigger } : {}),
     ...(event.model ? { model: event.model } : {}),
     ...(event.rank !== undefined ? { selected_rank: event.rank } : {}),
     ...(event.policyVersion ? { policy_version: event.policyVersion } : {}),

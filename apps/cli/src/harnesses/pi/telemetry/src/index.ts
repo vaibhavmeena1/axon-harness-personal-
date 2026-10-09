@@ -602,10 +602,11 @@ export function createPiOrgTelemetry(
 
     pi.on(
       "session_before_compact",
-      guard("session_before_compact", (event) => {
+      guard("session_before_compact", (event, ctx) => {
         tracker?.startCompaction({
           reason: event.reason,
           willRetry: event.willRetry,
+          ...(ctx.model ? { model: `${ctx.model.provider}/${ctx.model.id}` } : {}),
           ...(event.preparation.tokensBefore !== undefined
             ? { tokensBefore: event.preparation.tokensBefore }
             : {}),
@@ -616,6 +617,7 @@ export function createPiOrgTelemetry(
     pi.on(
       "session_compact",
       guard("session_compact", (event) => {
+        if (tracker?.consumeHandledCompactionOutcome()) return;
         const usage = summarizeUsage(event.compactionEntry.usage);
         tracker?.endCompaction({
           outcome: "ok",
@@ -627,7 +629,20 @@ export function createPiOrgTelemetry(
 
     pi.on(
       "session_compact_failed",
-      guard("session_compact_failed", (event) => {
+      guard("session_compact_failed", (event, ctx) => {
+        // Pi reports a hook cancel result as aborted. Preserve its already-recorded
+        // failure/skip and do not count a second completion or a false user abort.
+        if (!tracker || tracker.consumeHandledCompactionOutcome()) return;
+        if (!tracker.hasOpenCompaction()) {
+          // Preparation can fail before session_before_compact. Its start time is
+          // unknown: mark the inferred lifecycle rather than silently dropping it.
+          tracker.startCompaction({
+            reason: event.reason,
+            willRetry: event.willRetry,
+            inferred: true,
+            ...(ctx.model ? { model: `${ctx.model.provider}/${ctx.model.id}` } : {}),
+          });
+        }
         if (event.aborted) {
           tracker?.userAction("compaction_abort_inferred", {
             "pi.compaction.reason": event.reason,
@@ -636,9 +651,9 @@ export function createPiOrgTelemetry(
         tracker?.endCompaction({
           outcome: event.aborted ? "aborted" : "failed",
           fromExtension: event.fromExtension,
-          ...(event.errorMessage
-            ? { error: new Error(sanitizeText(event.errorMessage, cwd)) }
-            : {}),
+          // Native provider errors may reflect instructions or conversation content.
+          // Match product telemetry's content-free failure contract.
+          ...(event.aborted ? {} : { error: new Error("Native compaction failed") }),
         });
       }),
     );
