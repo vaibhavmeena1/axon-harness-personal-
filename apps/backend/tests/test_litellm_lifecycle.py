@@ -27,7 +27,7 @@ def configured_settings() -> SimpleNamespace:
     )
 
 
-def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_lifecycle_wires_isolated_pools_and_detaches_before_closing(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = configured_settings()
     monkeypatch.setattr(litellm, "get_settings", lambda: settings)
 
@@ -37,6 +37,9 @@ def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytes
         await litellm.initialize_litellm_proxy(second)
         transport = first.state.litellm_transport
         assert transport is not second.state.litellm_transport
+        assert transport._client is not transport._management_client
+        assert transport._client is not second.state.litellm_transport._client
+        assert transport._management_client is not second.state.litellm_transport._management_client
         assert first.state.litellm_identity_client._transport is transport
         assert first.state.litellm_decision_client._transport is transport
         assert first.state.litellm_decision_client is not second.state.litellm_decision_client
@@ -53,6 +56,8 @@ def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytes
             await litellm.close_litellm_proxy(first)
             await litellm.close_litellm_proxy(first)
             transport.aclose.assert_awaited_once()
+            assert transport._client.is_closed
+            assert transport._management_client.is_closed
         finally:
             await close()
             await litellm.close_litellm_proxy(second)
@@ -61,7 +66,7 @@ def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytes
 
 
 @pytest.mark.parametrize("consumer", ["LiteLLMIdentityClient", "LiteLLMDecisionClient"])
-def test_composition_failure_closes_created_pool(monkeypatch: pytest.MonkeyPatch, consumer: str) -> None:
+def test_composition_failure_closes_created_pools(monkeypatch: pytest.MonkeyPatch, consumer: str) -> None:
     monkeypatch.setattr(litellm, "get_settings", configured_settings)
     transport = AsyncMock(spec=LiteLLMTransport)
     monkeypatch.setattr(litellm, "LiteLLMTransport", Mock(return_value=transport))

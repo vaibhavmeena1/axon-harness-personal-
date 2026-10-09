@@ -121,8 +121,13 @@ It does not modify the main agent's provider requests or send the agent's functi
 On managed launches, backend `WEB_SEARCH` preferences select enablement, model, limits, temperature,
 reasoning level, optional search context size, URL context, and grounding requirements. The launcher
 always sets the destination to `/litellm/v1/chat/completions` on its capability-protected local relay.
-The relay reads the saved Axon session per request, persists rotation, and supports session recovery;
-the backend proxy resolves the native LiteLLM identity. The extension sees only the local capability,
+The relay reads the saved Axon session per request, persists rotation, and supports session recovery.
+Upstream requests run concurrently, including main-agent, subagent, and web-search calls; new requests
+wait only while a rotated session is being saved. Login recovery is shared across waiting requests,
+and cancelling one request does not cancel recovery for the others. If concurrent responses rotate
+the same session, the first rotation is saved; should the auth service reject it, the relay adopts a
+verified sibling rotation before asking for login. The backend proxy resolves the
+native LiteLLM identity. The extension sees only the local capability,
 never the real session or an upstream LiteLLM key. Raw calls explicitly carry Pi's canonical session
 ID and search metadata and report tokens plus `x-litellm-response-cost` as tool usage.
 

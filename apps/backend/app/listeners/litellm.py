@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 async def initialize_litellm_proxy(app: FastAPI) -> None:
-    """Compose streaming proxy, identity management and decisions over one HTTP pool."""
+    """Compose streaming proxy and buffered consumers over isolated HTTP pools."""
     settings = get_settings()
     transport = LiteLLMTransport(settings.litellm)
     try:
@@ -34,7 +34,7 @@ async def initialize_litellm_proxy(app: FastAPI) -> None:
 
 
 async def close_litellm_proxy(app: FastAPI) -> None:
-    """Detach all consumers before closing their shared connection pool."""
+    """Detach all consumers before closing both connection pools."""
     transport = getattr(app.state, LITELLM_TRANSPORT_STATE_KEY, None)
     setattr(app.state, LITELLM_TRANSPORT_STATE_KEY, None)
     setattr(app.state, LITELLM_IDENTITY_CLIENT_STATE_KEY, None)

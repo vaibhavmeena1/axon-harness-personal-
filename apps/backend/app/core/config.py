@@ -93,6 +93,9 @@ class LiteLLMSettings:
     team_id: str = ""
     team_role: str = "user"
     decision_timeout_seconds: int = 120
+    decision_max_concurrency: int = 10
+    read_timeout_seconds: int = 360
+    management_max_connections: int = 20
 
 
 @dataclass(frozen=True, slots=True)
@@ -484,6 +487,7 @@ def get_settings() -> Settings:
     litellm = LiteLLMSettings(
         api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
         decision_timeout_seconds=_integer(litellm_config, "DECISION_TIMEOUT_SECONDS", "config.LITELLM", default=120),
+        decision_max_concurrency=_integer(litellm_config, "DECISION_MAX_CONCURRENCY", "config.LITELLM", default=10),
         team_id=litellm_team_id,
         team_role=litellm_team_role,
         identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
@@ -508,6 +512,8 @@ def get_settings() -> Settings:
             "config.LITELLM",
             default=10,
         ),
+        read_timeout_seconds=_integer(litellm_config, "READ_TIMEOUT_SECONDS", "config.LITELLM", default=360),
+        management_max_connections=_integer(litellm_config, "MANAGEMENT_MAX_CONNECTIONS", "config.LITELLM", default=20),
         pool_timeout_seconds=_integer(
             litellm_config,
             "POOL_TIMEOUT_SECONDS",
@@ -535,6 +541,9 @@ def get_settings() -> Settings:
     )
     if litellm.max_keepalive_connections > litellm.max_connections:
         raise ConfigurationError("config.LITELLM.MAX_KEEPALIVE_CONNECTIONS must not exceed MAX_CONNECTIONS")
+    # Decisions hold buffered connections for minutes; identity sync needs the remainder.
+    if litellm.decision_max_concurrency >= litellm.management_max_connections:
+        raise ConfigurationError("config.LITELLM.DECISION_MAX_CONCURRENCY must be less than MANAGEMENT_MAX_CONNECTIONS")
 
     database = DatabaseSettings(
         name=_string(database_config, "DB_NAME", f"config.DATABASE.{DATABASE_CONFIG_NAME}"),

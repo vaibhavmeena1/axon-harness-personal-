@@ -92,7 +92,7 @@ def test_management_uses_fixed_root_credentials_and_timeout(settings: LiteLLMSet
 
     async def run() -> None:
         client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
-        transport = LiteLLMTransport(settings, client=client)
+        transport = LiteLLMTransport(settings, management_client=client)
         try:
             response = await transport.request(
                 "GET", "/user/info", api_key="admin-key", timeout_seconds=3, params={"user_id": "12"}
@@ -134,3 +134,10 @@ def test_streaming_redirects_are_not_followed(settings: LiteLLMSettings) -> None
     asyncio.run(run())
     assert len(seen) == 1
     assert seen[0].url.host == "litellm.test"
+    # Settings apply even when the injected streaming client has different defaults.
+    assert seen[0].extensions["timeout"] == {
+        "connect": settings.connect_timeout_seconds,
+        "read": settings.read_timeout_seconds,
+        "write": None,
+        "pool": settings.pool_timeout_seconds,
+    }

@@ -1,4 +1,4 @@
-"""Application-owned LiteLLM HTTP pool, fixed-origin URLs, and upstream I/O."""
+"""Application-owned LiteLLM HTTP pools, fixed-origin URLs, and upstream I/O."""
 
 from collections.abc import AsyncIterator, Iterable
 from typing import Any
@@ -24,26 +24,47 @@ def validate_raw_path(raw_path: bytes) -> None:
 
 
 class LiteLLMTransport:
-    """Own one pool shared by streaming traffic, identity management and decisions.
+    """Isolate streaming traffic from buffered identity management and decisions.
 
-    An injected HTTP client is also owned and closed by this wrapper. Callers of
-    send_stream own the returned response and must close it, including on cancellation.
+    Both HTTP clients, including injected clients, are owned by this wrapper.
+    send_stream callers own the response and must close it, including on cancellation.
     """
 
-    def __init__(self, settings: LiteLLMSettings, *, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: LiteLLMSettings,
+        *,
+        client: httpx.AsyncClient | None = None,
+        management_client: httpx.AsyncClient | None = None,
+    ) -> None:
         self.settings = settings
+        self._stream_timeout = httpx.Timeout(
+            connect=settings.connect_timeout_seconds,
+            read=settings.read_timeout_seconds,
+            write=None,
+            pool=settings.pool_timeout_seconds,
+        )
         self._client = client
         if self._client is None:
             self._client = httpx.AsyncClient(
-                timeout=httpx.Timeout(
-                    connect=settings.connect_timeout_seconds,
-                    read=None,
-                    write=None,
-                    pool=settings.pool_timeout_seconds,
-                ),
+                timeout=self._stream_timeout,
                 limits=httpx.Limits(
                     max_connections=settings.max_connections,
                     max_keepalive_connections=settings.max_keepalive_connections,
+                    keepalive_expiry=settings.keepalive_expiry_seconds,
+                ),
+                follow_redirects=False,
+                trust_env=False,
+            )
+        self._management_client = management_client
+        if self._management_client is None:
+            self._management_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.identity_sync_timeout_seconds),
+                limits=httpx.Limits(
+                    max_connections=settings.management_max_connections,
+                    max_keepalive_connections=min(
+                        settings.max_keepalive_connections, settings.management_max_connections
+                    ),
                     keepalive_expiry=settings.keepalive_expiry_seconds,
                 ),
                 follow_redirects=False,
@@ -70,7 +91,7 @@ class LiteLLMTransport:
         payload: dict[str, Any] | None = None,
     ) -> httpx.Response:
         """Buffered upstream request; identity and decision policy belong to their clients."""
-        return await self._client.request(
+        return await self._management_client.request(
             method,
             self.upstream_url(path.encode("ascii")),
             headers={"Authorization": f"Bearer {api_key}"},
@@ -95,8 +116,13 @@ class LiteLLMTransport:
             url=self.upstream_url(raw_path, query_string),
             headers=headers,
             content=content,
+            extensions={"timeout": self._stream_timeout.as_dict()},
         )
         return await self._client.send(request, stream=True, follow_redirects=False)
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        try:
+            await self._client.aclose()
+        finally:
+            if self._management_client is not self._client:
+                await self._management_client.aclose()
