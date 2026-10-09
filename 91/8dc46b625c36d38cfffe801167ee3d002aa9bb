@@ -1,0 +1,33 @@
+apps/cli/src/harnesses/pi/resources/extensions/deputydev.ts
+  06684326df20b265 161-212,215,218
+apps/cli/src/cli/dispatch.ts
+  06684326df20b265 1-3,5-6,12,18-39,41-54,57-60,80,93
+apps/cli/src/cli/auth/ensure-session.ts
+  06684326df20b265 12-20
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  06684326df20b265 1-2,8-66
+apps/cli/package.json
+  06684326df20b265 17
+apps/cli/src/harnesses/pi/adapter.ts
+  06684326df20b265 19,57-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "918dc46b625c36d38cfffe801167ee3d002aa9bb",
+  "prompts": {
+    "06684326df20b265": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "489629",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 195,
+      "total_deletions": 26,
+      "accepted_lines": 185,
+      "overriden_lines": 0
+    }
+  }
+}
