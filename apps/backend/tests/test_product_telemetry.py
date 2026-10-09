@@ -48,7 +48,7 @@ def test_backend_otel_http_configuration_and_private_headers() -> None:
 
 @pytest.mark.parametrize("invalid", [False, True])
 def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(invalid: bool) -> None:
-    class OpenRouter:
+    class Decisions:
         async def create_decision(self, request: dict[str, Any]) -> dict[str, Any]:
             assert request["state"]["task"] == "secret prompt"
             return (
@@ -83,7 +83,7 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
 
     async def run() -> ModelRecommendationResponse:
         with telemetry.operation("request", identity, **{"axon.recommendation.id": str(request.request_id)}):
-            return await ModelRecommendationService(OpenRouter()).recommend(request, telemetry, identity)
+            return await ModelRecommendationService(Decisions()).recommend(request, telemetry, identity)
 
     if invalid:
         with pytest.raises(ModelRecommendationError):

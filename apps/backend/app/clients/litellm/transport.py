@@ -2,14 +2,29 @@
 
 from collections.abc import AsyncIterator, Iterable
 from typing import Any
+from urllib.parse import unquote_to_bytes
 
 import httpx
 
 from app.core.config import LiteLLMSettings
 
 
+def validate_raw_path(raw_path: bytes) -> None:
+    """Reject dot segments at every decoding layer without rewriting safe paths."""
+    path = raw_path
+    while True:
+        if any(segment in {b".", b".."} for segment in path.split(b"/")):
+            raise ValueError("LiteLLM request paths must not contain dot segments")
+        # Encoded separators can expose segments, and an upstream gateway
+        # may decode nested escapes more than once.
+        decoded_path = unquote_to_bytes(path)
+        if decoded_path == path:
+            return
+        path = decoded_path
+
+
 class LiteLLMTransport:
-    """Own one pool shared by streaming traffic and identity management.
+    """Own one pool shared by streaming traffic, identity management and decisions.
 
     An injected HTTP client is also owned and closed by this wrapper. Callers of
     send_stream own the returned response and must close it, including on cancellation.
@@ -36,7 +51,8 @@ class LiteLLMTransport:
             )
 
     def upstream_url(self, raw_path: bytes, query_string: bytes = b"") -> httpx.URL:
-        """Preserve encoded paths and duplicate/ordered queries on a fixed origin."""
+        """Preserve safe encoded paths and duplicate/ordered queries on a fixed origin."""
+        validate_raw_path(raw_path)
         root = self.settings.upstream_root_path.rstrip("/").encode("ascii")
         path = root + (raw_path if raw_path.startswith(b"/") else b"/" + raw_path)
         if query_string:
@@ -53,7 +69,7 @@ class LiteLLMTransport:
         params: dict[str, str] | None = None,
         payload: dict[str, Any] | None = None,
     ) -> httpx.Response:
-        """Buffered management request; identity policy belongs to the identity client."""
+        """Buffered upstream request; identity and decision policy belong to their clients."""
         return await self._client.request(
             method,
             self.upstream_url(path.encode("ascii")),

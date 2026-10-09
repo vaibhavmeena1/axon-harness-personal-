@@ -39,6 +39,33 @@ def test_settings_load_json_credentials(configured_settings: tuple[dict[str, Any
     settings = config.get_settings().litellm
     assert settings.api_key == "configured-api-key"
     assert settings.api_key not in repr(settings)
+    raw, _ = configured_settings
+    assert "OPENROUTER" not in raw
+    assert not hasattr(config.get_settings(), "openrouter")
+
+
+@pytest.mark.parametrize("timeout", [None, False, 0, -1, "120"])
+def test_invalid_decision_timeout_fails_at_startup(
+    configured_settings: tuple[dict[str, Any], Path], timeout: object
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["DECISION_TIMEOUT_SECONDS"] = timeout
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.DECISION_TIMEOUT_SECONDS"):
+        config.get_settings()
+
+
+@pytest.mark.parametrize("timeout", [None, 7])
+def test_decision_timeout_default_and_configured_value(
+    configured_settings: tuple[dict[str, Any], Path], timeout: int | None
+) -> None:
+    raw, path = configured_settings
+    if timeout is None:
+        raw["LITELLM"].pop("DECISION_TIMEOUT_SECONDS")
+    else:
+        raw["LITELLM"]["DECISION_TIMEOUT_SECONDS"] = timeout
+    path.write_text(json.dumps(raw))
+    assert config.get_settings().litellm.decision_timeout_seconds == (120 if timeout is None else timeout)
 
 
 @pytest.mark.parametrize("value", [None, 123, "key with spaces", "key\nvalue"])

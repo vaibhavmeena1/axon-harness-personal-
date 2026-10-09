@@ -1,7 +1,7 @@
 """One harness-neutral latest pointer and pending slot.
 
 The legacy membership is mapped as a scalar BIGINT, with its physical FK owned
-by dbmate. Registering a Tortoise legacy membership model would accidentally
+by the SQL migrations. Registering a Tortoise legacy membership model would accidentally
 make schema generation own/create an unrelated table.
 """
 

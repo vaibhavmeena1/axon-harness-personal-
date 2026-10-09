@@ -38,6 +38,51 @@ def test_fixed_origin_preserves_raw_path_and_query(settings: LiteLLMSettings) ->
     asyncio.run(run())
 
 
+@pytest.mark.parametrize(
+    "raw_path",
+    [
+        b"/.",
+        b"/..",
+        b"/../../other/x",
+        b"../other/x",
+        b"/v1/./models",
+        b"/v1/../models",
+        b"/v1/%2e/models",
+        b"/%2e%2e/%2E%2E/other/x",
+        b"/.%2e/%2e./other/x",
+        b"/%2e%2e%2f%2e%2e%2fother/x",
+        b"/v1%2F..%2Fmodels",
+        b"/%252e%252e/other/x",
+        b"/%252e%252e%252fother/x",
+        b"/%25252e%25252e/other/x",
+    ],
+)
+def test_fixed_origin_rejects_dot_segments(settings: LiteLLMSettings, raw_path: bytes) -> None:
+    async def run() -> None:
+        transport = LiteLLMTransport(settings)
+        try:
+            with pytest.raises(ValueError, match="dot segments"):
+                transport.upstream_url(raw_path)
+        finally:
+            await transport.aclose()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("raw_path", [b"/files/.hidden", b"/files/a..b", b"/files/a%2Eb", b"/files/a%252Fb"])
+def test_fixed_origin_preserves_safe_dots_and_encoding(settings: LiteLLMSettings, raw_path: bytes) -> None:
+    async def run() -> None:
+        transport = LiteLLMTransport(settings)
+        try:
+            query = b"path=/../../other/x&q=%2e%2e"
+            url = transport.upstream_url(raw_path, query)
+            assert url.raw_path == b"/private" + raw_path + b"?" + query
+        finally:
+            await transport.aclose()
+
+    asyncio.run(run())
+
+
 def test_management_uses_fixed_root_credentials_and_timeout(settings: LiteLLMSettings) -> None:
     seen: list[httpx.Request] = []
 

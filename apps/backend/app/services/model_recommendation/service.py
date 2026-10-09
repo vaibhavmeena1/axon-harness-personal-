@@ -1,6 +1,6 @@
 """Backend orchestration for Jev-powered model recommendations."""
 
-from app.clients.openrouter import OpenRouterClient
+from app.clients.litellm.decisions import LiteLLMDecisionClient, LiteLLMDecisionError
 from app.services.model_recommendation.catalog import model_policy_version
 from app.services.model_recommendation.jev import (
     JevAssessmentError,
@@ -23,8 +23,8 @@ class ModelRecommendationError(RuntimeError):
 class ModelRecommendationService:
     """Assess a user task with Jev and rank the models available to Pi."""
 
-    def __init__(self, openrouter_client: OpenRouterClient) -> None:
-        self._openrouter_client = openrouter_client
+    def __init__(self, decision_client: LiteLLMDecisionClient) -> None:
+        self._decision_client = decision_client
 
     async def recommend(
         self,
@@ -37,11 +37,11 @@ class ModelRecommendationService:
         policy = model_policy_version()
         try:
             with telemetry.operation("assessment", identity, **{"axon.recommendation.id": str(request.request_id)}):
-                jev_response = await self._openrouter_client.create_decision(build_jev_request(request.prompt))
+                jev_response = await self._decision_client.create_decision(build_jev_request(request.prompt))
                 assessment = parse_jev_assessment(jev_response)
             with telemetry.operation("ranking", identity):
                 recommendations = rank_available_models(request, assessment)
-        except (JevAssessmentError, ValueError) as exc:
+        except (LiteLLMDecisionError, JevAssessmentError, ValueError) as exc:
             raise ModelRecommendationError(str(exc)) from exc
 
         telemetry.event(

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import {
   type AppKeybinding,
   type ExtensionAPI,
@@ -21,20 +22,163 @@ const BACKUP_LABELS = {
   ready: "on",
 } as const;
 type BackupHeaderState = keyof typeof BACKUP_LABELS;
+type ThemeColor = Parameters<Theme["fg"]>[0];
+
+/** Below this width the header drops the card and logo for plain stacked lines. */
+const CARD_MIN_WIDTH = 56;
+/** Keep the card readable on very wide terminals instead of stretching edge to edge. */
+const CARD_MAX_WIDTH = 84;
+const LOGO_WIDTH = 5;
+const TAGLINE = "TATA 1mg · Your coding workspace";
+
+interface Shortcut {
+  readonly key: string;
+  readonly description: string;
+}
+
+/** Show the working directory home-relative and strip anything that could steer the terminal. */
+function displayDirectory(cwd: string | undefined): string | undefined {
+  if (!cwd) return undefined;
+  const home = homedir();
+  const relative =
+    home && (cwd === home || cwd.startsWith(`${home}/`)) ? `~${cwd.slice(home.length)}` : cwd;
+  return relative.replace(/\p{Cc}/gu, "?");
+}
+
+/** Keep the most specific end of a path, dropping leading directories first. */
+function truncatePathStart(path: string, width: number): string {
+  if (visibleWidth(path) <= width) return path;
+  const parts = path.split("/");
+  for (let index = 1; index < parts.length; index++) {
+    const tail = `…/${parts.slice(index).join("/")}`;
+    if (visibleWidth(tail) <= width) return tail;
+  }
+  return truncateToWidth(parts.at(-1) ?? path, width);
+}
 
 /** Compact, responsive branding; all colors and shortcuts follow Pi's active settings. */
-function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | undefined) {
+function createAxonHeader(
+  theme: Theme,
+  backupState: () => BackupHeaderState | undefined,
+  cwd?: string,
+) {
   const rawVersion = process.env["PI_AXON_CLI_VERSION"];
   const version =
     rawVersion && /^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,79}$/.test(rawVersion) ? ` v${rawVersion}` : "";
+  const directory = displayDirectory(cwd);
   let expanded = false;
 
-  const hint = (action: AppKeybinding, description: string): string | undefined => {
+  const shortcut = (action: AppKeybinding, description: string): Shortcut | undefined => {
     const key = keyText(action);
-    return key ? rawHint(key, description) : undefined;
+    return key ? { key, description } : undefined;
   };
-  const rawHint = (key: string, description: string): string =>
-    theme.fg("accent", key) + theme.fg("muted", ` ${description}`);
+  const present = (items: (Shortcut | undefined)[]): Shortcut[] =>
+    items.filter((item): item is Shortcut => item !== undefined);
+  const separator = theme.fg("dim", " · ");
+  const formatShortcut = ({ key, description }: Shortcut): string =>
+    theme.fg("muted", key) + theme.fg("dim", ` ${description}`);
+
+  const backupBadge = (): string | undefined => {
+    const state = backupState();
+    if (state === undefined) return undefined;
+    const color: ThemeColor =
+      state === "saved" || state === "ready"
+        ? "success"
+        : state === "paused" || state === "pending"
+          ? "warning"
+          : state === "checking" || state === "syncing"
+            ? "accent"
+            : "dim";
+    return (
+      theme.fg(color, state === "off" ? "○" : "●") +
+      theme.fg("dim", " Backup: ") +
+      theme.fg(color, BACKUP_LABELS[state])
+    );
+  };
+
+  /** Right-align the badge; the wordmark always wins when both cannot fit. */
+  const withBadge = (left: string, width: number, minimumLeftWidth: number): string => {
+    const badge = backupBadge();
+    if (badge === undefined) return truncateToWidth(left, width);
+    const available = width - visibleWidth(badge) - 2;
+    if (available < minimumLeftWidth) return truncateToWidth(left, width);
+    const fitted = truncateToWidth(left, available, available === minimumLeftWidth ? "" : "…");
+    return fitted + " ".repeat(width - visibleWidth(fitted) - visibleWidth(badge)) + badge;
+  };
+
+  /** Join shortcuts with separators, wrapping between items rather than inside them. */
+  const wrapShortcuts = (items: Shortcut[], width: number): string[] => {
+    const lines: string[] = [];
+    let current = "";
+    for (const item of items.map(formatShortcut)) {
+      if (current && visibleWidth(current + separator + item) <= width) {
+        current += separator + item;
+      } else {
+        if (current) lines.push(current);
+        const wrapped = wrapTextWithAnsi(item, width);
+        lines.push(...wrapped.slice(0, -1));
+        current = wrapped.at(-1) ?? "";
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  };
+
+  /** Two aligned columns for the expanded reference, falling back to wrapping when narrow. */
+  const shortcutTable = (items: Shortcut[], width: number): string[] => {
+    const keyWidth = Math.max(...items.map(({ key }) => visibleWidth(key)));
+    const descriptionWidth = width - keyWidth - 2;
+    if (descriptionWidth < 12) {
+      return items.flatMap((item) => wrapTextWithAnsi(formatShortcut(item), width));
+    }
+    return items.flatMap(({ key, description }) =>
+      wrapTextWithAnsi(description, descriptionWidth).map(
+        (line, index) =>
+          (index === 0
+            ? theme.fg("muted", key) + " ".repeat(keyWidth - visibleWidth(key) + 2)
+            : " ".repeat(keyWidth + 2)) + theme.fg("dim", line),
+      ),
+    );
+  };
+
+  const logo = (): string[] => {
+    const wire = (text: string) => theme.fg("borderAccent", text);
+    const node = (text: string) => theme.fg("accent", text);
+    return [
+      `${theme.bold(node("◉"))}${wire("─╮")}  `,
+      `  ${wire("├─")}${node("●")}`,
+      `  ${wire("╰─")}${node("●")}`,
+    ];
+  };
+
+  const card = (width: number): string[] => {
+    const border = (text: string) => theme.fg("borderMuted", text);
+    const inner = width - 6;
+    const textWidth = inner - LOGO_WIDTH - 2;
+    const rows = [
+      withBadge(theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version), textWidth, 4),
+      theme.fg("muted", truncateToWidth(TAGLINE, textWidth)),
+      directory === undefined ? "" : theme.fg("dim", truncatePathStart(directory, textWidth)),
+    ];
+    const mark = logo();
+    const body = rows.map((row, index) => {
+      const content = `${mark[index]}  ${row}`;
+      return `${border("│")}  ${content}${" ".repeat(Math.max(0, inner - visibleWidth(content)))}  ${border("│")}`;
+    });
+    const attribution = ` Powered by Pi v${VERSION} `;
+    const bottomRule = width - 2 - visibleWidth(attribution) - 2;
+    const bottom =
+      bottomRule >= 2
+        ? border(`╰${"─".repeat(bottomRule)}`) + theme.fg("dim", attribution) + border("──╯")
+        : border(`╰${"─".repeat(width - 2)}╯`);
+    return [border(`╭${"─".repeat(width - 2)}╮`), ...body, bottom];
+  };
+
+  const compact = (width: number): string[] => [
+    withBadge(theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version), width, 4),
+    theme.fg("muted", truncateToWidth("TATA 1mg", width)),
+    theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
+  ];
 
   return {
     setExpanded(value: boolean) {
@@ -45,84 +189,50 @@ function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | u
       if (width <= 0) return [];
       const padding = width > 2 ? 1 : 0;
       const contentWidth = width - padding * 2;
-      const showLogo = width >= 48;
-      const title = theme.fg("accent", "Axon") + theme.fg("dim", version);
-      const attribution = theme.fg("dim", `Powered by Pi v${VERSION}`);
-      const withBackup = (line: string): string => {
-        const state = backupState();
-        if (state === undefined) return line;
-        const color =
-          state === "saved" || state === "ready"
-            ? "success"
-            : state === "paused" || state === "pending"
-              ? "warning"
-              : state === "checking" || state === "syncing"
-                ? "accent"
-                : "dim";
-        const badge = theme.fg("dim", "Backup: ") + theme.fg(color, BACKUP_LABELS[state]);
-        const available = contentWidth - visibleWidth(badge) - 2;
-        // Preserve the wordmark (and the entire logo when present) before showing a badge.
-        const minimumTitleWidth = showLogo ? 14 : 4;
-        if (available < minimumTitleWidth) return line;
-        const left = truncateToWidth(line, available, available === minimumTitleWidth ? "" : "…");
-        return left + " ".repeat(contentWidth - visibleWidth(left) - visibleWidth(badge)) + badge;
-      };
-      const brand = showLogo
-        ? [
-            withBackup(theme.fg("accent", "   ●      ") + title),
-            theme.fg("accent", "  ╱ ╲     ") +
-              theme.fg("muted", "TATA 1mg · Your coding workspace"),
-            theme.fg("accent", " ●───●    ") + attribution,
-          ]
-        : [withBackup(title), theme.fg("muted", "TATA 1mg"), attribution];
-      const separator = theme.fg("dim", " · ");
-      // Keep each shortcut intact when possible, wrapping rather than dropping later actions.
-      const wrapHints = (hints: string[]): string[] => {
-        const lines: string[] = [];
-        let current = "";
-        for (const item of hints) {
-          if (current && visibleWidth(current + separator + item) <= contentWidth) {
-            current += separator + item;
-          } else {
-            if (current) lines.push(current);
-            const wrapped = wrapTextWithAnsi(item, contentWidth);
-            lines.push(...wrapped.slice(0, -1));
-            current = wrapped.at(-1) ?? "";
-          }
-        }
-        if (current) lines.push(current);
-        return lines;
-      };
-      const shortcuts = [
-        hint("app.interrupt", "interrupt"),
-        hint("app.model.select", "models"),
-        ...(expanded
-          ? [
-              hint("app.clear", "clear / twice to exit"),
-              hint("app.exit", "exit (empty editor)"),
-              hint("app.thinking.cycle", "thinking level"),
-              hint("app.thinking.toggle", "show/hide thinking"),
-              hint("app.editor.external", "external editor"),
-              hint("app.message.followUp", "queue follow-up"),
-              hint("app.clipboard.pasteImage", "attach files/images"),
-            ]
-          : []),
-        rawHint("/", "commands"),
-        rawHint("!", "shell"),
-      ].filter((value): value is string => value !== undefined);
-      const help = [
-        hint("app.tools.expand", expanded ? "less" : "more"),
-        rawHint("/hotkeys", "all shortcuts"),
-      ].filter((value): value is string => value !== undefined);
-      const lines = [
-        ...brand,
-        "",
-        ...(expanded
-          ? shortcuts.flatMap((item) => wrapTextWithAnsi(item, contentWidth))
-          : wrapHints(shortcuts)),
-        ...wrapHints(help),
+      // Hints wrap to the card so the whole header shares one left and right edge.
+      const brandWidth = Math.min(contentWidth, CARD_MAX_WIDTH);
+      const brand = contentWidth >= CARD_MIN_WIDTH ? card(brandWidth) : compact(contentWidth);
+      const more = shortcut("app.tools.expand", expanded ? "less" : "more");
+      const essentials = present([
+        shortcut("app.interrupt", "interrupt"),
+        shortcut("app.model.select", "models"),
+      ]);
+      const prefixes: Shortcut[] = [
+        { key: "/", description: "commands" },
+        { key: "!", description: "shell" },
       ];
-      return lines.map((line) =>
+      const help = expanded
+        ? [
+            ...shortcutTable(
+              present([
+                ...essentials,
+                shortcut("app.clear", "clear / twice to exit"),
+                shortcut("app.exit", "exit (empty editor)"),
+                shortcut("app.thinking.cycle", "thinking level"),
+                shortcut("app.thinking.toggle", "show/hide thinking"),
+                shortcut("app.editor.external", "external editor"),
+                shortcut("app.message.followUp", "queue follow-up"),
+                shortcut("app.clipboard.pasteImage", "attach files/images"),
+                ...prefixes,
+              ]),
+              brandWidth,
+            ),
+            "",
+            ...wrapShortcuts(
+              present([more, { key: "/hotkeys", description: "all shortcuts" }]),
+              brandWidth,
+            ),
+          ]
+        : wrapShortcuts(
+            present([
+              ...essentials,
+              ...prefixes,
+              more,
+              { key: "/hotkeys", description: "all shortcuts" },
+            ]),
+            brandWidth,
+          );
+      return [...brand, "", ...help].map((line) =>
         line ? " ".repeat(padding) + truncateToWidth(line, contentWidth) : "",
       );
     },
@@ -298,7 +408,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
     stopRecovery = watchSessionRecovery(ctx);
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
-        const component = createAxonHeader(theme, () => backupState);
+        const component = createAxonHeader(theme, () => backupState, ctx.cwd);
         const refresh = () => {
           component.invalidate();
           tui.requestRender();

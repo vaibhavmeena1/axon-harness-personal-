@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -73,15 +73,6 @@ class DatabaseSettings:
             },
         }
 
-    def dbmate_url(self) -> str:
-        """Build a PostgreSQL URL for dbmate without logging credentials."""
-        database = quote(self.name, safe="")
-        user = quote(self.user, safe="")
-        password = quote(self.password, safe="")
-        host = f"[{self.host}]" if ":" in self.host and not self.host.startswith("[") else self.host
-        auth = f"{user}:{password}" if password else user
-        return f"postgresql://{auth}@{host}:{self.port}/{database}"
-
 
 @dataclass(frozen=True, slots=True)
 class LiteLLMSettings:
@@ -101,24 +92,7 @@ class LiteLLMSettings:
     identity_sync_cache_max_entries: int = 1000
     team_id: str = ""
     team_role: str = "user"
-
-
-@dataclass(frozen=True, slots=True)
-class OpenRouterSettings:
-    """OpenRouter API, attribution, timeout, and connection-pool settings."""
-
-    api_key: str
-    base_url: str
-    http_referer: str
-    app_title: str
-    app_categories: str
-    connect_timeout_seconds: int
-    request_timeout_seconds: int
-    pool_timeout_seconds: int
-    max_connections: int
-    max_keepalive_connections: int
-    keepalive_expiry_seconds: int
-    ca_bundle: str = ""
+    decision_timeout_seconds: int = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +148,6 @@ class Settings:
     cli_releases: CliReleaseSettings | None
     database: DatabaseSettings
     litellm: LiteLLMSettings
-    openrouter: OpenRouterSettings
     auth_service: AuthServiceSettings | None
     cli_telemetry: CliTelemetryConfig | None
     otel_proxy: OtelProxySettings | None
@@ -419,22 +392,6 @@ def _http_base_url(source: dict[str, Any], key: str, path: str) -> str:
     return value
 
 
-def _app_categories(source: dict[str, Any], key: str, path: str) -> str:
-    """Validate and normalize OpenRouter's comma-separated app categories."""
-    raw_value = _string(source, key, path, allow_empty=True)
-    categories = [category.strip() for category in raw_value.split(",") if category.strip()]
-    if len(categories) > 2:
-        raise ConfigurationError(f"{path}.{key} must contain at most two categories")
-    if any(
-        len(category) > 30 or not category.replace("-", "").isalnum() or category.lower() != category
-        for category in categories
-    ):
-        raise ConfigurationError(
-            f"{path}.{key} categories must be lowercase, hyphen-separated, and at most 30 characters"
-        )
-    return ",".join(categories)
-
-
 def _url_path(source: dict[str, Any], key: str, path: str) -> str:
     """Validate and normalize an absolute ASCII URL path."""
     value = _string(source, key, path)
@@ -474,7 +431,6 @@ def get_settings() -> Settings:
     database_configs = _mapping(raw_config, "DATABASE", "config")
     database_config = _mapping(database_configs, DATABASE_CONFIG_NAME, "config.DATABASE")
     litellm_config = _mapping(raw_config, "LITELLM", "config")
-    openrouter_config = _mapping(raw_config, "OPENROUTER", "config")
     cli_install_config = _mapping(raw_config, "CLI_INSTALL", "config")
     auth_service_config = raw_config.get("AUTH_SERVICE")
     if auth_service_config is not None and not isinstance(auth_service_config, dict):
@@ -527,6 +483,7 @@ def get_settings() -> Settings:
 
     litellm = LiteLLMSettings(
         api_key=_upstream_api_key(litellm_config, "API_KEY", "config.LITELLM"),
+        decision_timeout_seconds=_integer(litellm_config, "DECISION_TIMEOUT_SECONDS", "config.LITELLM", default=120),
         team_id=litellm_team_id,
         team_role=litellm_team_role,
         identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
@@ -579,57 +536,6 @@ def get_settings() -> Settings:
     if litellm.max_keepalive_connections > litellm.max_connections:
         raise ConfigurationError("config.LITELLM.MAX_KEEPALIVE_CONNECTIONS must not exceed MAX_CONNECTIONS")
 
-    openrouter = OpenRouterSettings(
-        ca_bundle=_optional_string(openrouter_config, "CA_BUNDLE", "config.OPENROUTER"),
-        api_key=_string(openrouter_config, "API_KEY", "config.OPENROUTER"),
-        base_url=_http_base_url(openrouter_config, "BASE_URL", "config.OPENROUTER"),
-        http_referer=_http_origin(openrouter_config, "HTTP_REFERER", "config.OPENROUTER"),
-        app_title=_string(openrouter_config, "APP_TITLE", "config.OPENROUTER"),
-        app_categories=_app_categories(
-            openrouter_config,
-            "APP_CATEGORIES",
-            "config.OPENROUTER",
-        ),
-        connect_timeout_seconds=_integer(
-            openrouter_config,
-            "CONNECT_TIMEOUT_SECONDS",
-            "config.OPENROUTER",
-            default=10,
-        ),
-        request_timeout_seconds=_integer(
-            openrouter_config,
-            "REQUEST_TIMEOUT_SECONDS",
-            "config.OPENROUTER",
-            default=120,
-        ),
-        pool_timeout_seconds=_integer(
-            openrouter_config,
-            "POOL_TIMEOUT_SECONDS",
-            "config.OPENROUTER",
-            default=10,
-        ),
-        max_connections=_integer(
-            openrouter_config,
-            "MAX_CONNECTIONS",
-            "config.OPENROUTER",
-            default=20,
-        ),
-        max_keepalive_connections=_integer(
-            openrouter_config,
-            "MAX_KEEPALIVE_CONNECTIONS",
-            "config.OPENROUTER",
-            default=10,
-        ),
-        keepalive_expiry_seconds=_integer(
-            openrouter_config,
-            "KEEPALIVE_EXPIRY_SECONDS",
-            "config.OPENROUTER",
-            default=5,
-        ),
-    )
-    if openrouter.max_keepalive_connections > openrouter.max_connections:
-        raise ConfigurationError("config.OPENROUTER.MAX_KEEPALIVE_CONNECTIONS must not exceed MAX_CONNECTIONS")
-
     database = DatabaseSettings(
         name=_string(database_config, "DB_NAME", f"config.DATABASE.{DATABASE_CONFIG_NAME}"),
         host=_string(database_config, "DB_HOST", f"config.DATABASE.{DATABASE_CONFIG_NAME}"),
@@ -679,7 +585,6 @@ def get_settings() -> Settings:
         cli_releases=_cli_releases(raw_config),
         database=database,
         litellm=litellm,
-        openrouter=openrouter,
         auth_service=auth_service,
         cli_telemetry=cli_telemetry,
         cli_pi=cli_pi,

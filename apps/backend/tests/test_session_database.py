@@ -3,8 +3,6 @@
 import asyncio
 import io
 import os
-import shutil
-import subprocess
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,6 +21,7 @@ from app.services.sessions.adapters import Adapter, InvalidSessionError
 from app.services.sessions.contracts import Registration, Snapshot, UploadRequest
 from app.services.sessions.integrity import verify_chunks
 from app.services.sessions.service import BackupService, now
+from deployment.run_migrations import LEDGER, run_migrations
 from tests.test_session_backups import declaration, named_payload, payload
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -124,31 +123,58 @@ def test_migration_exact_fk_constraints_and_legacy_safety(disposable_db: str) ->
     asyncio.run(test())
 
 
-def test_dbmate_separate_ledger_up_down_up_without_dump(disposable_db: str) -> None:
-    if not shutil.which("dbmate"):
-        pytest.skip("dbmate unavailable")
-    command = [
-        "dbmate",
-        "--url",
-        disposable_db + ("&" if "?" in disposable_db else "?") + "sslmode=disable",
-        "--migrations-dir",
-        str(ROOT / "db/migrations"),
-        "--migrations-table",
-        "META_HARNESS_schema_migrations",
-        "--no-dump-schema",
-    ]
-    for operation in ["up", "down", "up"]:
-        subprocess.run([*command, operation], check=True, capture_output=True)
-
-    async def inspect() -> None:
+def test_python_migrations_separate_ledger_up_down_up(disposable_db: str) -> None:
+    async def check() -> None:
         db = await asyncpg.connect(disposable_db)
         try:
-            assert await db.fetchval('SELECT count(*) FROM "META_HARNESS_schema_migrations"') == 1
+            for operation in ["up", "up", "down", "up"]:
+                await run_migrations(db, operation=operation)
+                assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == (0 if operation == "down" else 1)
             assert await db.fetchval("SELECT version FROM schema_migrations") == "legacy-sentinel"
+            assert await db.fetchval("SELECT id FROM session_chats") == 99
         finally:
             await db.close()
 
-    asyncio.run(inspect())
+    asyncio.run(check())
+
+
+def test_python_migration_failure_rolls_back_and_releases_lock(disposable_db: str, tmp_path: Path) -> None:
+    migration = tmp_path / "20261002140000_failure.sql"
+    migration.write_text(
+        "-- migrate:up\nCREATE TABLE migration_failure (id INT); SELECT 1/0;\n"
+        "-- migrate:down\nDROP TABLE migration_failure;\n"
+    )
+
+    async def check() -> None:
+        db = await asyncpg.connect(disposable_db)
+        other = await asyncpg.connect(disposable_db)
+        try:
+            with pytest.raises(asyncpg.DivisionByZeroError):
+                await run_migrations(db, tmp_path)
+            assert await db.fetchval("SELECT to_regclass('public.migration_failure')") is None
+            assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == 0
+            # A different connection must be able to acquire the released lock.
+            await asyncio.wait_for(run_migrations(other), timeout=5)
+            assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == 1
+        finally:
+            await db.close()
+            await other.close()
+
+    asyncio.run(check())
+
+
+def test_python_migrations_serialize_concurrent_runners(disposable_db: str) -> None:
+    async def check() -> None:
+        first = await asyncpg.connect(disposable_db)
+        second = await asyncpg.connect(disposable_db)
+        try:
+            await asyncio.wait_for(asyncio.gather(run_migrations(first), run_migrations(second)), timeout=5)
+            assert await first.fetchval(f"SELECT count(*) FROM {LEDGER}") == 1
+        finally:
+            await first.close()
+            await second.close()
+
+    asyncio.run(check())
 
 
 def test_database_all_or_none_and_pending_metadata_constraints(disposable_db: str) -> None:

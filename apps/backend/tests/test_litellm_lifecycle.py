@@ -38,11 +38,14 @@ def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytes
         transport = first.state.litellm_transport
         assert transport is not second.state.litellm_transport
         assert first.state.litellm_identity_client._transport is transport
+        assert first.state.litellm_decision_client._transport is transport
+        assert first.state.litellm_decision_client is not second.state.litellm_decision_client
         close = transport.aclose
 
         async def assert_detached() -> None:
             assert first.state.litellm_transport is None
             assert first.state.litellm_identity_client is None
+            assert first.state.litellm_decision_client is None
             await close()
 
         transport.aclose = AsyncMock(side_effect=assert_detached)
@@ -57,11 +60,16 @@ def test_lifecycle_wires_one_pool_and_detaches_before_closing(monkeypatch: pytes
     asyncio.run(run())
 
 
-def test_composition_failure_closes_created_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("consumer", ["LiteLLMIdentityClient", "LiteLLMDecisionClient"])
+def test_composition_failure_closes_created_pool(monkeypatch: pytest.MonkeyPatch, consumer: str) -> None:
     monkeypatch.setattr(litellm, "get_settings", configured_settings)
     transport = AsyncMock(spec=LiteLLMTransport)
     monkeypatch.setattr(litellm, "LiteLLMTransport", Mock(return_value=transport))
-    monkeypatch.setattr(litellm, "LiteLLMIdentityClient", Mock(side_effect=RuntimeError("composition failed")))
+    monkeypatch.setattr(litellm, consumer, Mock(side_effect=RuntimeError("composition failed")))
+    app = FastAPI()
     with pytest.raises(RuntimeError, match="composition failed"):
-        asyncio.run(litellm.initialize_litellm_proxy(FastAPI()))
+        asyncio.run(litellm.initialize_litellm_proxy(app))
     transport.aclose.assert_awaited_once()
+    assert getattr(app.state, "litellm_transport", None) is None
+    assert getattr(app.state, "litellm_identity_client", None) is None
+    assert getattr(app.state, "litellm_decision_client", None) is None

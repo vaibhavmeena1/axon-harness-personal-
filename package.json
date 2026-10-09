@@ -25,7 +25,7 @@
     "check:backend": "make -C apps/backend check",
     "test:backend": "make -C apps/backend test",
     "build:frontend": "cd apps/frontend && pnpm build",
-    "build:backend-image": "docker build --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend .",
+    "build:backend-image": "sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "format:check": "biome format ."

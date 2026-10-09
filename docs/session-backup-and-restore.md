@@ -171,7 +171,7 @@ The row holds:
 - One grouped pending reservation: request/key/expected token/expiry plus snapshot JSON.
 - Creation/update timestamps and deletion tombstone.
 
-Constraints enforce unique `(owner_user_team_id, client_session_key)`, all-or-none current/pending groups, byte/hash/encoding limits, and bounded JSON. Owner/pagination, pending-expiry, and deletion indexes are prefixed. Pi leaf/version semantics belong in the adapter, not Pi-specific SQL columns. The Tortoise model maps membership as a scalar BIGINT; dbmate owns the physical legacy FK.
+Constraints enforce unique `(owner_user_team_id, client_session_key)`, all-or-none current/pending groups, byte/hash/encoding limits, and bounded JSON. Owner/pagination, pending-expiry, and deletion indexes are prefixed. Pi leaf/version semantics belong in the adapter, not Pi-specific SQL columns. The Tortoise model maps membership as a scalar BIGINT; the SQL migrations own the physical legacy FK.
 
 Apply reviewed migrations through the deployment runner, only against the intended configured database:
 
@@ -180,7 +180,7 @@ cd apps/backend
 uv run --frozen python -m deployment.run_migrations
 ```
 
-The runner uses a separate `META_HARNESS_schema_migrations` ledger and `--no-dump-schema`; it must not dump unrelated shared-RDS schemas. Migration `down` refuses while object/pending pointers remain: finish object/tombstone cleanup first.
+The Python runner uses the existing asyncpg dependency, a separate `META_HARNESS_schema_migrations` ledger, and a PostgreSQL advisory lock to serialize concurrent runners. Each migration and its ledger update commit atomically. It never dumps schemas or requires dbmate. To roll back the latest migration, run `python -m deployment.run_migrations down`. Migration `down` refuses while object/pending pointers remain: finish object/tombstone cleanup first.
 
 To regenerate application-only DDL without inspecting a populated application database:
 
@@ -336,7 +336,7 @@ SESSION_BACKUP_LOAD_TESTS=1 bun test --cwd apps/cli tests/session-backups.test.t
 
 Broader checks: `bun run test:cli` and `make -C apps/backend check`.
 
-Postgres integration tests use `SESSION_TEST_POSTGRES_URL` (default `postgresql://localhost/postgres`) only to create/drop unique disposable databases. They do not load the populated application DB configuration. They skip explicitly when the disposable server/admin or required dbmate executable is unavailable.
+Postgres integration tests use `SESSION_TEST_POSTGRES_URL` (default `postgresql://localhost/postgres`) only to create/drop unique disposable databases. They do not load the populated application DB configuration. They skip explicitly when the disposable server/admin is unavailable; no external migration executable is required.
 
 During this refresh, `check:cli` passed, the CLI session suite passed **27 tests with load tests enabled**, and the focused backend suites passed **61 tests**, including disposable-Postgres integration. Coverage includes complete trees/media/signatures/names, leaf modes and restored continuation, malformed/tail/symlink rejection, exact size limits and decompression bombs, administrator-policy/account isolation, uncertain commits and conflicts, migration/FK/ledger constraints, expiry/deletion during validation, and failed-delete/late-PUT reconciliation. These are local results, not live S3 or production fault-environment certification.
 

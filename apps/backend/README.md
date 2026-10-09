@@ -28,6 +28,7 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
   "UPSTREAM_URL": "http://localhost:4000",
   "UPSTREAM_ROOT_PATH": "/",
   "API_KEY": "replace-with-litellm-master-key",
+  "DECISION_TIMEOUT_SECONDS": 120,
   "IDENTITY_SYNC_ENABLED": true,
   "TEAM_ID": "",
   "TEAM_ROLE": "user"
@@ -229,6 +230,28 @@ unauthenticated, and failed config fetches do not change Pi settings. Defaults a
 and reused offline. Unsafe settings or a busy settings lock are left untouched, without blocking launch.
 Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch.
 
+### Model recommendations through LiteLLM
+
+`POST /api/v1/model-recommendations` assesses a coding task with Jev and deterministically ranks
+the compatible models in the backend catalog. Register `typesafe/jev-1.13` as a model alias in
+LiteLLM and ensure the deployment supports **`POST /v1/systemone`**. This endpoint accepts our
+existing `model`/`state`/`questions` payload and returns typed `answers`; `/v1/decisions` expects
+a different format and is not interchangeable.
+
+The backend reuses its app-owned LiteLLM HTTP pool and the private `LITELLM.UPSTREAM_URL`,
+`UPSTREAM_ROOT_PATH`, and `API_KEY`. `LITELLM.DECISION_TIMEOUT_SECONDS` is a positive integer
+(default 120) bounding the buffered assessment request. The configured service key must be
+allowed to call `/v1/systemone` and access the Jev alias; it is never sent to the CLI.
+The recommendation API, catalog, ranking, and assessment parsing are unchanged.
+Failed requests or malformed assessments return a sanitized 502; disabled current models return
+204 without inference, and Axon session authentication remains required.
+
+There is no direct OpenRouter client or credential requirement in the backend. Remove the old
+`OPENROUTER` block from private `config.json` files and restart the backend after deployment.
+Provider credentials and routing now belong to LiteLLM. A Jev deployment configured as
+`openrouter/typesafe/jev-1.13` still uses OpenRouter upstream; removing that dependency entirely
+requires a supported alternative Jev provider configured in LiteLLM.
+
 ### Backend recommender telemetry
 
 `OPEN_TELEMETRY` now optionally initializes app-owned OTLP/HTTP trace/metric providers for the model
@@ -314,10 +337,14 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend .
+sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend
 ```
 
-Or `bun run build:backend-image` from the repository root.
+Or `bun run build:backend-image` from the repository root. Use the same script in CI; pass Docker build flags, but no build-context argument (the script supplies the repository root).
+
+The script attempts to pull `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8` for `linux/amd64`. If that pull fails (missing credentials, network access, or image), it builds with this project's existing public `cgr.dev/chainguard/wolfi-base:latest` instead. Run your CI's ECR Docker login **before** the script to enable the private base. A later build failure is not retried with another base.
+
+Both Python stages use the selected image. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. Direct `docker build` uses the public base by default; `--build-arg PYTHON_BASE_IMAGE=...` explicitly selects a base without automatic fallback.
 
 The Python dependencies resolve from PyPI; no Bitbucket SSH forwarding is required.
 
@@ -326,6 +353,19 @@ The build assumes it can reach npm, PyPI, and GitHub over untampered TLS. On a d
 ### Stage layout
 
 The frontend stage runs on `$BUILDPLATFORM` (natively), because its output is architecture-independent; pinning it to `linux/amd64` would run the whole Node toolchain under QEMU on an Apple Silicon machine. The Python stages stay on `linux/amd64` to match the deployment target, so they *are* emulated locally and are correspondingly slower. Node exists only in the frontend stage; the runtime image gets the built bundle and no JavaScript toolchain.
+
+### Database migrations inside a pod
+
+The image does **not** include dbmate. An administrator can run the reviewed SQL migrations with the image's Python and existing asyncpg dependency, using the pod's mounted `config.json`:
+
+```sh
+# In the backend working directory inside the pod, once per deployment:
+python -m deployment.run_migrations
+# Roll back only the latest migration, after reviewing its cleanup requirements:
+python -m deployment.run_migrations down
+```
+
+`deployment/run_migrations.sh` wraps the same command. The runner serializes concurrent runs with a PostgreSQL advisory lock and commits each migration with its entry in `META_HARNESS_schema_migrations`. Re-running it skips applied versions; it never dumps shared database schemas. It requires the existing `public.user_teams(id BIGINT PRIMARY KEY)` prerequisite for session backups. See [migration safety](../../docs/session-backup-and-restore.md#5-database-and-migration-safety).
 
 ## Commands
 

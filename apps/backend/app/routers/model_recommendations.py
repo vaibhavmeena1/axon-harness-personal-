@@ -6,7 +6,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.authentication import require_authenticated_user
-from app.clients.openrouter import OpenRouterError
 from app.services.model_recommendation import (
     ModelRecommendationError,
     ModelRecommendationRequest,
@@ -58,7 +57,7 @@ async def recommend_model(
                 telemetry.event("eligible", "skipped", identity, reason="policy_disabled")
                 return Response(status_code=status.HTTP_204_NO_CONTENT, headers=dict(response.headers))
             return await service.recommend(request, telemetry, identity)
-    except (OpenRouterError, ModelRecommendationError) as exc:
+    except ModelRecommendationError as exc:
         # Do not export exception text or traceback locals: they can include the prompt.
         logger.warning("Model recommendation failed (%s)", type(exc).__name__)
         raise HTTPException(
