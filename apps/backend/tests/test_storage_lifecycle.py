@@ -205,8 +205,6 @@ def test_later_application_startup_failure_closes_storage(monkeypatch: pytest.Mo
         "close_database",
         "initialize_litellm_proxy",
         "close_litellm_proxy",
-        "initialize_openrouter_client",
-        "close_openrouter_client",
     ):
         monkeypatch.setattr(listeners, name, AsyncMock())
     monkeypatch.setattr(listeners, "initialize_otel_proxy", AsyncMock(side_effect=RuntimeError("Later failure")))

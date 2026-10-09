@@ -35,10 +35,84 @@ def configured_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     config.get_settings.cache_clear()
 
 
+@pytest.mark.parametrize("key", ["READ_TIMEOUT_SECONDS", "MANAGEMENT_MAX_CONNECTIONS", "DECISION_MAX_CONCURRENCY"])
+@pytest.mark.parametrize("value", [None, False, 0, -1, "120"])
+def test_invalid_stream_pool_settings_fail_at_startup(
+    configured_settings: tuple[dict[str, Any], Path], key: str, value: object
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"][key] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match=f"config.LITELLM.{key}"):
+        config.get_settings()
+
+
+@pytest.mark.parametrize(
+    "key, attribute, default",
+    [
+        ("READ_TIMEOUT_SECONDS", "read_timeout_seconds", 360),
+        ("MANAGEMENT_MAX_CONNECTIONS", "management_max_connections", 20),
+        ("DECISION_MAX_CONCURRENCY", "decision_max_concurrency", 10),
+    ],
+)
+@pytest.mark.parametrize("value", [None, 7])
+def test_stream_pool_settings_defaults_and_configured_values(
+    configured_settings: tuple[dict[str, Any], Path], key: str, attribute: str, default: int, value: int | None
+) -> None:
+    raw, path = configured_settings
+    if key != "DECISION_MAX_CONCURRENCY":
+        # Keep the decision cap below any configured management pool size.
+        raw["LITELLM"]["DECISION_MAX_CONCURRENCY"] = 1
+    if value is None:
+        raw["LITELLM"].pop(key)
+    else:
+        raw["LITELLM"][key] = value
+    path.write_text(json.dumps(raw))
+    assert getattr(config.get_settings().litellm, attribute) == (default if value is None else value)
+
+
+@pytest.mark.parametrize("concurrency", [20, 21])
+def test_decisions_must_leave_management_capacity_for_identity_sync(
+    configured_settings: tuple[dict[str, Any], Path], concurrency: int
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"].update(MANAGEMENT_MAX_CONNECTIONS=20, DECISION_MAX_CONCURRENCY=concurrency)
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="DECISION_MAX_CONCURRENCY must be less than"):
+        config.get_settings()
+
+
 def test_settings_load_json_credentials(configured_settings: tuple[dict[str, Any], Path]) -> None:
     settings = config.get_settings().litellm
     assert settings.api_key == "configured-api-key"
     assert settings.api_key not in repr(settings)
+    raw, _ = configured_settings
+    assert "OPENROUTER" not in raw
+    assert not hasattr(config.get_settings(), "openrouter")
+
+
+@pytest.mark.parametrize("timeout", [None, False, 0, -1, "120"])
+def test_invalid_decision_timeout_fails_at_startup(
+    configured_settings: tuple[dict[str, Any], Path], timeout: object
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["DECISION_TIMEOUT_SECONDS"] = timeout
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.DECISION_TIMEOUT_SECONDS"):
+        config.get_settings()
+
+
+@pytest.mark.parametrize("timeout", [None, 7])
+def test_decision_timeout_default_and_configured_value(
+    configured_settings: tuple[dict[str, Any], Path], timeout: int | None
+) -> None:
+    raw, path = configured_settings
+    if timeout is None:
+        raw["LITELLM"].pop("DECISION_TIMEOUT_SECONDS")
+    else:
+        raw["LITELLM"]["DECISION_TIMEOUT_SECONDS"] = timeout
+    path.write_text(json.dumps(raw))
+    assert config.get_settings().litellm.decision_timeout_seconds == (120 if timeout is None else timeout)
 
 
 @pytest.mark.parametrize("value", [None, 123, "key with spaces", "key\nvalue"])

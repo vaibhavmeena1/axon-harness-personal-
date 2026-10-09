@@ -336,6 +336,11 @@ describe("launcher dispatch", () => {
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "web-search.ts"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "compaction.ts"),
+      "--theme",
+      join(axonHome, "runtime", activeRuntime, "pi", "themes", "axon-dark.json"),
+      "--theme",
+      join(axonHome, "runtime", activeRuntime, "pi", "themes", "axon-light.json"),
+      // Piped launches are not interactive, so no initial theme is chosen for them.
       "hello",
     ]);
     expect(stdout.arguments[1]).not.toContain("/current/");

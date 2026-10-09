@@ -9,7 +9,6 @@ from app.clients.auth_service import AUTH_SERVICE_CLIENT_STATE_KEY, AuthServiceC
 from app.core.config import get_settings
 from app.listeners.database import close_database, initialize_database
 from app.listeners.litellm import close_litellm_proxy, initialize_litellm_proxy
-from app.listeners.openrouter import close_openrouter_client, initialize_openrouter_client
 from app.listeners.storage import close_storage, initialize_storage
 from app.proxies.otel import close_otel_proxy, initialize_otel_proxy
 from app.telemetry import close_backend_telemetry, initialize_backend_telemetry
@@ -27,9 +26,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         await initialize_litellm_proxy(app)
         stack.push_async_callback(close_litellm_proxy, app)
-
-        await initialize_openrouter_client(app)
-        stack.push_async_callback(close_openrouter_client, app)
 
         await initialize_storage(app)
         stack.push_async_callback(close_storage, app)

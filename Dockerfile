@@ -1,7 +1,9 @@
-# Public Wolfi (Chainguard) multi-stage build for the Engram backend.
+# syntax=docker/dockerfile:1.7
+# Wolfi (Chainguard) multi-stage build for the Engram backend.
 #
-# The Wolfi base provides glibc and apk but not Python. Python 3.12 is installed
-# explicitly in each stage so the interpreter version is controlled here.
+# scripts/build-backend-image.sh prefers the internal Python 3.12.14 image when
+# CI can pull it, falling back to the public Wolfi base. Both Python stages use
+# the same base; Python is installed only when the base does not provide it.
 #
 # WHY Wolfi over Alpine: glibc means every native dep (uvloop, httptools, asyncpg,
 # psycopg2-binary, Pillow, rapidfuzz, xxhash, psutil, pydantic-core, cryptography)
@@ -12,8 +14,11 @@
 # BUILD CONTEXT: the repository root, because this image also builds and embeds the
 # console frontend:
 #
-#   DOCKER_BUILDKIT=1 docker build \
-#     --build-arg SERVICE_NAME=... .
+#   sh scripts/build-backend-image.sh \
+#     --build-arg SERVICE_NAME=... -t axon-console-backend
+#
+# Plain docker build uses the public base unless PYTHON_BASE_IMAGE is supplied.
+ARG PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest
 #
 # The console is a static Vite build with nothing to run, so serving it from this
 # service keeps one origin, one deploy, and one version for the API and the UI.
@@ -43,29 +48,22 @@ COPY apps/frontend/ ./
 # The template already targets the backend's own origin with relative API URLs.
 RUN cp config_template.json config.json && pnpm build
 
-# ---------- builder: install Python + build tools and resolve the virtual environment ----------
-FROM --platform=linux/amd64 cgr.dev/chainguard/wolfi-base:latest AS builder
+# ---------- builder: install build tools and resolve the virtual environment ----------
+FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ARG SERVICE_NAME
 
-# Wolfi apk (the base has no Python). python-3.12 pins the interpreter.
+# The internal base already includes Python; the public Wolfi base does not.
+RUN if [ ! -x /usr/bin/python3.12 ]; then apk add --no-cache python-3.12; fi
+
 # build-base/openssl-dev/libffi-dev are insurance — on glibc every native dep
 # installs from a prebuilt manylinux wheel, so nothing actually compiles.
-# The openssh-* packages are split in Wolfi; keyscan records Bitbucket's host key
-# for the SSH fetch below.
-RUN apk add --no-cache \
-    python-3.12 python-3.12-dev \
-    build-base openssl-dev libffi-dev \
-    curl
+RUN apk add --no-cache build-base openssl-dev libffi-dev curl
 
 ENV UV_INSTALL_DIR=/usr/local/bin
 RUN curl -LsSf https://astral.sh/uv/0.11.7/install.sh | sh
-
-# Install dbmate in the builder and copy the binary into runtime.
-RUN curl -fsSL https://github.com/amacneil/dbmate/releases/latest/download/dbmate-linux-amd64 \
-    -o /usr/local/bin/dbmate && chmod +x /usr/local/bin/dbmate
 
 WORKDIR /home/ubuntu/1mg/$SERVICE_NAME
 COPY apps/backend/pyproject.toml apps/backend/uv.lock apps/backend/README.md ./
@@ -74,21 +72,22 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN uv sync --frozen --no-dev --python /usr/bin/python3.12 && rm -rf /root/.cache/uv
 
-# ---------- runtime: minimal Wolfi base + python-3.12 + the resolved venv ----------
-FROM --platform=linux/amd64 cgr.dev/chainguard/wolfi-base:latest AS runtime
+# ---------- runtime: selected Wolfi base + the resolved venv ----------
+FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ARG SERVICE_NAME
 
-# Runtime libs only:
-#   python-3.12  — the interpreter
+RUN if [ ! -x /usr/bin/python3.12 ]; then apk add --no-cache python-3.12; fi
+
+# Runtime libs only (Python is provided by the base or installed above):
 #   libstdc++    — required by Rust/Cython/C++ wheels at runtime: pydantic-core,
 #                  cryptography, uvloop, httptools, asyncpg, rapidfuzz, xxhash
 #   ca-certificates — TLS (httpx, redis, qdrant-client, etc.)
 #   tzdata       — timezone support
 # Node is deliberately absent: only the console's built output is copied in.
-RUN apk add --no-cache python-3.12 libstdc++ ca-certificates tzdata curl
+RUN apk add --no-cache libstdc++ ca-certificates tzdata curl
 
 RUN mkdir -p /home/ubuntu/1mg/$SERVICE_NAME/logs
 
@@ -104,7 +103,6 @@ ENV VIRTUAL_ENV=/home/ubuntu/1mg/$SERVICE_NAME/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 COPY --from=builder $VIRTUAL_ENV $VIRTUAL_ENV
-COPY --from=builder /usr/local/bin/dbmate /usr/local/bin/dbmate
 COPY apps/backend/ .
 # Keep the same installer that the CLI release publishes, at apps/cli's sibling path.
 COPY apps/cli/install.sh /home/ubuntu/1mg/cli/install.sh

@@ -93,6 +93,7 @@
   "JWT_SECRET": "replace-with-a-local-secret",
   "LITELLM": {
     "API_KEY": "",
+    "DECISION_TIMEOUT_SECONDS": 120,
     "IDENTITY_SYNC_ENABLED": true,
     "TEAM_ID": "",
     "TEAM_ROLE": "user",
@@ -102,6 +103,9 @@
     "UPSTREAM_URL": "http://10.1.0.62:4000",
     "UPSTREAM_ROOT_PATH": "/engram-service/litellm",
     "CONNECT_TIMEOUT_SECONDS": 10,
+    "READ_TIMEOUT_SECONDS": 360,
+    "MANAGEMENT_MAX_CONNECTIONS": 20,
+    "DECISION_MAX_CONCURRENCY": 10,
     "POOL_TIMEOUT_SECONDS": 10,
     "MAX_CONNECTIONS": 100,
     "MAX_KEEPALIVE_CONNECTIONS": 20,
@@ -144,19 +148,5 @@
     "BROWSER_LOGIN_URL": "http://localhost:5173/external-auth",
     "CONNECT_TIMEOUT_SECONDS": 5,
     "REQUEST_TIMEOUT_SECONDS": 10
-  },
-  "OPENROUTER": {
-    "CA_BUNDLE": "",
-    "API_KEY": "<OPENROUTER_API_KEY>",
-    "BASE_URL": "https://openrouter.ai/api",
-    "HTTP_REFERER": "https://YOUR_ORIGIN",
-    "APP_TITLE": "axon meta-harness",
-    "APP_CATEGORIES": "cli-agent,cloud-agent",
-    "CONNECT_TIMEOUT_SECONDS": 10,
-    "REQUEST_TIMEOUT_SECONDS": 120,
-    "POOL_TIMEOUT_SECONDS": 10,
-    "MAX_CONNECTIONS": 20,
-    "MAX_KEEPALIVE_CONNECTIONS": 10,
-    "KEEPALIVE_EXPIRY_SECONDS": 5
   }
 }

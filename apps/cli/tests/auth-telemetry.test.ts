@@ -45,6 +45,57 @@ for (const action of ["cancel", "login"] as const) {
   });
 }
 
+for (const cancelledIndex of [0, 1]) {
+  test(`cancelling recovery waiter ${cancelledIndex + 1} leaves the shared login active`, async () => {
+    const recovery = createSessionRecovery(resolveAxonPaths());
+    try {
+      takeProductEvents();
+      const heartbeat = controlRequest("status");
+      await recovery.handle(heartbeat, new URL(heartbeat.url));
+      const controllers = [new AbortController(), new AbortController()];
+      const results = controllers.map((controller) => recovery.recover(controller.signal));
+      const before = await recovery.handle(heartbeat, new URL(heartbeat.url));
+      assert.ok(before);
+      const beforePayload = (await before.json()) as { recovery: { id: string } };
+
+      controllers[cancelledIndex]?.abort();
+      assert.equal(await results[cancelledIndex], false);
+      const after = await recovery.handle(heartbeat, new URL(heartbeat.url));
+      assert.ok(after);
+      const afterPayload = (await after.json()) as { recovery: { id: string } };
+      assert.equal(afterPayload.recovery.id, beforePayload.recovery.id);
+      assert.equal(takeProductEvents().filter((event) => event.stage === "recovery").length, 1);
+
+      const cancel = controlRequest("cancel", afterPayload.recovery.id);
+      await recovery.handle(cancel, new URL(cancel.url));
+      assert.equal(await results[1 - cancelledIndex], false);
+      const [event] = takeProductEvents().filter((event) => event.stage === "recovery");
+      assert.equal(event?.outcome, "cancelled");
+    } finally {
+      recovery.dispose();
+      takeProductEvents();
+    }
+  });
+}
+
+test("recovery is cancelled when its last waiting request aborts", async () => {
+  const recovery = createSessionRecovery(resolveAxonPaths());
+  try {
+    const heartbeat = controlRequest("status");
+    await recovery.handle(heartbeat, new URL(heartbeat.url));
+    const controllers = [new AbortController(), new AbortController()];
+    const results = controllers.map((controller) => recovery.recover(controller.signal));
+    for (const controller of controllers) controller.abort();
+    assert.deepEqual(await Promise.all(results), [false, false]);
+    const status = await recovery.handle(heartbeat, new URL(heartbeat.url));
+    assert.ok(status);
+    assert.deepEqual(await status.json(), { recovery: null });
+  } finally {
+    recovery.dispose();
+    takeProductEvents();
+  }
+});
+
 test("auth verification preserves expired/invalid identity outcomes and never treats an outage as invalid credentials", async () => {
   const originalFetch = globalThis.fetch;
   try {

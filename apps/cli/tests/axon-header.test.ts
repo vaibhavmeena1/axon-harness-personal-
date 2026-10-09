@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
@@ -48,7 +48,7 @@ afterEach(() => {
   }
 });
 
-function setup(mode: ExtensionContext["mode"] = "tui") {
+function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => unknown>();
   const listeners = new Map<string, (data: unknown) => void>();
   const emitBackup = (data: unknown) => listeners.get("axon:backup-status")?.(data);
@@ -69,19 +69,22 @@ function setup(mode: ExtensionContext["mode"] = "tui") {
   } as unknown as ExtensionAPI);
   handlers.get("session_start")?.({}, {
     mode,
+    cwd,
     hasUI: mode === "tui" || mode === "rpc",
     ui: { setHeader },
   } as unknown as ExtensionContext);
   return { handlers, setHeader, emitBackup };
 }
 
+const plainTheme = (fg: (color: string, text: string) => string = (_color, text) => text): Theme =>
+  ({ fg, bold: (text: string) => text }) as unknown as Theme;
+
 function header(
-  theme = {
-    fg: (_color: string, text: string) => `\u001b[36m${text}\u001b[0m`,
-  } as unknown as Theme,
+  theme = plainTheme((_color, text) => `\u001b[36m${text}\u001b[0m`),
   backupState?: string,
+  cwd?: string,
 ): Header {
-  const { setHeader, emitBackup } = setup();
+  const { setHeader, emitBackup } = setup("tui", cwd);
   if (backupState !== undefined) emitBackup(backupState);
   const factory = setHeader.mock.calls[0]?.[0];
   if (!factory) throw new Error("Axon header was not registered");
@@ -90,19 +93,39 @@ function header(
 
 const text = (component: Header, width = 100) =>
   component.render(width).map(stripVTControlCharacters).join("\n");
+/** Zero-width color markers, so layout measures exactly as with a real theme. */
+const COLOR_CODES = ["accent", "borderAccent", "borderMuted", "success", "warning", "dim", "muted"];
+const sgr = (color: string) => `\u001b[38;5;${COLOR_CODES.indexOf(color) + 1}m`;
+const markedTheme = () => plainTheme((color, value) => `${sgr(color)}${value}\u001b[39m`);
+const marked = (color: string, value: string) => `${sgr(color)}${value}\u001b[39m`;
+const collapsed = (value: string) => value.replace(/\s+/g, " ");
+const WIDTHS = [1, 8, 24, 32, 40, 48, 55, 56, 57, 60, 80, 86, 120, 200];
 
 describe("Axon startup header", () => {
-  test("shows the connected-node logo, launcher version, and Pi attribution", () => {
+  test("frames the neuron logo, launcher version, tagline, and Pi attribution in a card", () => {
     process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
+    const lines = text(header()).split("\n");
+    expect(lines[0]).toStartWith(" ╭─");
+    expect(lines[0]).toEndWith("─╮");
+    expect(lines[1]).toContain("◉─╮    Axon v0.1.0-dev");
+    expect(lines[2]).toContain("├─●  TATA 1mg · Your coding workspace");
+    expect(lines[3]).toContain("╰─●");
+    expect(lines[4]).toStartWith(" ╰─");
+    expect(lines[4]).toEndWith(" Powered by Pi v1.1.0 ──╯");
     const output = text(header());
-    expect(output).toContain("●───●");
-    expect(output).toContain("Axon v0.1.0-dev");
-    expect(output).toContain("TATA 1mg · Your coding workspace");
-    expect(output).toContain("Powered by Pi v1.1.0");
     expect(output).toContain("escape interrupt");
     expect(output).toContain("ctrl+l models");
     expect(output).toContain("/ commands");
     expect(output).toContain("/hotkeys all shortcuts");
+  });
+
+  test("caps the card width on wide terminals and aligns hints to it", () => {
+    const component = header();
+    for (const width of [86, 120, 200]) {
+      const lines = component.render(width).map(stripVTControlCharacters);
+      for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(85);
+      expect(visibleWidth(lines[0] ?? "")).toBe(85);
+    }
   });
 
   test("omits the launcher version when loaded outside Axon", () => {
@@ -119,14 +142,34 @@ describe("Axon startup header", () => {
     expect(output).not.toContain("untrusted");
   });
 
+  test("shows the working directory relative to home, keeping its most specific end", () => {
+    const project = join(homedir(), "work", "tata-1mg", "deputydev-cli");
+    expect(text(header(undefined, undefined, project))).toContain("~/work/tata-1mg/deputydev-cli");
+    expect(text(header(undefined, undefined, "/srv/app"))).toContain("/srv/app");
+    const deep = join(homedir(), ...Array.from({ length: 12 }, (_, index) => `segment-${index}`));
+    const narrow = text(header(undefined, undefined, deep), 60);
+    expect(narrow).toContain("…/");
+    expect(narrow).toContain("segment-11");
+    expect(narrow).not.toContain("segment-0/");
+    expect(text(header())).not.toContain("~");
+  });
+
+  test("never writes terminal controls from the working directory", () => {
+    const output = header(plainTheme(), undefined, "/tmp/evil\u001b]0;owned\u0007\nname")
+      .render(100)
+      .join("\n");
+    expect(output).not.toContain("\u001b");
+    expect(output).not.toContain("\u0007");
+    expect(output).toContain("/tmp/evil?]0;owned??name");
+  });
+
   test("shows concise live backup states beside the wordmark without adding header lines", () => {
     process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
     const { setHeader, emitBackup } = setup();
     const requestRender = mock(() => {});
-    const theme = { fg: (_color: string, value: string) => value } as unknown as Theme;
     const component = setHeader.mock.calls[0]?.[0]?.(
       { requestRender } as unknown as Parameters<HeaderFactory>[0],
-      theme,
+      plainTheme(),
     ) as Header;
     const lineCount = component.render(100).length;
     expect(text(component)).not.toContain("Backup:");
@@ -140,10 +183,10 @@ describe("Axon startup header", () => {
       ["ready", "on"],
     ]) {
       emitBackup(state);
-      expect(component.render(100)[0]).toContain(`Backup: ${label}`);
+      expect(component.render(100)[1]).toContain(`Backup: ${label}`);
       expect(component.render(100)).toHaveLength(lineCount);
       expect(text(component)).not.toContain("/axon-backups");
-      for (const width of [1, 8, 24, 32, 40, 48, 80, 120]) {
+      for (const width of WIDTHS) {
         for (const line of component.render(width))
           expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
@@ -155,47 +198,59 @@ describe("Axon startup header", () => {
     expect(requestRender).toHaveBeenCalledTimes(7);
   });
 
-  test("right-aligns backup status with a consistent gutter and preserves the title", () => {
+  test("right-aligns backup status inside the card and preserves the title", () => {
     process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
     const component = header(undefined, "saved");
-    for (const width of [32, 40, 48, 80, 120]) {
-      const first = stripVTControlCharacters(component.render(width)[0] ?? "");
-      expect(first).toContain("Axon v0.1.0-dev");
-      expect(first).toEndWith("Backup: saved");
-      expect(visibleWidth(first)).toBe(width - 1);
-      expect(first).not.toContain(" · Backup:");
+    for (const width of [58, 60, 80, 86]) {
+      const row = stripVTControlCharacters(component.render(width)[1] ?? "");
+      expect(row).toContain("Axon v0.1.0-dev");
+      expect(row).toEndWith("● Backup: saved  │");
+      expect(visibleWidth(row)).toBe(width - 1);
+    }
+    for (const width of [40, 48]) {
+      const row = stripVTControlCharacters(component.render(width)[0] ?? "");
+      expect(row).toContain("Axon v0.1.0-dev");
+      expect(row).toEndWith("● Backup: saved");
+      expect(visibleWidth(row)).toBe(width - 1);
     }
   });
 
   test("keeps the wordmark and logo intact when a long version competes with backup status", () => {
     process.env["PI_AXON_CLI_VERSION"] = `1.0.0-${"a".repeat(65)}`;
     const component = header(undefined, "checking");
-    for (const width of [25, 26, 32, 40, 48, 80, 120]) {
-      const first = stripVTControlCharacters(component.render(width)[0] ?? "");
-      expect(first).toContain("Axon");
-      expect(first).toEndWith("Backup: checking…");
-      expect(visibleWidth(first)).toBe(width - 1);
-      if (width >= 48) expect(first).toStartWith("    ●      Axon");
+    for (const width of [32, 40, 48, 58, 80, 120]) {
+      const row = stripVTControlCharacters(component.render(width)[width > 57 ? 1 : 0] ?? "");
+      expect(row).toContain("Axon");
+      expect(row).toContain("● Backup: checking…");
+      if (width > 57) expect(row).toStartWith(" │  ◉─╮    Axon");
     }
     expect(text(component, 20).split("\n")[0]).toContain("Axon");
     expect(text(component, 20).split("\n")[0]).not.toContain("Backup:");
   });
 
   test("uses semantic colors for backup activity, success, warnings, and disabled backup", () => {
-    const theme = {
-      fg: (color: string, value: string) => `<${color}>${value}</${color}>`,
-    } as unknown as Theme;
-    for (const [state, label, color] of [
-      ["checking", "checking…", "accent"],
-      ["syncing", "syncing…", "accent"],
-      ["saved", "saved", "success"],
-      ["ready", "on", "success"],
-      ["pending", "pending", "warning"],
-      ["paused", "paused", "warning"],
-      ["off", "off", "dim"],
-    ]) {
-      expect(header(theme, state).render(200)[0]).toContain(`<${color}>${label}</${color}>`);
+    const theme = markedTheme();
+    for (const [state, label, color, dot] of [
+      ["checking", "checking…", "accent", "●"],
+      ["syncing", "syncing…", "accent", "●"],
+      ["saved", "saved", "success", "●"],
+      ["ready", "on", "success", "●"],
+      ["pending", "pending", "warning", "●"],
+      ["paused", "paused", "warning", "●"],
+      ["off", "off", "dim", "○"],
+    ] as const) {
+      const row = header(theme, state).render(200)[1];
+      expect(row).toContain(marked(color, dot));
+      expect(row).toContain(marked(color, label));
     }
+  });
+
+  test("brands the wordmark and logo with the accent color", () => {
+    const output = header(markedTheme()).render(100).join("\n");
+    expect(output).toContain(marked("accent", "Axon"));
+    expect(output).toContain(marked("accent", "◉"));
+    expect(output).toContain(marked("borderAccent", "├─"));
+    expect(output).toContain(marked("borderMuted", "│"));
   });
 
   test("retains early backup updates and ignores untrusted status payloads", () => {
@@ -204,7 +259,7 @@ describe("Axon startup header", () => {
     const requestRender = mock(() => {});
     const component = setHeader.mock.calls[0]?.[0]?.(
       { requestRender } as unknown as Parameters<HeaderFactory>[0],
-      { fg: (_color: string, value: string) => value } as unknown as Theme,
+      plainTheme(),
     ) as Header;
     expect(text(component)).toContain("Backup: pending");
     for (const value of [
@@ -230,13 +285,19 @@ describe("Axon startup header", () => {
     expect(output).not.toContain("models");
   });
 
-  test("expands and collapses shortcut help with Pi's header expansion contract", () => {
+  test("expands into an aligned shortcut reference with Pi's header expansion contract", () => {
     const component = header();
     expect(text(component)).not.toContain("external editor");
     component.setExpanded(true);
-    expect(text(component)).toContain("ctrl+g external editor");
-    expect(text(component)).toContain("ctrl+c clear / twice to exit");
-    expect(text(component)).toContain("ctrl+o less");
+    const expanded = text(component).split("\n");
+    expect(collapsed(text(component))).toContain("ctrl+g external editor");
+    expect(collapsed(text(component))).toContain("ctrl+c clear / twice to exit");
+    expect(collapsed(text(component))).toContain("ctrl+o less");
+    const columns = expanded
+      .filter((line) => /^ (escape|ctrl\+l|shift\+tab|ctrl\+g) /.test(line))
+      .map((line) => line.search(/ {2}\S/) + 2);
+    expect(columns).toHaveLength(4);
+    expect(new Set(columns).size).toBe(1);
     component.setExpanded(false);
     expect(text(component)).not.toContain("external editor");
     expect(text(component)).toContain("ctrl+o more");
@@ -244,7 +305,7 @@ describe("Axon startup header", () => {
 
   test("wraps complete shortcut groups instead of clipping later actions", () => {
     const component = header();
-    for (const width of [24, 32, 40, 48, 80, 120]) {
+    for (const width of [24, 32, 40, 48, 60, 80, 120]) {
       const output = text(component, width);
       for (const label of [
         "escape interrupt",
@@ -261,36 +322,39 @@ describe("Axon startup header", () => {
         expect(line.trim()).not.toEndWith("·");
       }
     }
-    expect(component.render(100)).toHaveLength(6);
+    // Card (5) + spacer + two hint rows at the capped card width.
+    expect(component.render(100)).toHaveLength(8);
   });
 
   test("wraps expanded help and adapts to keybinding changes on the same component", () => {
     const component = header();
     component.setExpanded(true);
-    const output = text(component, 24);
+    const output = collapsed(text(component, 24));
     expect(output).toContain("external editor");
-    expect(output.replace(/\s+/g, " ")).toContain("ctrl+c clear / twice to exit");
-    expect(output.replace(/\s+/g, " ")).toContain("ctrl+v attach files/images");
+    expect(output).toContain("ctrl+c clear / twice to exit");
+    expect(output).toContain("ctrl+v attach files/images");
     getKeybindings().setUserBindings({
       "app.interrupt": "ctrl+shift+x",
       "app.model.select": [],
     });
     component.invalidate();
-    expect(text(component, 40)).toContain("ctrl+shift+x interrupt");
-    expect(text(component, 40)).not.toContain("ctrl+l models");
-    expect(text(component, 40)).not.toContain("escape interrupt");
+    expect(collapsed(text(component, 40))).toContain("ctrl+shift+x interrupt");
+    expect(text(component, 40)).not.toContain("ctrl+l");
+    expect(text(component, 40)).not.toContain("escape");
     component.setExpanded(false);
     expect(text(component, 40)).toContain("ctrl+o more");
   });
 
-  test("falls back to a text wordmark in narrow terminals and fits every line", () => {
-    const component = header();
-    expect(text(component, 40)).not.toContain("●");
-    expect(text(component, 40)).toContain("Axon");
-    expect(text(component, 40)).toContain("TATA 1mg");
+  test("falls back to plain stacked lines in narrow terminals and fits every line", () => {
+    const component = header(undefined, "syncing", "/srv/app");
+    expect(text(component, 57)).not.toContain("◉");
+    expect(text(component, 57)).not.toContain("╭");
+    expect(text(component, 57)).toContain("Axon");
+    expect(text(component, 57)).toContain("TATA 1mg");
+    expect(text(component, 58)).toContain("◉");
     for (const expanded of [false, true]) {
       component.setExpanded(expanded);
-      for (const width of [1, 8, 24, 40, 47, 48, 80, 120]) {
+      for (const width of WIDTHS) {
         for (const line of component.render(width))
           expect(visibleWidth(line)).toBeLessThanOrEqual(width);
       }
@@ -300,9 +364,7 @@ describe("Axon startup header", () => {
 
   test("rebuilds themed text after invalidation instead of caching styled lines", () => {
     let color = "36";
-    const component = header({
-      fg: (_role: string, value: string) => `\u001b[${color}m${value}\u001b[0m`,
-    } as unknown as Theme);
+    const component = header(plainTheme((_role, value) => `\u001b[${color}m${value}\u001b[0m`));
     expect(component.render(100).join("\n")).toContain("\u001b[36mAxon");
     color = "35";
     component.invalidate();
