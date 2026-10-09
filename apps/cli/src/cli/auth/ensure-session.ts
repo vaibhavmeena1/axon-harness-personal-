@@ -12,9 +12,11 @@ export async function ensureAuthenticatedSession(
   // A saved token alone is not proof of access. Offline mode cannot bypass verification.
   if (options.offline) {
     throw new LauncherError(
-      "Cannot verify your DeputyDev session while offline",
+      "Cannot verify your Axon session while offline",
       LAUNCHER_EXIT_STATUS.profileFailure,
-      { remediation: "Run ddcli while online to verify your session before starting Pi." },
+      {
+        remediation: "Run axon or axon pi while online to verify your session before starting Pi.",
+      },
     );
   }
 
@@ -35,12 +37,7 @@ export async function ensureAuthenticatedSession(
     console.error("Sign in to Axon to continue.");
   }
 
-  if (
-    options.offline ||
-    options.interactive === false ||
-    !process.stdin.isTTY ||
-    !process.stdout.isTTY
-  ) {
+  if (options.interactive === false || !process.stdin.isTTY || !process.stdout.isTTY) {
     throw new LauncherError("Axon login is required", LAUNCHER_EXIT_STATUS.profileFailure, {
       remediation: "Login from browser: run axon auth login --browser in a terminal.",
     });

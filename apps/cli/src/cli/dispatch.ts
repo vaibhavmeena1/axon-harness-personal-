@@ -1,4 +1,4 @@
-import { intro, isCancel, outro, select } from "@clack/prompts";
+import { intro } from "@clack/prompts";
 
 import {
   classifyPiInvocation,
@@ -15,47 +15,25 @@ import { runBackgroundUpdate } from "../updater/update.ts";
 import { ensureAuthenticatedSession } from "./auth/ensure-session.ts";
 import { runLauncherProgram } from "./launcher-program.ts";
 
-async function runInteractiveLauncher(): Promise<void> {
+async function runDefaultHarness(): Promise<void> {
   const invocationEnvironment = currentPiInvocationEnvironment();
   if (
-    invocationEnvironment.ci ||
-    !invocationEnvironment.stdinIsTty ||
-    !invocationEnvironment.stdoutIsTty
+    !invocationEnvironment.ci &&
+    invocationEnvironment.stdinIsTty &&
+    invocationEnvironment.stdoutIsTty
   ) {
-    // Scripts get usage instead of an interactive prompt or an implicit Pi launch.
-    await runLauncherProgram([]);
-    return;
+    intro(PRODUCT_IDENTITY.displayName);
   }
 
-  intro(PRODUCT_IDENTITY.displayName);
-  if (
-    !(await ensureAuthenticatedSession(resolveDeputyDevPaths(), {
-      offline: isPiOffline(process.env, []),
-      interactive: true,
-    }))
-  ) {
-    outro("Login cancelled.");
-    return;
-  }
-
-  const selectedHarness = await select({
-    message: "What would you like to run?",
-    options: [{ value: "pi", label: "Pi", hint: "Start the DeputyDev-managed coding agent" }],
-  });
-  if (isCancel(selectedHarness)) {
-    outro("Cancelled.");
-    return;
-  }
-
-  outro("Starting Pi...");
-  // Recheck the live session after selection: it may change while the menu is open.
-  await dispatch([selectedHarness]);
+  // Bare axon and axon pi share one verification and browser-login path.
+  // Noninteractive runs still validate, but never prompt for browser login.
+  await dispatch(["pi"]);
 }
 
 export async function dispatch(argumentsVector: readonly string[]): Promise<void> {
   const [head, ...harnessArguments] = argumentsVector;
   if (head === undefined) {
-    await runInteractiveLauncher();
+    await runDefaultHarness();
     return;
   }
   if (head === "__background-update") {
@@ -90,10 +68,6 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
     return;
   }
 
-  // Launcher help and explicit auth commands do not require the interactive home menu.
-  // Help, updates, diagnostics, and explicit auth commands remain usable while signed out.
-  if (head === undefined && !(await ensureAuthenticatedSession(resolveAxonPaths()))) {
-    return;
-  }
+  // Launcher commands retain their own authentication and usage handling.
   await runLauncherProgram(argumentsVector);
 }

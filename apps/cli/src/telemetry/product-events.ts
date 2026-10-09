@@ -17,10 +17,12 @@ export const PRODUCT_STAGES = {
   startup: ["prepare", "spawn", "ready"],
   auth: ["preflight", "verify", "login", "refresh", "recovery"],
   config: ["fetch"],
+  compaction: ["trigger", "request", "summarize", "complete"],
   update: ["check", "install"],
   release: ["launch"],
 } as const;
 export type ProductCategory = keyof typeof PRODUCT_STAGES;
+export type CompactionTrigger = "manual" | "threshold" | "overflow" | "extension_threshold";
 export type ProductOutcome =
   | "success"
   | "failed"
@@ -36,6 +38,7 @@ export interface ProductEvent {
   stage: string;
   outcome: ProductOutcome;
   reason?: string | undefined;
+  trigger?: CompactionTrigger;
   durationMs?: number;
   bytes?: number;
   candidateCount?: number;
@@ -93,6 +96,15 @@ const reasons = new Set([
   "rotation_failed",
   "expired",
   "invalid_session",
+  "below_threshold",
+  "busy",
+  "cooldown",
+]);
+const compactionTriggers = new Set<CompactionTrigger>([
+  "manual",
+  "threshold",
+  "overflow",
+  "extension_threshold",
 ]);
 const textFields = ["model", "previousModel", "policyVersion", "version"] as const;
 const numericBounds = {
@@ -127,6 +139,9 @@ export function sanitizeProductEvent(value: unknown): ProductEvent | undefined {
   };
   if (typeof source["reason"] === "string" && reasons.has(source["reason"]))
     event.reason = source["reason"];
+  // Trigger metadata is content-free and belongs only to compaction events.
+  if (category === "compaction" && compactionTriggers.has(source["trigger"] as CompactionTrigger))
+    event.trigger = source["trigger"] as CompactionTrigger;
   for (const field of textFields) {
     const value = source[field];
     if (typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._/:+-]{0,159}$/.test(value))

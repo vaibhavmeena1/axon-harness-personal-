@@ -30,7 +30,7 @@ function isManagedRelayModel(value: unknown): boolean {
 }
 
 /** Configure the installed provider without saving a session token or a relay capability. */
-export async function applyPiProviderDefaults(paths: DeputyDevPaths): Promise<void> {
+export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
   await withFileLock(paths.piPackageLock, async () => {
     const settings = await readPiSettings(piSettingsPath(paths.pi));
     const litellm = settingsObject(settings.config["litellm"]);

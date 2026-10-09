@@ -27,7 +27,7 @@ async function legalBanner(repositoryRoot: string): Promise<string> {
  *
  * Bundled OpenTelemetry dependencies are licensed under Apache-2.0:
  * ${escapeComment(openTelemetryLicense).replaceAll("\n", "\n * ")}
- */\n`;
+ */\n`.replace(/[ \t]+$/gm, "");
 }
 
 async function buildBundle(repositoryRoot: string): Promise<string> {

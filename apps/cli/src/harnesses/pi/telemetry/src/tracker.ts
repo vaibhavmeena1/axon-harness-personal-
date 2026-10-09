@@ -8,6 +8,10 @@ import {
   trace,
 } from "@opentelemetry/api";
 import {
+  type CompactionTrigger,
+  sanitizeProductEvent,
+} from "../../../../telemetry/product-events.ts";
+import {
   ATTR_CACHE_READ_TOKENS,
   ATTR_CACHE_WRITE_TOKENS,
   ATTR_CONTEXT_PERCENT,
@@ -75,6 +79,12 @@ interface SpanSlot {
 
 interface ToolSlot extends SpanSlot {
   readonly name: string;
+}
+
+interface CompactionSlot extends SpanSlot {
+  readonly reason: string;
+  readonly trigger?: CompactionTrigger;
+  model?: string;
 }
 
 interface LlmSlot extends SpanSlot {
@@ -193,6 +203,8 @@ export interface CompactionStartDetails {
   readonly reason: string;
   readonly willRetry: boolean;
   readonly tokensBefore?: number;
+  readonly model?: string;
+  readonly inferred?: boolean;
 }
 
 function durationSeconds(startedAt: number, endedAt: number): number {
@@ -234,7 +246,9 @@ export class AgentTelemetryTracker {
   private turn: SpanSlot | undefined;
   private llm: LlmSlot | undefined;
   private wait: SpanSlot | undefined;
-  private compaction: SpanSlot | undefined;
+  private compaction: CompactionSlot | undefined;
+  private pendingCompactionTrigger: CompactionTrigger | undefined;
+  private compactionOutcomeHandledByExtension = false;
   private readonly tools = new Map<string, ToolSlot>();
   private pendingInput: InputDetails | undefined;
   private runCount = 0;
@@ -324,6 +338,8 @@ export class AgentTelemetryTracker {
     this.session = details;
     this.sessionStartedAt = this.now();
     this.totals = emptyTotals();
+    this.pendingCompactionTrigger = undefined;
+    this.compactionOutcomeHandledByExtension = false;
     const attributes = this.activityMetricAttributes({
       "pi.session.reason": details.reason,
       "pi.session.ephemeral": details.ephemeral,
@@ -391,6 +407,8 @@ export class AgentTelemetryTracker {
       ...summary,
     });
     this.session = undefined;
+    this.pendingCompactionTrigger = undefined;
+    this.compactionOutcomeHandledByExtension = false;
   }
 
   private sessionSummaryAttributes(endedAt: number): Attributes {
@@ -984,7 +1002,52 @@ export class AgentTelemetryTracker {
   }
 
   productEvent(event: unknown): void {
-    recordProductEvent(this.runtime, event, this.baseAttributes());
+    const product = sanitizeProductEvent(event);
+    if (!product) return;
+    recordProductEvent(this.runtime, product, this.baseAttributes());
+    if (product.category !== "compaction") return;
+
+    if (product.stage === "trigger" && product.trigger === "extension_threshold") {
+      // The marker precedes ctx.compact(), whose native reason is always manual.
+      // Completion callbacks also clear it if preparation never reaches the hook.
+      this.pendingCompactionTrigger =
+        product.outcome === "auto_selected" ? product.trigger : undefined;
+      return;
+    }
+    if (product.stage !== "summarize" || !this.compaction) return;
+    if (product.model) {
+      this.compaction.model = product.model;
+      this.compaction.span.setAttribute("pi.compaction.model", product.model);
+    }
+    if (product.outcome === "pending") {
+      this.compaction.span.setAttribute("pi.compaction.custom_summary", true);
+    }
+    if (
+      product.outcome === "failed" ||
+      product.outcome === "cancelled" ||
+      product.outcome === "skipped"
+    ) {
+      // Pi translates hook cancellation into an abort, losing the real failure/skip.
+      // Close once with the content-free outcome before that native event arrives.
+      this.compactionOutcomeHandledByExtension = true;
+      this.endCompaction({
+        outcome:
+          product.outcome === "cancelled"
+            ? "aborted"
+            : product.outcome === "skipped"
+              ? "skipped"
+              : "failed",
+        reason: product.reason,
+        error:
+          product.outcome === "failed"
+            ? new Error(
+                product.reason === "timeout"
+                  ? "Configured compaction timed out"
+                  : "Configured compaction failed",
+              )
+            : undefined,
+      });
+    }
   }
 
   operationalEvent(eventName: string, attributes: Attributes = {}): void {
@@ -1006,13 +1069,41 @@ export class AgentTelemetryTracker {
     this.runtime.metrics.count("pi.telemetry.dropped", 1, { "otel.signal": "handler", reason });
   }
 
+  hasOpenCompaction(): boolean {
+    return this.compaction !== undefined;
+  }
+
+  consumeHandledCompactionOutcome(): boolean {
+    const handled = this.compactionOutcomeHandledByExtension;
+    this.compactionOutcomeHandledByExtension = false;
+    return handled;
+  }
+
   startCompaction(details: CompactionStartDetails): void {
     if (this.compaction) this.endCompaction({ outcome: "superseded" });
-    this.compaction = this.startSpan(
+    this.compactionOutcomeHandledByExtension = false;
+    const trigger =
+      details.reason === "manual" && this.pendingCompactionTrigger === "extension_threshold"
+        ? this.pendingCompactionTrigger
+        : details.reason;
+    this.pendingCompactionTrigger = undefined;
+    const request = sanitizeProductEvent({
+      category: "compaction",
+      stage: "request",
+      outcome: "pending",
+      trigger,
+      model: details.model,
+    });
+    const reason = trigger === "extension_threshold" ? "threshold" : details.reason;
+    const span = this.startSpan(
       SPAN_COMPACTION,
       SpanKind.INTERNAL,
       {
-        "pi.compaction.reason": details.reason,
+        "pi.compaction.reason": reason,
+        "pi.compaction.native_reason": details.reason,
+        ...(details.inferred ? { "pi.compaction.start_inferred": true } : {}),
+        ...(request?.trigger ? { "pi.compaction.trigger": request.trigger } : {}),
+        ...(request?.model ? { "pi.compaction.model": request.model } : {}),
         "pi.compaction.will_retry": details.willRetry,
         ...(details.tokensBefore !== undefined
           ? { "pi.compaction.tokens_before": details.tokensBefore }
@@ -1020,22 +1111,31 @@ export class AgentTelemetryTracker {
       },
       this.interaction?.context ?? ROOT_CONTEXT,
     );
+    this.compaction = {
+      ...span,
+      reason,
+      ...(request?.trigger ? { trigger: request.trigger } : {}),
+      ...(request?.model ? { model: request.model } : {}),
+    };
     this.runtime.metrics.count(
       "pi.compaction.count",
       1,
-      this.metricAttributes({ reason: details.reason }),
+      this.metricAttributes({ reason, ...(request?.trigger ? { trigger: request.trigger } : {}) }),
     );
-    if (details.reason === "manual") this.userAction("manual_compaction");
+    this.productEvent(request);
+    if (trigger === "manual") this.userAction("manual_compaction");
   }
 
   endCompaction(details: {
     outcome: string;
+    reason?: string | undefined;
     fromExtension?: boolean;
     error?: unknown;
     usage?: UsageDetails;
   }): void {
     if (!this.compaction) return;
     const endedAt = this.now();
+    const { reason, trigger, model, startedAt } = this.compaction;
     this.compaction.span.setAttributes({
       "pi.compaction.outcome": details.outcome,
       ...(details.fromExtension !== undefined
@@ -1055,6 +1155,8 @@ export class AgentTelemetryTracker {
         {
           ...this.baseAttributes(),
           "pi.compaction.outcome": details.outcome,
+          "pi.compaction.reason": reason,
+          ...(trigger ? { "pi.compaction.trigger": trigger } : {}),
           [ATTR_ERROR_TYPE]: sanitized.type,
           ...(sanitized.message ? { "error.message": sanitized.message } : {}),
         },
@@ -1070,10 +1172,43 @@ export class AgentTelemetryTracker {
       "pi.compaction.duration",
       durationSeconds(this.compaction.startedAt, endedAt),
       "s",
-      this.metricAttributes({ outcome: details.outcome }),
+      this.metricAttributes({ reason, ...(trigger ? { trigger } : {}), outcome: details.outcome }),
     );
     this.compaction = undefined;
-    if (details.usage) this.recordUsageMetrics(details.usage, "compaction");
+    if (details.usage) {
+      const separator = model?.indexOf("/") ?? -1;
+      // Compaction reports aggregate usage, not a provider response model identity.
+      // Attribute the selected/requested summary model without inventing a response alias.
+      this.recordUsageMetrics(
+        details.usage,
+        "compaction",
+        separator > 0 ? model?.slice(0, separator) : undefined,
+        undefined,
+        separator > 0 ? model?.slice(separator + 1) : undefined,
+      );
+    }
+    this.productEvent({
+      category: "compaction",
+      stage: "complete",
+      outcome:
+        details.outcome === "ok"
+          ? "success"
+          : details.outcome === "failed"
+            ? "failed"
+            : details.outcome === "skipped"
+              ? "skipped"
+              : "cancelled",
+      reason:
+        details.reason ??
+        (details.outcome === "failed"
+          ? "unavailable"
+          : details.outcome === "ok"
+            ? undefined
+            : "cancelled"),
+      trigger,
+      model,
+      durationMs: Math.max(0, endedAt - startedAt),
+    });
   }
 
   /** Usage produced outside the main assistant stream: tool-side LLM work or branch summaries. */

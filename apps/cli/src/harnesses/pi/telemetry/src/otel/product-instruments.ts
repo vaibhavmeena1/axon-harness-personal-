@@ -5,6 +5,7 @@ const dimensions = [
   "stage",
   "outcome",
   "reason",
+  "trigger",
   "model",
   "selected_rank",
   "policy_version",
