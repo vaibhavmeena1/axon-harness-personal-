@@ -3,7 +3,11 @@ import {
   startAuthenticatedRequestRelay,
 } from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
-import { fetchClientConfig, type WebSearchConfig } from "../../cli/client-config.ts";
+import {
+  fetchClientConfig,
+  type TerminalPermissionsConfig,
+  type WebSearchConfig,
+} from "../../cli/client-config.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -21,6 +25,7 @@ import { applyPiDefaults, applyPiProviderDefaults } from "./settings-defaults.ts
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides } from "./telemetry-environment.ts";
+import { createTerminalPermissionsOverrides } from "./terminal-permissions-environment.ts";
 import { resolvePiVersion } from "./version.ts";
 import { createWebSearchOverrides } from "./web-search-environment.ts";
 
@@ -54,6 +59,7 @@ export function createPiAdapter(): HarnessAdapter {
       };
       let telemetryOverrides: EnvironmentOverrides = {};
       let webSearchOverrides: EnvironmentOverrides = {};
+      let terminalPermissionsOverrides = createTerminalPermissionsOverrides();
       if (setup.invocationKind !== "administrative") {
         try {
           await applyPiProviderDefaults(context.paths);
@@ -80,6 +86,7 @@ export function createPiAdapter(): HarnessAdapter {
           setup.offline,
         );
         let webSearch: WebSearchConfig | undefined;
+        let terminalPermissions: TerminalPermissionsConfig | undefined;
         // Pi defaults are independent of local telemetry and web-search switches.
         if (encryptedSession && !setup.offline) {
           const result = await fetchClientConfig(encryptedSession);
@@ -88,6 +95,7 @@ export function createPiAdapter(): HarnessAdapter {
           let telemetry = result.config?.telemetry;
           let piDefaults = result.config?.pi;
           webSearch = result.config?.webSearch;
+          terminalPermissions = result.config?.terminalPermissions;
           try {
             if (
               result.sessionRefreshToken &&
@@ -106,11 +114,13 @@ export function createPiAdapter(): HarnessAdapter {
               telemetry = undefined;
               piDefaults = undefined;
               webSearch = undefined;
+              terminalPermissions = undefined;
             }
             encryptedSession = currentSession;
           } catch {
             // Do not persist preferences if we could not verify the current account.
             piDefaults = undefined;
+            terminalPermissions = undefined;
             /* Preserve the previous credential; no token diagnostics. */
           }
           if (piDefaults !== undefined) {
@@ -153,6 +163,7 @@ export function createPiAdapter(): HarnessAdapter {
           webSearch,
           setup.offline,
         );
+        terminalPermissionsOverrides = createTerminalPermissionsOverrides(terminalPermissions);
         litellmOverrides = {
           LITELLM_API_KEY: relay.capability,
           LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
@@ -174,6 +185,7 @@ export function createPiAdapter(): HarnessAdapter {
           litellmOverrides,
           telemetryOverrides,
           webSearchOverrides,
+          terminalPermissionsOverrides,
         ),
         cwd: context.cwd,
         ...(relay === undefined

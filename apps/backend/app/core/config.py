@@ -21,6 +21,7 @@ from app.core.cli_config import (
 )
 from app.core.s3 import S3StorageSettings, parse_s3_storage
 from app.core.session_storage import SessionStorageSettings, parse_session_storage
+from app.core.terminal_permissions import TerminalPermissionsSettings, parse_terminal_permissions
 from app.core.web_search import WebSearchSettings, parse_web_search
 from app.telemetry import BackendTelemetrySettings, parse_backend_telemetry
 
@@ -182,6 +183,7 @@ class Settings:
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
     cli_pi: CliPiConfig | None = None
+    terminal_permissions: TerminalPermissionsSettings | None = None
 
 
 def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
@@ -461,6 +463,13 @@ def _web_search(raw: dict[str, Any]) -> WebSearchSettings:
         raise ConfigurationError("config.WEB_SEARCH contains invalid search settings") from None
 
 
+def _terminal_permissions(raw: dict[str, Any]) -> TerminalPermissionsSettings | None:
+    try:
+        return parse_terminal_permissions(raw)
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.TERMINAL_PERMISSIONS contains invalid settings") from None
+
+
 @cache
 def get_settings() -> Settings:
     """Parse and cache the backend configuration from its project directory."""
@@ -663,6 +672,7 @@ def get_settings() -> Settings:
     cli_pi = _cli_pi_settings(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
+    terminal_permissions = _terminal_permissions(raw_config)
     backend_telemetry = _backend_telemetry_settings(raw_config)
 
     return Settings(
@@ -686,5 +696,6 @@ def get_settings() -> Settings:
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,
+        terminal_permissions=terminal_permissions,
         backend_telemetry=backend_telemetry,
     )

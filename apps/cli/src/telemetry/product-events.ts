@@ -18,6 +18,7 @@ export const PRODUCT_STAGES = {
   auth: ["preflight", "verify", "login", "refresh", "recovery"],
   config: ["fetch"],
   compaction: ["trigger", "request", "summarize", "complete"],
+  terminal: ["policy", "decision", "approval", "yolo"],
   update: ["check", "install"],
   release: ["launch"],
 } as const;
@@ -32,13 +33,17 @@ export type ProductOutcome =
   | "selected"
   | "auto_selected"
   | "kept_current"
-  | "dismissed";
+  | "dismissed"
+  | "blocked";
 export interface ProductEvent {
   category: ProductCategory;
   stage: string;
   outcome: ProductOutcome;
   reason?: string | undefined;
   trigger?: CompactionTrigger;
+  terminalShell?: "bash" | "powershell";
+  terminalSource?: "tool" | "nested_tool" | "user_bash";
+  yoloMode?: boolean;
   durationMs?: number;
   bytes?: number;
   candidateCount?: number;
@@ -65,6 +70,7 @@ const outcomes = new Set<ProductOutcome>([
   "auto_selected",
   "kept_current",
   "dismissed",
+  "blocked",
 ]);
 const reasons = new Set([
   "disabled",
@@ -99,6 +105,22 @@ const reasons = new Set([
   "below_threshold",
   "busy",
   "cooldown",
+  "invalid_config",
+  "invalid_command",
+  "blocked_command",
+  "unverified_syntax",
+  "shell_syntax",
+  "unverified_wrapper",
+  "shell_wrapper",
+  "required_approval",
+  "auto_approval",
+  "yolo_mode",
+  "unmatched_command",
+  "approval_unavailable",
+  "approval_failed",
+  "not_approved",
+  "yolo_enabled",
+  "yolo_disabled",
 ]);
 const compactionTriggers = new Set<CompactionTrigger>([
   "manual",
@@ -142,6 +164,18 @@ export function sanitizeProductEvent(value: unknown): ProductEvent | undefined {
   // Trigger metadata is content-free and belongs only to compaction events.
   if (category === "compaction" && compactionTriggers.has(source["trigger"] as CompactionTrigger))
     event.trigger = source["trigger"] as CompactionTrigger;
+  // Terminal dimensions are fixed enums, never commands, paths, or permission-list entries.
+  if (category === "terminal") {
+    if (source["terminalShell"] === "bash" || source["terminalShell"] === "powershell")
+      event.terminalShell = source["terminalShell"];
+    if (
+      source["terminalSource"] === "tool" ||
+      source["terminalSource"] === "nested_tool" ||
+      source["terminalSource"] === "user_bash"
+    )
+      event.terminalSource = source["terminalSource"];
+    if (typeof source["yoloMode"] === "boolean") event.yoloMode = source["yoloMode"];
+  }
   for (const field of textFields) {
     const value = source[field];
     if (typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._/:+-]{0,159}$/.test(value))

@@ -28,6 +28,27 @@ const webSearchSchema = z.strictObject({
   useUrlContext: z.boolean(),
   requireGrounding: z.boolean(),
 });
+const commandPrefixSchema = z
+  .string()
+  .min(1)
+  .max(96)
+  .refine(
+    (value) =>
+      value.trim().length > 0 &&
+      Array.from(value).every((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 32 && (code < 127 || code > 159);
+      }),
+    "Command prefixes must not be blank or contain control characters",
+  );
+const terminalPermissionsSchema = z.strictObject({
+  yoloMode: z.boolean(),
+  allowYoloMode: z.boolean(),
+  autoApproveCommands: z.array(commandPrefixSchema).max(32),
+  requireApprovalCommands: z.array(commandPrefixSchema).max(32),
+  blockedCommands: z.array(commandPrefixSchema).max(32),
+  approvalTimeoutMs: z.number().int().min(1_000).max(300_000),
+});
 const piSchema = z.strictObject({
   codemodeEnabled: z.boolean(),
 });
@@ -36,12 +57,14 @@ const configSchema = z.object({
   pi: piSchema.optional(),
   telemetry: telemetrySchema.optional(),
   webSearch: webSearchSchema.optional(),
+  terminalPermissions: terminalPermissionsSchema.optional(),
 });
 
 export type ClientConfig = z.infer<typeof configSchema>;
 export type PiConfig = z.infer<typeof piSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
 export type WebSearchConfig = z.infer<typeof webSearchSchema>;
+export type TerminalPermissionsConfig = z.infer<typeof terminalPermissionsSchema>;
 
 export function parseClientConfig(value: unknown): ClientConfig {
   // Config can select policy, never a destination to which our session is sent.

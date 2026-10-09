@@ -89,6 +89,14 @@
     "REQUIRE_GROUNDING": true,
     "SEARCH_CONTEXT_SIZE": null
   },
+  "TERMINAL_PERMISSIONS": {
+    "YOLO_MODE": false,
+    "ALLOW_YOLO_MODE": true,
+    "AUTO_APPROVE_COMMANDS": [],
+    "REQUIRE_APPROVAL_COMMANDS": [],
+    "BLOCKED_COMMANDS": [],
+    "APPROVAL_TIMEOUT_SECONDS": 60
+  },
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
   "LITELLM": {

@@ -707,6 +707,7 @@ describe("package and resource locks", () => {
       "session-backup.mjs",
       "web-search.ts",
       "compaction.ts",
+      "terminal-permissions.ts",
     ]);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);

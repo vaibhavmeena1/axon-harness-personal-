@@ -18,6 +18,14 @@ let authorization: string | null;
 let mode: "valid" | "failed" | "switched" = "valid";
 let codemodeEnabled: boolean | undefined = true;
 const projectRoot = resolve(import.meta.dir, "..");
+const terminalPolicy = {
+  yoloMode: false,
+  allowYoloMode: true,
+  autoApproveCommands: ["pwd", "git status"],
+  requireApprovalCommands: ["git push"],
+  blockedCommands: ["rm"],
+  approvalTimeoutMs: 60_000,
+};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "axon-pi-config-"));
@@ -52,6 +60,7 @@ beforeAll(async () => {
           {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined ? {} : { pi: { codemodeEnabled } }),
+            terminalPermissions: terminalPolicy,
             webSearch: {
               enabled: true,
               model: "gemini-3.8-flash",
@@ -136,6 +145,7 @@ async function launchSpec(
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
       PI_ORG_OTEL_ENABLED: options.disabled ? "false" : "true",
       PI_WEB_SEARCH_ENABLED: options.searchDisabled ? "false" : "true",
+      PI_TERMINAL_MANAGED_CONFIG: "inherited-marker",
       PI_OFFLINE: options.piOfflineEnvironment,
       LITELLM_OFFLINE: options.providerOffline ? "1" : undefined,
       LITELLM_DISCOVERY_TIMEOUT_MS: options.discoveryDisabled ? "0" : undefined,
@@ -164,6 +174,7 @@ describe("real Pi adapter client config integration", () => {
     const environment = await launchSpec();
     expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
     expect(authorization).toBe("Bearer initial-token");
+    expect(JSON.parse(environment["PI_TERMINAL_MANAGED_CONFIG"] ?? "null")).toEqual(terminalPolicy);
     expect(environment["OTEL_EXPORTER_OTLP_ENDPOINT"]).toBe(`${server.url.origin}/api/v1/otel`);
     expect(environment["OTEL_EXPORTER_OTLP_PROTOCOL"]).toBe("http/protobuf");
     expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBe(`${server.url.origin}/api/v1/otel`);
@@ -210,6 +221,7 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["OTEL_EXPORTER_OTLP_HEADERS"]).toBe("authorization=env-secret");
     expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBeUndefined();
     expect(environment["PI_ORG_OTEL_MANAGED_HOME"]).toBeUndefined();
+    expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
     mode = "valid";
   });
 
@@ -225,6 +237,7 @@ describe("real Pi adapter client config integration", () => {
       const environment = await launchSpec(options);
       if (options.offline || options.admin) {
         expect(requests).not.toContain("/api/v1/cli/config");
+        expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
       } else {
         expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
       }
@@ -269,8 +282,9 @@ describe("real Pi adapter client config integration", () => {
     const settingsPath = join(root, "pi", "settings.json");
     const settings = await Bun.file(settingsPath).text();
     try {
-      await launchSpec();
+      const environment = await launchSpec();
       expect(await Bun.file(settingsPath).text()).toBe(settings);
+      expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
       expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: root }))).toBe(
         "different-account-token",
       );
