@@ -1,0 +1,41 @@
+apps/cli/src/cli/auth/ensure-session.ts
+  5df430e2ea2a4dde 15,18
+apps/cli/src/telemetry/product-events.ts
+  5df430e2ea2a4dde 20,25,41,99-101,103-107,142-144
+apps/cli/src/harnesses/pi/telemetry/src/tracker.ts
+  5df430e2ea2a4dde 11-13,84-89,206-207,249-251,341-342,410-411,1005-1046,1048-1050,1072-1073,1076-1081,1084-1098,1102-1106,1114-1119,1123,1125-1126,1131,1138,1158-1159,1175,1178-1181,1183-1211
+apps/cli/src/harnesses/pi/telemetry/src/index.ts
+  5df430e2ea2a4dde 605,609,620,632-645,654-656
+apps/cli/src/harnesses/pi/telemetry/src/product.ts
+  5df430e2ea2a4dde 18
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  5df430e2ea2a4dde 33
+apps/cli/src/cli/dispatch.ts
+  5df430e2ea2a4dde 1,18,21-22,25,28-30,36,71
+apps/cli/scripts/build-pi-telemetry.ts
+  5df430e2ea2a4dde 30
+apps/cli/src/harnesses/pi/telemetry/src/otel/product-instruments.ts
+  5df430e2ea2a4dde 8
+apps/cli/src/harnesses/pi/resources/extensions/compaction.ts
+  5df430e2ea2a4dde 110,171-175,186-187,190-198,221-222,231-249,252-253,255,262,266,269-270,275-278,281-282,286-290,292-299,339-343,345-348,350-361,367-374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "eba18911c6c71c8b011e0b65a430383abfadd9a3",
+  "prompts": {
+    "5df430e2ea2a4dde": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "490292",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 312,
+      "total_deletions": 98,
+      "accepted_lines": 289,
+      "overriden_lines": 0
+    }
+  }
+}
