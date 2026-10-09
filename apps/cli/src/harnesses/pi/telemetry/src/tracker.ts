@@ -35,7 +35,17 @@ import {
   ATTR_REQUEST_MODEL,
   ATTR_RESPONSE_ID,
   ATTR_RESPONSE_MODEL,
+  ATTR_SESSION_CACHE_READ_TOKENS,
+  ATTR_SESSION_CACHE_WRITE_TOKENS,
+  ATTR_SESSION_COST,
+  ATTR_SESSION_DURATION,
   ATTR_SESSION_ID,
+  ATTR_SESSION_INPUT_TOKENS,
+  ATTR_SESSION_INTERACTIONS,
+  ATTR_SESSION_LLM_REQUESTS,
+  ATTR_SESSION_OUTPUT_TOKENS,
+  ATTR_SESSION_REASONING_TOKENS,
+  ATTR_SESSION_TOOL_CALLS,
   ATTR_THINKING_LEVEL,
   ATTR_TOOL_CALL_ID,
   ATTR_TOOL_NAME,
@@ -48,6 +58,7 @@ import {
   SPAN_AGENT_RUN,
   SPAN_COMPACTION,
   SPAN_INTERACTION,
+  SPAN_SESSION,
   SPAN_TOOL,
   SPAN_TURN,
   SPAN_USER_WAIT,
@@ -73,6 +84,42 @@ interface LlmSlot extends SpanSlot {
   provider?: string;
   requestModel?: string;
   requestId?: string;
+  thinkingLevel?: string;
+}
+
+/** Per-session running totals, exported once at session end (summary span, log, histograms). */
+interface SessionTotals {
+  cost: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  reasoning: number;
+  interactions: number;
+  llmRequests: number;
+  toolCalls: number;
+}
+
+function emptyTotals(): SessionTotals {
+  return {
+    cost: 0,
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 0,
+    interactions: 0,
+    llmRequests: 0,
+    toolCalls: 0,
+  };
+}
+
+/** Pi thinking levels; anything else is exported as `other` to keep metric labels bounded. */
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+
+function thinkingDimension(level: string | undefined): Attributes {
+  if (!level) return {};
+  return { [ATTR_THINKING_LEVEL]: THINKING_LEVELS.has(level) ? level : "other" };
 }
 
 export interface SessionDetails {
@@ -181,6 +228,7 @@ export class AgentTelemetryTracker {
   private readonly now: () => number;
   private session: SessionDetails | undefined;
   private sessionStartedAt = 0;
+  private totals: SessionTotals = emptyTotals();
   private interaction: SpanSlot | undefined;
   private run: SpanSlot | undefined;
   private turn: SpanSlot | undefined;
@@ -275,6 +323,7 @@ export class AgentTelemetryTracker {
     if (this.session) this.endSession("replaced");
     this.session = details;
     this.sessionStartedAt = this.now();
+    this.totals = emptyTotals();
     const attributes = this.activityMetricAttributes({
       "pi.session.reason": details.reason,
       "pi.session.ephemeral": details.ephemeral,
@@ -303,11 +352,61 @@ export class AgentTelemetryTracker {
       "s",
       this.activityMetricAttributes({ "pi.session.reason": reason }),
     );
+    const summary = this.sessionSummaryAttributes(endedAt);
+    const summaryMetricAttributes = this.activityMetricAttributes();
+    this.runtime.metrics.record(
+      "pi.session.cost",
+      this.totals.cost,
+      "USD",
+      summaryMetricAttributes,
+    );
+    this.runtime.metrics.record(
+      "pi.session.tokens",
+      this.totals.input + this.totals.cacheRead + this.totals.cacheWrite + this.totals.output,
+      "{token}",
+      summaryMetricAttributes,
+    );
+    this.runtime.metrics.record(
+      "pi.session.interactions",
+      this.totals.interactions,
+      "{interaction}",
+      summaryMetricAttributes,
+    );
+    // One short root span per session, created at the end with the session's start time, so
+    // trace backends can rank sessions by cost without holding a span open for the session.
+    this.runtime.tracer
+      .startSpan(
+        SPAN_SESSION,
+        {
+          kind: SpanKind.INTERNAL,
+          startTime: this.sessionStartedAt,
+          attributes: { ...this.baseAttributes(), "pi.session.reason": reason, ...summary },
+        },
+        ROOT_CONTEXT,
+      )
+      .end(endedAt);
     this.runtime.logs.emit("info", "pi.session.ended", "pi session ended", {
       ...this.baseAttributes(),
       "pi.session.reason": reason,
+      ...summary,
     });
     this.session = undefined;
+  }
+
+  private sessionSummaryAttributes(endedAt: number): Attributes {
+    const totals = this.totals;
+    return {
+      [ATTR_SESSION_COST]: totals.cost,
+      [ATTR_SESSION_INPUT_TOKENS]: totals.input + totals.cacheRead + totals.cacheWrite,
+      [ATTR_SESSION_OUTPUT_TOKENS]: totals.output,
+      [ATTR_SESSION_CACHE_READ_TOKENS]: totals.cacheRead,
+      [ATTR_SESSION_CACHE_WRITE_TOKENS]: totals.cacheWrite,
+      [ATTR_SESSION_REASONING_TOKENS]: totals.reasoning,
+      [ATTR_SESSION_INTERACTIONS]: totals.interactions,
+      [ATTR_SESSION_LLM_REQUESTS]: totals.llmRequests,
+      [ATTR_SESSION_TOOL_CALLS]: totals.toolCalls,
+      [ATTR_SESSION_DURATION]: durationSeconds(this.sessionStartedAt, endedAt),
+    };
   }
 
   noteInput(details: InputDetails): void {
@@ -372,6 +471,7 @@ export class AgentTelemetryTracker {
       ROOT_CONTEXT,
     );
     this.runtime.metrics.count("pi.interaction.count", 1, this.activityMetricAttributes());
+    if (this.session) this.totals.interactions += 1;
   }
 
   endInteraction(outcome = "settled"): void {
@@ -562,12 +662,17 @@ export class AgentTelemetryTracker {
       ...(operation ? { operation } : {}),
       ...(details.provider ? { provider: details.provider } : {}),
       ...(details.model ? { requestModel: details.model } : {}),
+      ...(details.thinkingLevel ? { thinkingLevel: details.thinkingLevel } : {}),
     };
     const modelAttributes = this.metricAttributes({
       ...(details.provider ? { [ATTR_PROVIDER]: details.provider } : {}),
       ...(details.model ? { [ATTR_REQUEST_MODEL]: details.model } : {}),
     });
-    this.runtime.metrics.count("pi.llm.requests", 1, modelAttributes);
+    this.runtime.metrics.count("pi.llm.requests", 1, {
+      ...modelAttributes,
+      ...thinkingDimension(details.thinkingLevel),
+    });
+    if (this.session && !synthesized) this.totals.llmRequests += 1;
     if (details.contextPercent !== undefined) {
       this.runtime.metrics.record(
         "pi.context.utilization",
@@ -696,7 +801,14 @@ export class AgentTelemetryTracker {
           ...(failed ? { [ATTR_ERROR_TYPE]: errorType } : {}),
         }),
       );
-    this.recordUsageMetrics(assistant.usage, "assistant", provider, model, requestModel);
+    this.recordUsageMetrics(
+      assistant.usage,
+      "assistant",
+      provider,
+      model,
+      requestModel,
+      this.llm.thinkingLevel,
+    );
     this.llm = undefined;
   }
 
@@ -725,6 +837,7 @@ export class AgentTelemetryTracker {
         this.activeParent(),
     );
     if (this.interaction && !details.parentToolCallId) this.toolCalls += 1;
+    if (this.session && !details.parentToolCallId) this.totals.toolCalls += 1;
     this.tools.set(toolCallId, { ...slot, name: toolName });
     this.runtime.metrics.count(
       "pi.tool.calls",
@@ -980,13 +1093,23 @@ export class AgentTelemetryTracker {
     provider?: string,
     model?: string,
     requestModel?: string,
+    thinkingLevel?: string,
   ): void {
     if (!usage) return;
+    if (this.session) {
+      this.totals.cost += usage.cost ?? 0;
+      this.totals.input += usage.input ?? 0;
+      this.totals.output += usage.output ?? 0;
+      this.totals.cacheRead += usage.cacheRead ?? 0;
+      this.totals.cacheWrite += usage.cacheWrite ?? 0;
+      this.totals.reasoning += usage.reasoning ?? 0;
+    }
     const attributes: Attributes = {
       [ATTR_USAGE_SOURCE]: source,
       ...(requestModel ? { [ATTR_REQUEST_MODEL]: requestModel } : {}),
       ...(provider ? { [ATTR_PROVIDER]: provider } : {}),
       ...(model ? { [ATTR_RESPONSE_MODEL]: model } : {}),
+      ...thinkingDimension(thinkingLevel),
     };
     if (usage.input !== undefined)
       this.runtime.metrics.count("pi.tokens.input", usage.input, attributes);

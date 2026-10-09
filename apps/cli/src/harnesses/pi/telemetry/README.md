@@ -25,7 +25,7 @@ metadata. Axon changes include:
   cancellation without invented exceptions, and content collection kept OFF.
 
 The upstream snapshot metadata remains archival; current adapted source and the generated bundle
-are authoritative. The adapted runtime version is `0.5.0-axon.1` with schema version 4; the archival upstream package version is unchanged.
+are authoritative. The adapted runtime version is `0.6.0-axon.1` with schema version 4; the archival upstream package version is unchanged.
 
 ## Build
 
@@ -57,13 +57,38 @@ are invented from these public events.
 
 ## Grafana dashboard
 
-Import [`grafana.json`](grafana.json) and select the org Prometheus and Tempo datasources.
+Import [`grafana.json`](grafana.json) and select the org Prometheus and Tempo datasources. One
+dashboard serves both views: **User email = All** is the organization view, and picking emails
+narrows every panel to those people. Rows, top to bottom:
+
+- **Overview**: active and new users, sessions, interactions, cost, tokens, agent hours, cost per
+  user/session, cache hit ratio, and LLM/tool error rates.
+- **Adoption**: DAU/WAU/MAU, sessions and interactions over time, users by terminal, CLI versions.
+- **Leaderboards**: per-user table (cost, sessions, interactions, tokens, tool calls, agent hours),
+  top users by tokens, top repositories and models by cost, and top sessions by cost (Tempo
+  `pi.session` spans above the **Min session cost** threshold).
+- **Cost & tokens**: cost over time by model, cost by usage source, token usage by type, token mix,
+  and a per-model usage table (cost, requests, tokens, cache hit, cost per request, users).
+- **Models & reasoning effort**: requests and cost by thinking level, effort mix over time,
+  reasoning share of output, latency and context utilization by model.
+- **Sessions & terminals**: sessions by terminal, mode and repository; per-session cost,
+  duration and interaction distributions; interventions and recent interaction traces.
+- **Reliability**, then collapsed **Product** rows (recommender, backup/restore, CLI health).
+
+Counter totals use `(increase(m[w]) and (m offset w)) or max_over_time(m[w])` instead of bare
+`increase`. Each process exports its own cumulative series and `increase` ignores a series' first
+sample, which would drop short-lived processes (for example, a process that starts one session
+first exports `pi_session_started_total=1`). Multi-counter sums use a `label_replace` union rather
+than `+`, so a model without cache-write tokens still appears. Active users count emails with any
+exported sample in the window.
+
 The **User email** selector, dependent repository options, panel filters, and per-user legends
 use `user_email` for metrics and `user.email` for traces. Managed exports receive verified email
 from DD auth; `user.id` remains unchanged in the telemetry schema. Multi-select and **All** are
 supported. **All** includes only records with a non-empty email;
 environment-fallback records without email are not shown. Repository filtering applies only to
-activity metrics and traces, not token, cost, LLM, tool, or telemetry-health metrics.
+activity metrics, session-summary histograms, and interaction traces, not token, cost, LLM, tool,
+or telemetry-health metrics.
 
 ## Product tracking
 

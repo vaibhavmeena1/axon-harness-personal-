@@ -285,3 +285,72 @@ test("attributes usage to its source and keeps the repo slug off token metrics",
   assert.equal(llm?.attributes["pi.cost.input_usd"], 0.04);
   await fixture.runtime.shutdown();
 });
+
+test("labels inference and usage with bounded reasoning effort", () => {
+  const fixture = createTestRuntime();
+  const tracker = new AgentTelemetryTracker(fixture.runtime, () => 1_000);
+  tracker.startSession(session());
+  tracker.startInteraction(1, 0);
+  tracker.startRun();
+  tracker.startLlm({ provider: "anthropic", model: "claude-opus-5-5", thinkingLevel: "high" });
+  tracker.endLlm({ provider: "anthropic", stopReason: "stop", usage: { output: 5, cost: 0.1 } });
+  tracker.startLlm({ provider: "anthropic", model: "claude-opus-5-5", thinkingLevel: "bogus" });
+  tracker.endLlm({ provider: "anthropic", stopReason: "stop", usage: { output: 5 } });
+
+  const requests = fixture.metrics.filter((metric) => metric.name === "pi.llm.requests");
+  assert.deepEqual(
+    requests.map((metric) => metric.attributes["pi.thinking.level"]),
+    ["high", "other"],
+  );
+  const cost = fixture.metrics.find((metric) => metric.name === "pi.cost");
+  assert.equal(cost?.attributes["pi.thinking.level"], "high");
+  assert.equal(cost?.attributes["pi.usage.source"], "assistant");
+});
+
+test("exports per-session totals as a summary span, log, and histograms", () => {
+  let now = 10_000;
+  const fixture = createTestRuntime();
+  const tracker = new AgentTelemetryTracker(fixture.runtime, () => now);
+  tracker.startSession({ ...session(), repoSlug: "github.com/acme/app" });
+  tracker.startInteraction(1, 0);
+  tracker.startRun();
+  tracker.startTurn(0);
+  tracker.startLlm({ provider: "openai", model: "gpt-5" });
+  tracker.endLlm({
+    provider: "openai",
+    stopReason: "toolUse",
+    usage: { input: 100, output: 20, cacheRead: 30, cacheWrite: 10, reasoning: 5, cost: 0.25 },
+  });
+  tracker.startTool("tool-1", "read", {});
+  tracker.endTool("tool-1", false);
+  tracker.endTurn("ok", undefined, 1);
+  tracker.endRun("stop");
+  tracker.endInteraction();
+  tracker.recordAuxiliaryUsage("compaction", { input: 50, output: 10, cost: 0.05 });
+  now += 120_000;
+  tracker.endSession("quit");
+
+  const summary = fixture.spans().find((span) => span.name === "pi.session");
+  assert.ok(summary);
+  assert.equal(summary.parentSpanContext, undefined);
+  assert.equal(summary.attributes["session.id"], "session-1");
+  assert.equal(summary.attributes["pi.session.reason"], "quit");
+  assert.ok(Math.abs(Number(summary.attributes["pi.session.cost.usd"]) - 0.3) < 1e-9);
+  assert.equal(summary.attributes["pi.session.tokens.input"], 190);
+  assert.equal(summary.attributes["pi.session.tokens.output"], 30);
+  assert.equal(summary.attributes["pi.session.tokens.reasoning"], 5);
+  assert.equal(summary.attributes["pi.session.interactions"], 1);
+  assert.equal(summary.attributes["pi.session.llm_requests"], 1);
+  assert.equal(summary.attributes["pi.session.tool_calls"], 1);
+  assert.equal(summary.attributes["pi.session.duration_s"], 120);
+
+  const ended = fixture.logs.find((log) => log.eventName === "pi.session.ended");
+  assert.equal(ended?.attributes["pi.session.tool_calls"], 1);
+
+  const tokens = fixture.metrics.find((metric) => metric.name === "pi.session.tokens");
+  assert.equal(tokens?.value, 220);
+  assert.equal(tokens?.attributes["pi.repo.slug"], "github.com/acme/app");
+  assert.equal(tokens?.attributes["session.id"], undefined);
+  const interactions = fixture.metrics.find((metric) => metric.name === "pi.session.interactions");
+  assert.equal(interactions?.value, 1);
+});

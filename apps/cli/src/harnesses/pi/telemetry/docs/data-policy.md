@@ -66,6 +66,10 @@ results. No feedback is collected. Recommendation explanation text, task prompts
 archive paths, signed URLs, login URLs, credentials and raw exception text are excluded. Numeric
 observations and recommendation/session IDs are not metric labels. See [Product telemetry](product-telemetry.md).
 
+## Terminal
+
+`terminal.type` is derived from well-known terminal variables (`TERM_PROGRAM`, `TERMINAL_EMULATOR`, `WT_SESSION`, `TMUX`, `SSH_CONNECTION`, and similar) and mapped to a fixed allowlist. Environment values themselves, window/session identifiers, and unrecognized program names are never exported; unknown terminals become `other`.
+
 ## Operational identifiers
 
-Session IDs, parent session IDs, recommendation IDs, tool call IDs, trace IDs, provider request IDs, and provider response IDs appear only on traces/logs, not metric dimensions. Model, provider, tool name, tool source, usage source, outcome, mode, repository slug (activity metrics only), and user ID are metric dimensions.
+Session IDs, parent session IDs, recommendation IDs, tool call IDs, trace IDs, provider request IDs, and provider response IDs appear only on traces/logs, not metric dimensions. Model, provider, tool name, tool source, usage source, thinking level, terminal type, outcome, mode, repository slug (activity and session-summary metrics only), and user ID are metric dimensions.

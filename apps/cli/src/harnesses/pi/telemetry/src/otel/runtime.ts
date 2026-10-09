@@ -45,6 +45,7 @@ import {
   ATTR_PI_VERSION,
   ATTR_RUNTIME_NAME,
   ATTR_RUNTIME_VERSION,
+  ATTR_TERMINAL_TYPE,
   ATTR_USER_EMAIL,
   ATTR_USER_ID,
   COUNTER_UNITS,
@@ -56,7 +57,7 @@ import { describeEnvironment, type ResourceEnvironment } from "../environment.ts
 import type { TelemetryIdentity } from "../identity.ts";
 import { sanitizeText } from "../sanitization.ts";
 import type { LogSeverity, LogSink, MetricSink, TelemetryRuntime } from "../telemetry-types.ts";
-import { GEN_AI_HISTOGRAMS } from "./instruments.ts";
+import { GEN_AI_HISTOGRAMS, SESSION_HISTOGRAMS } from "./instruments.ts";
 import {
   type ManagedDestinationOptions,
   managedLogExporter,
@@ -239,14 +240,16 @@ export class OtelMetricSink implements MetricSink {
   record(name: string, value: number, unit: string, attributes: Attributes = {}): void {
     let histogram = this.histograms.get(name);
     if (!histogram) {
-      const definition = GEN_AI_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
+      const definition =
+        GEN_AI_HISTOGRAMS[name] ?? SESSION_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
       histogram = this.meter.createHistogram(name, {
         unit: definition?.unit ?? unit,
         ...(definition ? { advice: { explicitBucketBoundaries: definition.boundaries } } : {}),
       });
       this.histograms.set(name, histogram);
     }
-    const definition = GEN_AI_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
+    const definition =
+      GEN_AI_HISTOGRAMS[name] ?? SESSION_HISTOGRAMS[name] ?? PRODUCT_HISTOGRAMS[name];
     const dimensions = definition
       ? Object.fromEntries(
           Object.entries(attributes).filter(([key]) => definition.dimensions.includes(key)),
@@ -327,6 +330,9 @@ export function createOtelRuntime(
     [ATTR_USER_ID]: identity.userId,
     [ATTR_IDENTITY_SOURCE]: identity.source,
     ...(identity.email ? { [ATTR_USER_EMAIL]: identity.email } : {}),
+    // Constant per process, so it adds no per-process series; enables terminal breakdowns on
+    // backends that do not promote resource attributes to labels.
+    [ATTR_TERMINAL_TYPE]: environment.terminalType,
   };
   const resource = defaultResource().merge(
     resourceFromAttributes({
@@ -345,6 +351,7 @@ export function createOtelRuntime(
       [ATTR_HOST_ARCH]: environment.hostArch,
       [ATTR_RUNTIME_NAME]: environment.runtimeName,
       [ATTR_RUNTIME_VERSION]: environment.runtimeVersion,
+      [ATTR_TERMINAL_TYPE]: environment.terminalType,
     }),
   );
   const health = new ExportHealth(config.diagnostics && !options.quiet, options.now);
