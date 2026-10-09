@@ -14,7 +14,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/ddcli",
+    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3001\"' --outfile dist/ddcli",
     "build:release": "bun run telemetry:check && bun run backups:check && bun run scripts/build-release.ts",
     "pi-version:check": "bun run scripts/check-pi-version.ts",
     "backups:build": "bun run scripts/build-session-backup.ts",

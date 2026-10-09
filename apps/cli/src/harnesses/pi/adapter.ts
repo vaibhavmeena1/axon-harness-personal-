@@ -16,7 +16,7 @@ import {
   resolveConfiguredPiVersion,
   resolvePiExecutable,
 } from "./installation.ts";
-import { applyPiDefaults } from "./settings-defaults.ts";
+import { applyPiDefaults, applyPiProviderDefaults } from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides } from "./telemetry-environment.ts";
@@ -54,6 +54,15 @@ export function createPiAdapter(): HarnessAdapter {
       let telemetryOverrides: EnvironmentOverrides = {};
       let webSearchOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
+        try {
+          await applyPiProviderDefaults(context.paths);
+        } catch {
+          throw new LauncherError(
+            "Could not prepare DeputyDev's LiteLLM provider safely",
+            LAUNCHER_EXIT_STATUS.profileFailure,
+            { remediation: `Run ${PRODUCT_IDENTITY.command} doctor pi.` },
+          );
+        }
         let encryptedSession: string | undefined;
         try {
           encryptedSession = await loadEncryptedSession(context.paths);

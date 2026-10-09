@@ -9,6 +9,15 @@ export async function ensureAuthenticatedSession(
   paths: DeputyDevPaths,
   options: { readonly offline?: boolean; readonly interactive?: boolean } = {},
 ): Promise<boolean> {
+  // A saved token alone is not proof of access. Offline mode cannot bypass verification.
+  if (options.offline) {
+    throw new LauncherError(
+      "Cannot verify your DeputyDev session while offline",
+      LAUNCHER_EXIT_STATUS.profileFailure,
+      { remediation: "Run ddcli while online to verify your session before starting Pi." },
+    );
+  }
+
   let encryptedSession: string | undefined;
   try {
     encryptedSession = await loadEncryptedSession(paths);
@@ -17,8 +26,6 @@ export async function ensureAuthenticatedSession(
   }
 
   if (encryptedSession !== undefined) {
-    // Offline sessions may use saved state, but must never contact the auth service.
-    if (options.offline) return true;
     const status = await verifyEncryptedSession(encryptedSession);
     if (status === "VERIFIED") return true;
     console.error(
@@ -30,12 +37,7 @@ export async function ensureAuthenticatedSession(
     console.error("Sign in to DeputyDev to continue.");
   }
 
-  if (
-    options.offline ||
-    options.interactive === false ||
-    !process.stdin.isTTY ||
-    !process.stdout.isTTY
-  ) {
+  if (options.interactive === false || !process.stdin.isTTY || !process.stdout.isTTY) {
     throw new LauncherError("DeputyDev login is required", LAUNCHER_EXIT_STATUS.profileFailure, {
       remediation: "Login from browser: run ddcli auth login --browser in a terminal.",
     });

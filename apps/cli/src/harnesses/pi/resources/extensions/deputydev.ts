@@ -158,11 +158,64 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
   };
 }
 
+/** Finish provider discovery before the first prompt, including restored chats. */
+async function selectManagedModel(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
+  if (authRelayConfiguration() === undefined) return;
+
+  try {
+    // Await native-provider credential checks rather than reading their provisional snapshot.
+    await ctx.modelRegistry.refresh({ providers: ["litellm"], allowNetwork: false });
+    let models = ctx.modelRegistry.getAvailable().filter((model) => model.provider === "litellm");
+    if (models.length === 0) {
+      // A slow startup discovery can miss its short seed deadline. Retry through the
+      // authenticated relay, never through a personal provider or a second Pi login.
+      await ctx.modelRegistry.refresh({
+        providers: ["litellm"],
+        allowNetwork: true,
+        force: true,
+        signal: AbortSignal.timeout(15_000),
+      });
+      models = ctx.modelRegistry.getAvailable().filter((model) => model.provider === "litellm");
+    }
+
+    const current = ctx.model;
+    if (
+      current !== undefined &&
+      current.provider !== "litellm" &&
+      ctx.modelRegistry.hasConfiguredAuth(current)
+    ) {
+      // Do not replace an explicitly selected, authenticated provider.
+      return;
+    }
+    const selected = models.find((model) => model.id === current?.id) ?? models[0];
+    if (selected === undefined) {
+      ctx.ui.notify(
+        "No LiteLLM chat models are available for your DeputyDev account. Check the backend model configuration, then run /litellm-refresh.",
+        "warning",
+      );
+      return;
+    }
+    // A resumed session can carry yesterday's loopback URL; always select the fresh model object.
+    if (!(await pi.setModel(selected))) {
+      ctx.ui.notify(
+        "The LiteLLM model could not be selected. Run /litellm-refresh and retry.",
+        "warning",
+      );
+    }
+  } catch {
+    ctx.ui.notify(
+      "Could not load your DeputyDev chat models. Check connectivity, then run /litellm-refresh.",
+      "warning",
+    );
+  }
+}
+
 export default function deputyDevExtension(pi: ExtensionAPI): void {
   let stopRecovery: (() => void) | undefined;
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     stopRecovery?.();
     stopRecovery = watchSessionRecovery(ctx);
+    await selectManagedModel(pi, ctx);
   });
   pi.on("session_shutdown", () => {
     stopRecovery?.();
