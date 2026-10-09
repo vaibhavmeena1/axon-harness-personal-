@@ -17,7 +17,7 @@ import {
 let fixtureDirectory: string;
 
 beforeAll(async () => {
-  fixtureDirectory = await mkdtemp(join(tmpdir(), "deputydev-pi-mcp-"));
+  fixtureDirectory = await mkdtemp(join(tmpdir(), "axon-pi-mcp-"));
 });
 
 afterAll(async () => {
@@ -44,8 +44,8 @@ describe("Pi MCP setup paths", () => {
     expect(resolvePiMcpConfigPath({ HOME: "/Users/example" })).toBe(
       "/Users/example/.config/mcp/mcp.json",
     );
-    expect(resolvePiMcpConfigSourceUrl("https://deputydev.example")).toBe(
-      "https://deputydev.example/v1/cli/pi/mcp.json",
+    expect(resolvePiMcpConfigSourceUrl("https://axon.example")).toBe(
+      "https://axon.example/v1/cli/pi/mcp.json",
     );
   });
 });
@@ -55,7 +55,7 @@ describe("Pi MCP config synchronization", () => {
     const path = configPath("create");
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () =>
         catalogResponse({
           github: {
@@ -120,7 +120,7 @@ describe("Pi MCP config synchronization", () => {
 
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () =>
         catalogResponse({
           github: {
@@ -170,7 +170,7 @@ describe("Pi MCP config synchronization", () => {
 
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () =>
         catalogResponse({
           kept: { url: "https://organization.example/changed" },
@@ -190,7 +190,7 @@ describe("Pi MCP config synchronization", () => {
 
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () => {
         fetchCalls += 1;
         return catalogResponse({ newServer: { command: "new-server" } });
@@ -208,7 +208,7 @@ describe("Pi MCP config synchronization", () => {
 
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () => {
         await mkdir(join(path, ".."), { recursive: true });
         await Bun.write(
@@ -237,7 +237,7 @@ describe("Pi MCP config synchronization", () => {
 
     const syncResult = await synchronizePiMcpConfig({
       configPath: path,
-      sourceUrl: "https://deputydev.example/v1/cli/pi/mcp.json",
+      sourceUrl: "https://axon.example/v1/cli/pi/mcp.json",
       fetchConfig: async () => {
         throw new Error("offline");
       },
@@ -250,7 +250,7 @@ describe("Pi MCP config synchronization", () => {
 });
 
 describe("Pi MCP sync throttling", () => {
-  const sourceUrl = "https://deputydev.example/v1/cli/pi/mcp.json";
+  const sourceUrl = "https://axon.example/v1/cli/pi/mcp.json";
 
   test("evaluates the stamp by status, age, and source", () => {
     const now = new Date("2026-09-15T12:00:00Z");

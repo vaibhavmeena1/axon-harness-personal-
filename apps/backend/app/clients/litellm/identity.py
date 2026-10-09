@@ -1,9 +1,10 @@
-"""Provision verified DeputyDev identities through stock LiteLLM management APIs."""
+"""Provision verified Axon identities through stock LiteLLM management APIs."""
 
 import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -12,9 +13,16 @@ from typing import Any
 import httpx
 
 from app.clients.auth_service import AuthenticatedUser
+from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
 
-LITELLM_IDENTITY_CLIENT_STATE_KEY = "litellm_identity_client"
+# Explicit routes are required: the llm_api preset overwrites allowed_routes.
+_MANAGED_KEY_ROUTES = ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*")
+_PREVIOUS_MANAGED_KEY_ROUTES = (
+    ("llm_api_routes",),
+    ("llm_api_routes", "/key/info", "/v2/user/info"),
+)
+logger = logging.getLogger(__name__)
 
 
 class LiteLLMIdentityError(Exception):
@@ -29,17 +37,13 @@ class LiteLLMIdentityError(Exception):
 class LiteLLMIdentityClient:
     """Reuse native users, teams, memberships, and a backend-only key per user/team."""
 
-    def __init__(self, settings: LiteLLMSettings, client: httpx.AsyncClient) -> None:
+    def __init__(self, settings: LiteLLMSettings, transport: LiteLLMTransport) -> None:
         self.settings = settings
-        self._client = client
+        self._transport = transport
         self._cache: OrderedDict[tuple[int, str], tuple[float, str]] = OrderedDict()
         # Coalesce provisioning in this worker. Read-back also handles creation
         # races with other workers without overwriting existing budgets or roles.
         self._lock = asyncio.Lock()
-
-    def _url(self, path: str) -> httpx.URL:
-        root_path = self.settings.upstream_root_path.rstrip("/")
-        return httpx.URL(self.settings.upstream_url).copy_with(path=root_path + path)
 
     async def _request(
         self,
@@ -51,14 +55,13 @@ class LiteLLMIdentityClient:
         allow_missing: bool = False,
     ) -> dict[str, Any] | None:
         try:
-            response = await self._client.request(
+            response = await self._transport.request(
                 method,
-                self._url(path),
-                headers={"Authorization": f"Bearer {self.settings.api_key}"},
+                path,
+                api_key=self.settings.api_key,
                 params=params,
-                json=payload,
-                timeout=httpx.Timeout(self.settings.identity_sync_timeout_seconds),
-                follow_redirects=False,
+                payload=payload,
+                timeout_seconds=self.settings.identity_sync_timeout_seconds,
             )
         except httpx.HTTPError as exc:
             raise LiteLLMIdentityError(f"LiteLLM management request failed at {path}") from exc
@@ -185,8 +188,31 @@ class LiteLLMIdentityClient:
             if expiry <= datetime.now(timezone.utc):
                 raise LiteLLMIdentityError("LiteLLM user/team key is expired", status_code=403)
 
+    async def _ensure_metadata_routes(
+        self, record: dict[str, Any], key_hash: str, user_id: str, team_id: str
+    ) -> dict[str, Any]:
+        """Upgrade only previous harness defaults; preserve custom policies."""
+        metadata = record.get("metadata")
+        routes = record.get("allowed_routes")
+        if (
+            not isinstance(metadata, dict)
+            or metadata.get("source") != "meta-harness"
+            or metadata.get("axon_user_team_id", metadata.get("deputydev_user_team_id")) != user_id
+            or not isinstance(routes, list)
+            or tuple(routes) not in _PREVIOUS_MANAGED_KEY_ROUTES
+        ):
+            return record
+        await self._request(
+            "POST", "/key/update", payload={"key": key_hash, "allowed_routes": list(_MANAGED_KEY_ROUTES)}
+        )
+        updated = await self._lookup("/key/info", {"key": key_hash}, "info", {"user_id": user_id, "team_id": team_id})
+        if updated is None or updated.get("allowed_routes") != list(_MANAGED_KEY_ROUTES):
+            raise LiteLLMIdentityError("LiteLLM did not persist managed key metadata routes")
+        logger.info("LiteLLM managed key metadata routes upgraded user_team_id=%s", user_id)
+        return updated
+
     async def _provision(self, user: AuthenticatedUser) -> str:
-        # LiteLLM calls this field user_id, but DeputyDev's canonical identifier
+        # LiteLLM calls this field user_id, but Axon's canonical identifier
         # is the verified membership's user_team_id, not the account-level ID.
         user_id = str(user.user_team_id)
         team_id = self.settings.team_id or str(user.team_id)
@@ -200,7 +226,7 @@ class LiteLLMIdentityClient:
             "user_role": "internal_user",
             "auto_create_key": False,
             "send_invite_email": False,
-            "metadata": {"source": "meta-harness", "deputydev_user_team_id": user_id},
+            "metadata": {"source": "meta-harness", "axon_user_team_id": user_id},
         }
         if self.settings.team_id:
             user_payload["teams"] = [{"team_id": team_id, "user_role": self.settings.team_role}]
@@ -212,7 +238,7 @@ class LiteLLMIdentityClient:
             {"user_id": user_id},
             user_payload,
         )
-        # Do not attach a DeputyDev identity to an unrelated existing native user.
+        # Do not attach a Axon identity to an unrelated existing native user.
         existing_email = user_record.get("user_email")
         if existing_email and (
             not isinstance(existing_email, str) or existing_email.casefold() != user.user_email.casefold()
@@ -230,9 +256,9 @@ class LiteLLMIdentityClient:
                 {"team_id": team_id},
                 {
                     "team_id": team_id,
-                    "team_alias": user.organization_name or f"DeputyDev team {team_id}",
+                    "team_alias": user.organization_name or f"Axon team {team_id}",
                     "members_with_roles": [{"user_id": user_id, "role": self.settings.team_role}],
-                    "metadata": {"source": "meta-harness", "deputydev_team_id": str(user.team_id)},
+                    "metadata": {"source": "meta-harness", "axon_team_id": str(user.team_id)},
                 },
             )
         if user_record.get("blocked") is True or team_record.get("blocked") is True:
@@ -251,18 +277,21 @@ class LiteLLMIdentityClient:
             {
                 "key": virtual_key,
                 "key_alias": f"meta-harness:{user_id}:{team_id}:{key_hash[:12]}",
-                "key_type": "llm_api",
+                "key_type": "default",
+                "allowed_routes": list(_MANAGED_KEY_ROUTES),
                 "user_id": user_id,
                 "team_id": team_id,
                 "metadata": {
                     "source": "meta-harness",
-                    "deputydev_user_team_id": user_id,
-                    "deputydev_team_id": str(user.team_id),
+                    "axon_user_team_id": user_id,
+                    "axon_team_id": str(user.team_id),
                 },
             },
         )
-        # Reuse restrictions as configured in LiteLLM; never unblock keys, reset
-        # spend, alter budgets, or fall back to an admin key for model traffic.
+        # Never unblock keys, reset spend/budgets, change custom routes, or fall
+        # back to an admin key. Only previous harness route defaults are upgraded.
+        self._require_active_key(key_record)
+        key_record = await self._ensure_metadata_routes(key_record, key_hash, user_id, team_id)
         self._require_active_key(key_record)
         return virtual_key
 
@@ -276,6 +305,12 @@ class LiteLLMIdentityClient:
             return None
         self._cache.move_to_end(identity)
         return virtual_key
+
+    async def authenticated_key(self, user: AuthenticatedUser) -> str:
+        """Resolve model credentials without ever falling back after a sync failure."""
+        if not self.settings.identity_sync_enabled:
+            return self.settings.api_key
+        return await self.ensure_identity(user)
 
     async def ensure_identity(self, user: AuthenticatedUser) -> str:
         """Return a native user/team key only after verified identity synchronization."""

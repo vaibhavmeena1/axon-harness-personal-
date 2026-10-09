@@ -55,7 +55,7 @@ test("product metrics use verified runtime identity and keep IDs, numeric scores
     { ...event, recommendationId: id, confidence: 0.9, complexity: 2.5 },
     { "session.id": "session-1", "pi.repo.slug": "private/repo" },
   );
-  const count = fixture.metrics.find((metric) => metric.name === "deputydev.recommender.events");
+  const count = fixture.metrics.find((metric) => metric.name === "axon.recommender.events");
   assert.equal(count?.attributes["user.email"], "developer@example.com");
   assert.equal(count?.attributes["component"], "cli");
   assert.equal(count?.attributes["selected_rank"], 1);
@@ -63,21 +63,21 @@ test("product metrics use verified runtime identity and keep IDs, numeric scores
     for (const key of [
       "session.id",
       "pi.repo.slug",
-      "deputydev.recommendation.id",
+      "axon.recommendation.id",
       "confidence",
       "complexity",
     ])
       assert.equal(metric.attributes[key], undefined);
   }
   assert.equal(
-    fixture.metrics.find((metric) => metric.name === "deputydev.recommender.duration")?.value,
+    fixture.metrics.find((metric) => metric.name === "axon.recommender.duration")?.value,
     1.25,
   );
   assert.equal(
-    fixture.metrics.find((metric) => metric.name === "deputydev.recommender.complexity")?.value,
+    fixture.metrics.find((metric) => metric.name === "axon.recommender.complexity")?.value,
     2.5,
   );
-  assert.equal(fixture.spans()[0]?.attributes["deputydev.recommendation.id"], id);
+  assert.equal(fixture.spans()[0]?.attributes["axon.recommendation.id"], id);
   assert.equal(fixture.logs[0]?.attributes["session.id"], "session-1");
   await fixture.runtime.shutdown();
 });

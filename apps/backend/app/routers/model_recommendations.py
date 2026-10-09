@@ -51,7 +51,7 @@ async def recommend_model(
     identity = await verified_telemetry_identity(http_request)
     try:
         with telemetry.operation(
-            "request", identity, **{"deputydev.recommendation.id": str(request.request_id)}
+            "request", identity, **{"axon.recommendation.id": str(request.request_id)}
         ) as operation:
             if not is_model_recommendation_enabled(request.current_model):
                 operation.skipped = True

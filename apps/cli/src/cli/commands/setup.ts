@@ -7,8 +7,8 @@ import { LauncherError } from "../../launcher/errors.ts";
 import { resolveExecutablePath } from "../../launcher/executable.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
-import { DEPUTYDEV_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
-import { resolveDeputyDevPaths } from "../../product/paths.ts";
+import { AXON_MANIFEST, EMBEDDED_PI_RESOURCES } from "../../product/manifest.ts";
+import { resolveAxonPaths } from "../../product/paths.ts";
 
 export interface SetupOptions {
   readonly syncPackages?: boolean;
@@ -38,7 +38,7 @@ export async function runSetup(
   const launchContext: LaunchContext = Object.freeze({
     cwd,
     environment,
-    paths: resolveDeputyDevPaths(environment),
+    paths: resolveAxonPaths(environment),
   });
   const adapter = await loadHarnessAdapter(registration.id);
   // Explicit setup installs the isolated exact-version Pi runtime when absent.
@@ -59,7 +59,7 @@ export async function runSetup(
   const packages = await synchronizePiPackages({
     allowInstall: true,
     context,
-    manifest: DEPUTYDEV_MANIFEST,
+    manifest: AXON_MANIFEST,
   });
   const mcp = await synchronizePiMcpConfig({
     environment,

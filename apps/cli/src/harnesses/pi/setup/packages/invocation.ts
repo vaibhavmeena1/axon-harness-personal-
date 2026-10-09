@@ -8,7 +8,7 @@ export interface PiInvocationEnvironment {
   readonly stdoutIsTty: boolean;
 }
 
-// Pi routes these on its first argument. Anything DeputyDev prepends would turn
+// Pi routes these on its first argument. Anything Axon prepends would turn
 // the command into a prompt, so forwarded administration must stay untouched.
 const ADMINISTRATIVE_COMMANDS = new Set([
   "auth",
@@ -29,7 +29,7 @@ const OFFLINE_ENVIRONMENT_VARIABLE = "PI_OFFLINE";
 
 /**
  * Pi stops option parsing at `--`; everything after it is a message or file.
- * Only the tokens before it may change how DeputyDev classifies a launch.
+ * Only the tokens before it may change how Axon classifies a launch.
  */
 export function piOptionTokens(argumentsVector: readonly string[]): readonly string[] {
   const terminatorIndex = argumentsVector.indexOf(OPTION_TERMINATOR);
@@ -78,7 +78,7 @@ export function classifyPiInvocation(
 
 /**
  * Mirrors Pi's own offline detection: `--offline` before `--` or a truthy
- * `PI_OFFLINE`. Offline launches must not start DeputyDev network work either.
+ * `PI_OFFLINE`. Offline launches must not start Axon network work either.
  */
 export function isPiOffline(
   environment: NodeJS.ProcessEnv,

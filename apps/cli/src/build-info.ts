@@ -8,7 +8,7 @@ declare const BUILD_TARGET: string;
 declare const BUILD_COMMIT: string;
 declare const BUILD_SERVICE_ORIGIN: string;
 
-const SERVICE_ORIGIN_ENVIRONMENT_VARIABLE = "DEPUTYDEV_SERVICE_ORIGIN";
+const SERVICE_ORIGIN_ENVIRONMENT_VARIABLE = "AXON_SERVICE_ORIGIN";
 const buildKind: BuildKind = typeof BUILD_KIND === "undefined" ? "dev" : BUILD_KIND;
 const configuredServiceOrigin =
   typeof BUILD_SERVICE_ORIGIN === "undefined"

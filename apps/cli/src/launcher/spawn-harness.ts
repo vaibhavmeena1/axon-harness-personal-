@@ -1,4 +1,4 @@
-import { resolveDeputyDevPaths } from "../product/paths.ts";
+import { resolveAxonPaths } from "../product/paths.ts";
 import { flushProductTelemetry } from "../telemetry/client.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 import { scheduleBackgroundUpdate } from "../updater/update.ts";
@@ -36,7 +36,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     throw new LauncherError(
       `failed to start harness executable: ${specification.executable}`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
-      { cause: error, remediation: "Run ddcli doctor for executable diagnostics." },
+      { cause: error, remediation: "Run axon doctor for executable diagnostics." },
     );
   }
 
@@ -72,7 +72,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
       process.off(signal, handler);
     }
     await flushProductTelemetry(
-      resolveDeputyDevPaths(),
+      resolveAxonPaths(),
       specification.environment["PI_ORG_OTEL_ENABLED"] === "false",
     );
     specification.dispose?.();
@@ -82,7 +82,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     throw new LauncherError(
       `failed to start harness executable: ${specification.executable}`,
       LAUNCHER_EXIT_STATUS.executableUnavailable,
-      { cause: spawnError, remediation: "Run ddcli doctor for executable diagnostics." },
+      { cause: spawnError, remediation: "Run axon doctor for executable diagnostics." },
     );
   }
 

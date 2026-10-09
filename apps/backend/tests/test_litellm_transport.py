@@ -1,0 +1,91 @@
+"""LiteLLM transport owns fixed-origin URLs, management I/O, and pool lifetime."""
+
+import asyncio
+from collections.abc import AsyncIterator
+
+import httpx
+import pytest
+
+from app.clients.litellm.transport import LiteLLMTransport
+from app.core.config import LiteLLMSettings
+
+
+@pytest.fixture
+def settings() -> LiteLLMSettings:
+    return LiteLLMSettings(
+        upstream_url="http://litellm.test",
+        upstream_root_path="/private",
+        connect_timeout_seconds=10,
+        pool_timeout_seconds=10,
+        max_connections=10,
+        max_keepalive_connections=5,
+        keepalive_expiry_seconds=5,
+        api_key="admin-key",
+    )
+
+
+def test_fixed_origin_preserves_raw_path_and_query(settings: LiteLLMSettings) -> None:
+    async def run() -> None:
+        transport = LiteLLMTransport(settings)
+        try:
+            url = transport.upstream_url(b"/files/a%2Fb", b"q=a%2Bb&q=c&blank=")
+            assert str(url) == "http://litellm.test/private/files/a%2Fb?q=a%2Bb&q=c&blank="
+            assert transport.upstream_url(b"//evil.test/path").host == "litellm.test"
+            assert str(transport.upstream_url(b"/")) == "http://litellm.test/private/"
+        finally:
+            await transport.aclose()
+
+    asyncio.run(run())
+
+
+def test_management_uses_fixed_root_credentials_and_timeout(settings: LiteLLMSettings) -> None:
+    seen: list[httpx.Request] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"user_info": None})
+
+    async def run() -> None:
+        client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+        transport = LiteLLMTransport(settings, client=client)
+        try:
+            response = await transport.request(
+                "GET", "/user/info", api_key="admin-key", timeout_seconds=3, params={"user_id": "12"}
+            )
+            assert response.json() == {"user_info": None}
+        finally:
+            await transport.aclose()
+        assert client.is_closed
+
+    asyncio.run(run())
+    assert str(seen[0].url) == "http://litellm.test/private/user/info?user_id=12"
+    assert seen[0].headers["authorization"] == "Bearer admin-key"
+    assert seen[0].extensions["timeout"]["read"] == 3
+
+
+def test_streaming_redirects_are_not_followed(settings: LiteLLMSettings) -> None:
+    seen: list[httpx.Request] = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(302, headers={"location": "http://evil.test"})
+
+    async def body() -> AsyncIterator[bytes]:
+        yield b"request body"
+
+    async def run() -> None:
+        # Even an injected client with permissive defaults must not follow redirects.
+        client = httpx.AsyncClient(transport=httpx.MockTransport(upstream), follow_redirects=True)
+        transport = LiteLLMTransport(settings, client=client)
+        try:
+            response = await transport.send_stream(
+                "POST", b"/v1/chat/completions", headers=[(b"authorization", b"Bearer native-key")], content=body()
+            )
+            assert response.status_code == 302
+            await response.aclose()
+        finally:
+            await transport.aclose()
+
+    asyncio.run(run())
+    assert len(seen) == 1
+    assert seen[0].url.host == "litellm.test"

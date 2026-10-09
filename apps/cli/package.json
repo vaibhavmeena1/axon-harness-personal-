@@ -1,12 +1,12 @@
 {
-  "name": "deputydev-cli",
+  "name": "axon-cli",
   "version": "0.1.0",
-  "description": "Native DeputyDev launcher for Pi (ddcli)",
+  "description": "Native Axon launcher for Pi (axon)",
   "private": true,
   "type": "module",
   "module": "src/index.ts",
   "bin": {
-    "ddcli": "src/index.ts"
+    "axon": "src/index.ts"
   },
   "packageManager": "bun@1.4.1",
   "engines": {
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3001\"' --outfile dist/ddcli",
+    "build": "bun run pi-version:check && bun run telemetry:check && bun run backups:check && bun build src/index.ts --compile --format=esm --bytecode --sourcemap=external --no-compile-autoload-dotenv --no-compile-autoload-bunfig --target=bun-darwin-arm64 --define 'BUILD_VERSION=\"0.1.0-dev\"' --define 'BUILD_KIND=\"dev\"' --define 'BUILD_TARGET=\"darwin-arm64\"' --define 'BUILD_COMMIT=\"local\"' --define 'BUILD_SERVICE_ORIGIN=\"http://localhost:3000\"' --outfile dist/axon",
     "build:release": "bun run telemetry:check && bun run backups:check && bun run scripts/build-release.ts",
     "pi-version:check": "bun run scripts/check-pi-version.ts",
     "backups:build": "bun run scripts/build-session-backup.ts",
@@ -35,12 +35,13 @@
     "commander": "14",
     "consola": "^3.4.2",
     "picocolors": "^1.1.1",
+    "proper-lockfile": "4.1.2",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
-    "@earendil-works/pi-coding-agent": "1.0.4",
-    "@earendil-works/pi-tui": "1.0.4",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0",
     "@opentelemetry/api": "1.9.0",
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/core": "2.11.0",
@@ -58,6 +59,7 @@
     "@opentelemetry/sdk-trace": "2.11.0",
     "@opentelemetry/semantic-conventions": "1.43.0",
     "@types/bun": "^1.4.0",
+    "@types/proper-lockfile": "4.1.4",
     "typescript": "^7.0.2"
   }
 }

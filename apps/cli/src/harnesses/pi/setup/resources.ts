@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { BUILD_INFO } from "../../../build-info.ts";
 import { withFileLock } from "../../../launcher/file-lock.ts";
 import type { EmbeddedPiResource } from "../../../product/manifest.ts";
-import type { DeputyDevPaths } from "../../../product/paths.ts";
+import type { AxonPaths } from "../../../product/paths.ts";
 
 interface PreparedResource {
   readonly bytes: Uint8Array;
@@ -110,7 +110,7 @@ async function verifyRuntime(
   return true;
 }
 
-async function currentPointsTo(paths: DeputyDevPaths, runtimeDirectory: string): Promise<boolean> {
+async function currentPointsTo(paths: AxonPaths, runtimeDirectory: string): Promise<boolean> {
   try {
     const status = await lstat(paths.runtimeCurrent);
     if (!status.isSymbolicLink()) {
@@ -123,7 +123,7 @@ async function currentPointsTo(paths: DeputyDevPaths, runtimeDirectory: string):
   }
 }
 
-async function activateRuntime(paths: DeputyDevPaths, runtimeDirectory: string): Promise<void> {
+async function activateRuntime(paths: AxonPaths, runtimeDirectory: string): Promise<void> {
   try {
     const currentStatus = await lstat(paths.runtimeCurrent);
     if (!currentStatus.isSymbolicLink()) {
@@ -146,7 +146,7 @@ async function activateRuntime(paths: DeputyDevPaths, runtimeDirectory: string):
 }
 
 async function materializeRuntime(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   runtimeDirectory: string,
   resources: readonly PreparedResource[],
   manifestHash: string,
@@ -214,7 +214,7 @@ export function createPiResourceArguments(
 }
 
 export async function materializePiResources(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   resources: readonly EmbeddedPiResource[],
 ): Promise<PiResourceMaterializationResult> {
   const prepared = await prepareResources(resources);

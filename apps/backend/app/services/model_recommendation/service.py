@@ -36,9 +36,7 @@ class ModelRecommendationService:
         telemetry = telemetry or product_telemetry()
         policy = model_policy_version()
         try:
-            with telemetry.operation(
-                "assessment", identity, **{"deputydev.recommendation.id": str(request.request_id)}
-            ):
+            with telemetry.operation("assessment", identity, **{"axon.recommendation.id": str(request.request_id)}):
                 jev_response = await self._openrouter_client.create_decision(build_jev_request(request.prompt))
                 assessment = parse_jev_assessment(jev_response)
             with telemetry.operation("ranking", identity):

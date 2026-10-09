@@ -5,7 +5,7 @@ import { isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
 import type { TelemetryRuntime } from "../harnesses/pi/telemetry/src/telemetry-types.ts";
 import { isTelemetryDisabled } from "../harnesses/pi/telemetry-environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
-import type { DeputyDevPaths } from "../product/paths.ts";
+import type { AxonPaths } from "../product/paths.ts";
 import { hasProductEvents, subscribeProductEvents, takeProductEvents } from "./product-events.ts";
 
 let runtime: TelemetryRuntime | undefined;
@@ -15,7 +15,7 @@ let closing: Promise<void> | undefined;
 
 /** Lazy managed-only telemetry: no SDK, config request or socket until policy allows export. */
 export async function initializeProductTelemetry(
-  paths: DeputyDevPaths,
+  paths: AxonPaths,
   policy?: TelemetryConfig,
   options: { serviceOrigin?: string } = {},
 ): Promise<void> {
@@ -58,20 +58,18 @@ export async function initializeProductTelemetry(
         PI_ORG_OTEL_ENABLED: "true",
         PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
         OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
-        OTEL_SERVICE_NAME: "deputydev-cli",
+        OTEL_SERVICE_NAME: "axon-cli",
         PI_ORG_OTEL_DIAGNOSTICS: "false",
         OTEL_TRACES_SAMPLER: "parentbased_traceidratio",
         OTEL_TRACES_SAMPLER_ARG: String(telemetry.traceSampleRatio),
         OTEL_METRIC_EXPORT_INTERVAL: String(telemetry.metricExportIntervalMs),
-        OTEL_RESOURCE_ATTRIBUTES: `deputydev.cli.version=${encodeURIComponent(BUILD_INFO.version)}`,
+        OTEL_RESOURCE_ATTRIBUTES: `axon.cli.version=${encodeURIComponent(BUILD_INFO.version)}`,
       });
       if (!config) return;
-      runtime = createOtelRuntime(
-        config,
-        { userId: "managed", source: "deputydev_auth" },
-        undefined,
-        { quiet: true, managed: { endpoint, home: paths.home } },
-      );
+      runtime = createOtelRuntime(config, { userId: "managed", source: "axon_auth" }, undefined, {
+        quiet: true,
+        managed: { endpoint, home: paths.home },
+      });
       const current = runtime;
       stop = subscribeProductEvents((event) =>
         recordProductEvent(current, { ...event, version: event.version ?? BUILD_INFO.version }),
@@ -102,7 +100,7 @@ export function closeProductTelemetry(): Promise<void> {
   return closing;
 }
 
-export async function flushProductTelemetry(paths: DeputyDevPaths, offline = false): Promise<void> {
+export async function flushProductTelemetry(paths: AxonPaths, offline = false): Promise<void> {
   if (offline || isTelemetryDisabled(process.env)) {
     takeProductEvents();
     await closeProductTelemetry();

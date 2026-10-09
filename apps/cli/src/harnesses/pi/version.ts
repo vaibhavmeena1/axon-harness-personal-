@@ -92,7 +92,7 @@ export async function probePiVersion(
 
 /**
  * Resolve the version of a Pi executable, caching by path, size, and mtime in
- * `${DEPUTYDEV_HOME}/pi-executable.json` so warm launches do not spawn Pi twice.
+ * `${AXON_HOME}/pi-executable.json` so warm launches do not spawn Pi twice.
  * Unknown versions are never cached.
  */
 export async function resolvePiVersion(

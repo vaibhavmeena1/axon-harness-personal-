@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 
 const repositoryRoot = resolve(import.meta.dir, "..");
 const piExecutable = join(repositoryRoot, "node_modules", ".bin", "pi");
@@ -43,7 +43,7 @@ async function close(server: ReturnType<typeof createServer>): Promise<void> {
 async function runPi(
   extraEnvironment: NodeJS.ProcessEnv = {},
 ): Promise<{ readonly exitCode: number; readonly stderr: string; readonly stdout: string }> {
-  const home = await mkdtemp(join(tmpdir(), "deputydev-pi-telemetry-e2e-"));
+  const home = await mkdtemp(join(tmpdir(), "axon-pi-telemetry-e2e-"));
   temporaryDirectories.push(home);
   const subprocess = Bun.spawn(
     [
@@ -88,9 +88,9 @@ afterEach(async () => {
 
 describe("Pi telemetry extension integration", () => {
   test("standalone bundle exports authenticated telemetry under native Node", async () => {
-    const home = await mkdtemp(join(tmpdir(), "deputydev-native-otel-"));
+    const home = await mkdtemp(join(tmpdir(), "axon-native-otel-"));
     temporaryDirectories.push(home);
-    await saveEncryptedSession(resolveDeputyDevPaths({ DEPUTYDEV_HOME: home }), "native-session");
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "native-session");
     const seen: Array<{ path: string; auth: string | undefined; body: Buffer }> = [];
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];
@@ -146,7 +146,7 @@ describe("Pi telemetry extension integration", () => {
       for (const request of seen) {
         expect(request.auth).toBe("Bearer native-session");
         expect(request.body.includes(Buffer.from("native-session"))).toBe(false);
-        expect(request.body.includes(Buffer.from("deputydev_auth"))).toBe(true);
+        expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
       }
     } finally {
       await close(server);

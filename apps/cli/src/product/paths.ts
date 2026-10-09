@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 
 import { PRODUCT_IDENTITY } from "./identity.ts";
 
-export interface DeputyDevPaths {
+export interface AxonPaths {
   readonly home: string;
   readonly bin: string;
   readonly managedBinary: string;
@@ -28,10 +28,10 @@ export interface DeputyDevPaths {
   readonly holdState: string;
 }
 
-export function resolveDeputyDevPaths(
+export function resolveAxonPaths(
   environment: NodeJS.ProcessEnv = process.env,
   userHome: string = homedir(),
-): DeputyDevPaths {
+): AxonPaths {
   const configuredHome = environment[PRODUCT_IDENTITY.homeEnvironmentVariable]?.trim();
   const home = resolve(configuredHome || join(userHome, PRODUCT_IDENTITY.defaultHomeDirectoryName));
   const bin = join(home, "bin");

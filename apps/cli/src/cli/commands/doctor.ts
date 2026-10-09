@@ -18,7 +18,7 @@ import { resolveCommandOnPath, resolveExecutablePath } from "../../launcher/exec
 import { LAUNCHER_EXIT_STATUS, type LauncherExitStatus } from "../../launcher/exit-status.ts";
 import { compareSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
-import type { DeputyDevPaths } from "../../product/paths.ts";
+import type { AxonPaths } from "../../product/paths.ts";
 
 const PATH_ENVIRONMENT_VARIABLE = "PATH";
 
@@ -31,7 +31,7 @@ function formatMode(mode: number): string {
   return `0${(mode & 0o777).toString(8).padStart(3, "0")}`;
 }
 
-async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
+async function inspectHome(paths: AxonPaths): Promise<DoctorResult> {
   try {
     const homeStatus = await stat(paths.home);
     const findings: DoctorFinding[] = [];
@@ -42,7 +42,7 @@ async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
         findings: [
           {
             level: "error",
-            message: `DeputyDev home is not a directory: ${paths.home}`,
+            message: `Axon home is not a directory: ${paths.home}`,
             remediation: `Move that path aside, then rerun ${PRODUCT_IDENTITY.command}.`,
           },
         ],
@@ -54,7 +54,7 @@ async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
     if (getUserId !== undefined && homeStatus.uid !== getUserId()) {
       findings.push({
         level: "error",
-        message: `DeputyDev home is owned by uid ${homeStatus.uid}; current uid is ${getUserId()}`,
+        message: `Axon home is owned by uid ${homeStatus.uid}; current uid is ${getUserId()}`,
         remediation: `Restore ownership of ${paths.home} to the current user.`,
       });
       exitStatus = LAUNCHER_EXIT_STATUS.profileFailure;
@@ -63,14 +63,14 @@ async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
     if ((homeStatus.mode & 0o077) !== 0) {
       findings.push({
         level: "error",
-        message: `DeputyDev home permissions are ${formatMode(homeStatus.mode)}; expected 0700`,
+        message: `Axon home permissions are ${formatMode(homeStatus.mode)}; expected 0700`,
         remediation: `Run: chmod 700 ${JSON.stringify(paths.home)}`,
       });
       exitStatus = LAUNCHER_EXIT_STATUS.profileFailure;
     } else {
       findings.push({
         level: "info",
-        message: `DeputyDev home permissions are private (${formatMode(homeStatus.mode)})`,
+        message: `Axon home permissions are private (${formatMode(homeStatus.mode)})`,
       });
     }
 
@@ -81,7 +81,7 @@ async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
         findings: [
           {
             level: "info",
-            message: `DeputyDev home does not exist yet: ${paths.home}`,
+            message: `Axon home does not exist yet: ${paths.home}`,
           },
         ],
         exitStatus: 0,
@@ -92,7 +92,7 @@ async function inspectHome(paths: DeputyDevPaths): Promise<DoctorResult> {
       findings: [
         {
           level: "error",
-          message: `Could not inspect DeputyDev home: ${paths.home}`,
+          message: `Could not inspect Axon home: ${paths.home}`,
           remediation: "Check parent-directory permissions and rerun doctor.",
         },
       ],
@@ -134,14 +134,13 @@ async function inspectLauncherPath(context: LaunchContext): Promise<readonly Doc
     findings.push({
       level: "warning",
       message: `${PRODUCT_IDENTITY.command} does not resolve on PATH`,
-      remediation: `Add ${context.paths.bin} to PATH after installing DeputyDev.`,
+      remediation: `Add ${context.paths.bin} to PATH after installing Axon.`,
     });
   } else if (resolve(commandPath) !== resolve(context.paths.managedBinary)) {
     findings.push({
       level: "warning",
       message: `${PRODUCT_IDENTITY.command} resolves to ${commandPath}, not ${context.paths.managedBinary}`,
-      remediation:
-        "Place the managed DeputyDev bin directory before shadowing package-manager paths.",
+      remediation: "Place the managed Axon bin directory before shadowing package-manager paths.",
     });
   } else {
     findings.push({
@@ -229,7 +228,7 @@ function versionFinding(
     return {
       level: "error",
       message: `${registration.id}: version ${version} is older than the supported minimum ${minimumVersion}`,
-      remediation: `Upgrade ${registration.id}, or run ${PRODUCT_IDENTITY.command} setup ${registration.id} --sync-packages to install the DeputyDev-managed version.`,
+      remediation: `Upgrade ${registration.id}, or run ${PRODUCT_IDENTITY.command} setup ${registration.id} --sync-packages to install the Axon-managed version.`,
     };
   }
   return {
@@ -295,7 +294,7 @@ async function inspectHarness(
         {
           level: "error",
           message: `${registration.id}: diagnostics failed`,
-          remediation: "Set DEPUTYDEV_DEBUG=1 and rerun doctor for details.",
+          remediation: "Set AXON_DEBUG=1 and rerun doctor for details.",
         },
       ],
       exitStatus: LAUNCHER_EXIT_STATUS.profileFailure,
@@ -339,11 +338,11 @@ export async function runDoctor(
         : `unsupported platform: ${process.platform}-${process.arch}; the initial release supports native darwin-arm64`,
       ...(platformSupported
         ? {}
-        : { remediation: "Run DeputyDev on an Apple Silicon macOS host, outside a container." }),
+        : { remediation: "Run Axon on an Apple Silicon macOS host, outside a container." }),
     },
     {
       level: "info",
-      message: `DeputyDev ${BUILD_INFO.version} (${BUILD_INFO.kind}, commit ${BUILD_INFO.commit})`,
+      message: `Axon ${BUILD_INFO.version} (${BUILD_INFO.kind}, commit ${BUILD_INFO.commit})`,
     },
     {
       level: "info",

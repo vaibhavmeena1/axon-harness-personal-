@@ -1,4 +1,4 @@
-"""Reusable DeputyDev session guard for API routes and ASGI proxies."""
+"""Reusable Axon session guard for API routes and ASGI proxies."""
 
 from fastapi import HTTPException, Request, Response
 from pydantic import ValidationError
@@ -12,7 +12,7 @@ _EXCLUDED_RESPONSE_HEADERS = {"cache-control", "connection", "content-length", "
 
 
 async def authenticate_request(request: Request, *, parse_body: bool = False) -> AuthData:
-    """Validate the caller with deputydev-auth and attach auth data to the request."""
+    """Validate the caller with axon-auth and attach auth data to the request."""
     credentials = request.headers.getlist("authorization")
     if len(credentials) != 1 or not credentials[0].strip():
         raise AuthServiceError("Missing or ambiguous authorization", status_code=401)
@@ -79,7 +79,7 @@ class AuthenticatedSessionMiddleware:
             ):
                 raise AuthServiceError("Invalid encrypted session credential", status_code=401)
 
-            # Only deputydev-auth decrypts and validates the session. Never trust
+            # Only axon-auth decrypts and validates the session. Never trust
             # identity or session headers supplied separately by the caller.
             await authenticate_identity(request)
             request.state.encrypted_session_data = encrypted_session

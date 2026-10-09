@@ -56,7 +56,7 @@ export async function verifyEncryptedSession(
     });
     // An outage is not an invalid credential: do not ask users to log in repeatedly.
     throw new LauncherError(
-      "Could not verify your DeputyDev session",
+      "Could not verify your Axon session",
       LAUNCHER_EXIT_STATUS.profileFailure,
       { remediation: "Check connectivity and the auth service, then retry." },
     );

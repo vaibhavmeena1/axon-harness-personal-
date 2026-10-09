@@ -120,7 +120,7 @@ them with `bun run --filter`: that resolves Bun workspace members only, so it wo
 `apps/frontend` and `apps/backend`. Per-app variants are suffixed (`check:frontend`, `test:backend`).
 `lint`, `format`, and `format:check` at the root are Biome-only and therefore Bun-apps-only by design.
 
-- `apps/cli` is the `ddcli` launcher. Run its scripts from that directory (`cd apps/cli && bun test`), or from the root with `bun run --cwd apps/cli <script>`.
+- `apps/cli` is the `axon` launcher. Run its scripts from that directory (`cd apps/cli && bun test`), or from the root with `bun run --cwd apps/cli <script>`.
 - `apps/frontend` is the management console: pnpm, Vite, React 19, TypeScript, Tailwind v4, and shadcn. It is **not** a Bun workspace member and is excluded from Biome, so use pnpm from inside that directory and never `bun install` there. It has its own ESLint and Prettier. Its `config.json` is git-ignored; `config_template.json` is the checked-in shape and both change together.
 - `apps/backend` is the centralized management API: a standalone Python 3.12 project managed by uv, with FastAPI, Ruff, pytest, and its own `uv.lock`. Run its commands from that directory; it is not a Bun workspace member and is excluded from Biome. Its `config.json` is git-ignored; keep `config_template.json` in sync with its shape.
 - `packages/` holds code shared between apps. Create it only when two apps need the same code.

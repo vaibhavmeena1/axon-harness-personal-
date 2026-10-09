@@ -75,6 +75,6 @@ jobs:
 
       - name: Smoke-test compiled binary
         run: |
-          test "$(./dist/ddcli --version)" = "0.1.0-dev"
-          ./dist/ddcli harnesses
-          test "$(lipo -archs ./dist/ddcli)" = "arm64"
+          test "$(./dist/axon --version)" = "0.1.0-dev"
+          ./dist/axon harnesses
+          test "$(lipo -archs ./dist/axon)" = "arm64"

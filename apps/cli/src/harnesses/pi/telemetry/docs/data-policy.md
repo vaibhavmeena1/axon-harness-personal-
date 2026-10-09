@@ -4,7 +4,7 @@
 
 Every record carries `user.id` and `pi.identity.source`. In **environment fallback**, raw effective Git email is used for both `user.id` and `user.email` when available; otherwise `user.id` is a random installation UUID and `user.email` is absent. No name is automatically read from Git.
 
-In **managed proxy mode**, the extension does not read Git email. It sends a placeholder identity (`user.id=managed`, `pi.identity.source=deputydev_auth`), and the backend overwrites resource and record/datapoint identity with verified auth-service data before forwarding. `user.id` is the authenticated user ID when present, otherwise verified email; `user.email`, optional `user.name`, and `deputydev.user_team_id` come from that same authenticated session. Client-supplied `user.*` and `enduser.*` attributes are removed, including identity fields on span events/links and metric exemplars. Missing verified identity fails closed.
+In **managed proxy mode**, the extension does not read Git email. It sends a placeholder identity (`user.id=managed`, `pi.identity.source=axon_auth`), and the backend overwrites resource and record/datapoint identity with verified auth-service data before forwarding. `user.id` is the authenticated user ID when present, otherwise verified email; `user.email`, optional `user.name`, and `axon.user_team_id` come from that same authenticated session. Client-supplied `user.*` and `enduser.*` attributes are removed, including identity fields on span events/links and metric exemplars. Missing verified identity fails closed.
 
 The saved session is used only as the backend request Authorization header, never as an OTEL attribute. Exporter response rotation is compare-and-swap persisted without overwriting newer logins. Verified email/name are personal data: restrict collector access and retention. Authentication establishes attribution, not the truth of caller-supplied usage/cost measurements.
 
@@ -59,13 +59,17 @@ Observed provider failures emit WARN `gen_ai.client.operation.exception` with bo
 
 ## Product operations
 
-DeputyDev extensions and the launcher emit allowlisted recommender stages/outcomes, numeric task
+Axon extensions and the launcher emit allowlisted recommender stages/outcomes, numeric task
 assessment and confidence scores, selected model/rank, controlled policy/CLI versions, backup
 and restore stage outcomes/durations/byte counts, startup timings, auth/config health and update
 results. No feedback is collected. Recommendation explanation text, task prompts, session names,
 archive paths, signed URLs, login URLs, credentials and raw exception text are excluded. Numeric
 observations and recommendation/session IDs are not metric labels. See [Product telemetry](product-telemetry.md).
 
+## Terminal
+
+`terminal.type` is derived from well-known terminal variables (`TERM_PROGRAM`, `TERMINAL_EMULATOR`, `WT_SESSION`, `TMUX`, `SSH_CONNECTION`, and similar) and mapped to a fixed allowlist. Environment values themselves, window/session identifiers, and unrecognized program names are never exported; unknown terminals become `other`.
+
 ## Operational identifiers
 
-Session IDs, parent session IDs, recommendation IDs, tool call IDs, trace IDs, provider request IDs, and provider response IDs appear only on traces/logs, not metric dimensions. Model, provider, tool name, tool source, usage source, outcome, mode, repository slug (activity metrics only), and user ID are metric dimensions.
+Session IDs, parent session IDs, recommendation IDs, tool call IDs, trace IDs, provider request IDs, and provider response IDs appear only on traces/logs, not metric dimensions. Model, provider, tool name, tool source, usage source, thinking level, terminal type, outcome, mode, repository slug (activity and session-summary metrics only), and user ID are metric dimensions.

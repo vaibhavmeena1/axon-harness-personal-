@@ -2,7 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { createSessionRecovery } from "../src/cli/auth/session-recovery.ts";
 import { verifyEncryptedSession } from "../src/cli/auth/verification.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 import { takeProductEvents } from "../src/telemetry/product-events.ts";
 
 const origin = "http://127.0.0.1";
@@ -11,7 +11,7 @@ function fetchResponse(response: Response): typeof fetch {
 }
 function controlRequest(action: string, id?: string): Request {
   const query = id ? `?id=${id}` : "";
-  return new Request(`${origin}/_deputydev/auth/${action}${query}`, {
+  return new Request(`${origin}/_axon/auth/${action}${query}`, {
     method: action === "status" ? "GET" : "POST",
   });
 }
@@ -20,7 +20,7 @@ for (const action of ["cancel", "login"] as const) {
   test(`auth recovery distinguishes ${action === "cancel" ? "user cancellation" : "login failure"} from success`, async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchResponse(new Response(null, { status: 503 }));
-    const recovery = createSessionRecovery(resolveDeputyDevPaths());
+    const recovery = createSessionRecovery(resolveAxonPaths());
     try {
       takeProductEvents();
       const heartbeat = controlRequest("status");

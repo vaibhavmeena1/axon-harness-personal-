@@ -24,7 +24,7 @@ import { runSessions } from "../src/cli/commands/sessions.ts";
 import { createPiEnvironment } from "../src/harnesses/pi/environment.ts";
 import sessionBackupExtension from "../src/harnesses/pi/session-backup/index.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
-import { resolveDeputyDevPaths } from "../src/product/paths.ts";
+import { resolveAxonPaths } from "../src/product/paths.ts";
 import { BackupApi } from "../src/sessions/api.ts";
 import { SessionBackups } from "../src/sessions/backup.ts";
 import {
@@ -149,7 +149,7 @@ function remote(): RemoteSession {
 }
 
 async function source() {
-  const paths = resolveDeputyDevPaths({ DEPUTYDEV_HOME: directory });
+  const paths = resolveAxonPaths({ AXON_HOME: directory });
   await privateDirectory(paths.pi);
   await privateDirectory(paths.piSessions);
   const file = join(paths.piSessions, "synthetic.jsonl");
@@ -178,10 +178,10 @@ function namedRaw(names: readonly string[]) {
 
 describe("Pi archive and pinned native restore", () => {
   test.each([
-    { names: [], expected: null },
+    { names: [], expected: "/historical/path" },
     { names: ["Original", "Renamed"], expected: "Renamed" },
-    { names: ["Original", ""], expected: null },
-    { names: [" \t\n\u00a0\ufeff"], expected: null },
+    { names: ["Original", ""], expected: "/historical/path" },
+    { names: [" \t\n\u00a0\ufeff"], expected: "/historical/path" },
     { names: ["  fix\nlogin\tflow\u2028now\x1b  "], expected: "fix login flow now" },
     { names: ["😀".repeat(257)], expected: "😀".repeat(256) },
     { names: [`${"x".repeat(255)} \nignored`], expected: "x".repeat(255) },
@@ -198,10 +198,83 @@ describe("Pi archive and pinned native restore", () => {
       expect(await readFile(captured.rawFile)).toEqual(bytes);
       expect(await readFile(file)).toEqual(bytes);
       const latestName = names.at(-1);
-      if (latestName !== undefined) expect(normalizeDisplayName(latestName)).toBe(expected);
+      if (latestName !== undefined)
+        expect(normalizeDisplayName(latestName) ?? "/historical/path").toBe(expected);
       expect(snapshotSchema.safeParse(captured.snapshot).success).toBe(true);
     },
   );
+  test.each([
+    { content: "  Fix\nlogin\tflow  ", expected: "Fix login flow" },
+    {
+      content: [
+        { type: "text", text: "Fix" },
+        { type: "image", data: "synthetic", mimeType: "image/png" },
+        { type: "text", text: "login flow" },
+      ],
+      expected: "Fix login flow",
+    },
+    { content: [{ type: "image", data: "synthetic", mimeType: "image/png" }], expected: null },
+    {
+      content: [null, { type: "text", text: 123 }, { type: "image", text: "ignore" }],
+      expected: null,
+    },
+    { content: " \t\n\ufeff", expected: null },
+    { content: "😀".repeat(257), expected: "😀".repeat(256) },
+  ])("first-user-message fallback is bounded and stable: %j", async ({ content, expected }) => {
+    const { file } = await source();
+    const records = [
+      { type: "session", version: 3, id: nativeId, timestamp, cwd: "/synthetic" },
+      ...["system", "assistant", "toolResult"].map((role, i) => ({
+        type: "message",
+        id: `skip-${i}`,
+        parentId: null,
+        timestamp,
+        message: { role, content: [{ type: "text", text: "Not the title" }] },
+      })),
+      { type: "message", id: "a", parentId: null, timestamp, message: { role: "user", content } },
+    ];
+    const bytes = Buffer.from(`${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
+    await writeFile(file, bytes);
+    expect((await validatePiJsonl(file, nativeId, resume)).displayName).toBe(expected);
+    const later = [
+      {
+        type: "context_edit",
+        id: "edit",
+        parentId: "a",
+        timestamp,
+        targetId: "a",
+        replacement: { content: "Changed context" },
+      },
+      {
+        type: "message",
+        id: "branch",
+        parentId: null,
+        timestamp,
+        message: { role: "user", content: "Later prompt" },
+      },
+    ];
+    await writeFile(
+      file,
+      Buffer.concat([
+        bytes,
+        Buffer.from(`${later.map((record) => JSON.stringify(record)).join("\n")}\n`),
+      ]),
+    );
+    expect((await validatePiJsonl(file, nativeId, resume)).displayName).toBe(
+      expected ?? "Later prompt",
+    );
+  });
+  test("first-message titles restore without adding an explicit native name", async () => {
+    const { paths, file } = await source();
+    const checkout = join(directory, "checkout");
+    await mkdir(checkout);
+    const session = remote();
+    session.display_name = "/historical/path";
+    session.snapshot = { ...snapshot(), display_name: session.display_name };
+    const fork = await forkArchive(file, checkout, paths.piSessions, session, SessionManager);
+    expect(SessionManager.open(fork).getSessionName()).toBeUndefined();
+    expect(await readFile(file)).toEqual(raw);
+  });
   test("display names are required, bounded and normalized", () => {
     const { display_name: _name, ...missing } = snapshot();
     expect(snapshotSchema.safeParse(missing).success).toBe(false);
@@ -371,6 +444,7 @@ describe("Pi archive and pinned native restore", () => {
 });
 
 class FakeBackend {
+  enabled = true;
   owner = "1";
   failFinalizeOnce = false;
   uploads = 0;
@@ -394,7 +468,7 @@ class FakeBackend {
       return new Response(null, { status: 200 });
     }
     if (url.pathname.endsWith("/status"))
-      return Response.json({ enabled: true, owner_user_team_id: this.owner });
+      return Response.json({ enabled: this.enabled, owner_user_team_id: this.owner });
     if (url.pathname === "/api/v1/sessions") return Response.json(this.remote);
     if (url.pathname.endsWith("backup-upload")) {
       if (!init?.body) throw new Error("Missing backup request body");
@@ -436,7 +510,7 @@ test("native backup bundle captures after final environment filtering using the 
     paths,
     new BackupApi(paths, BUILD_INFO.serviceOrigin, new FakeBackend().fetcher),
   );
-  await controller.enable();
+  await controller.prepare();
   const url = new URL(
     "../src/harnesses/pi/resources/extensions/session-backup.mjs",
     import.meta.url,
@@ -453,7 +527,7 @@ test("native backup bundle captures after final environment filtering using the 
     const { default: extension } = await import(${JSON.stringify(url)});
     const events = new Map();
     const commands = [];
-    extension({ on(name, handler) { events.set(name, handler); }, registerCommand(name) { commands.push(name); } });
+    extension({ events: { emit() {} }, on(name, handler) { events.set(name, handler); }, registerCommand(name) { commands.push(name); } });
     const ctx = {
       hasUI: false,
       sessionManager: {
@@ -469,14 +543,14 @@ test("native backup bundle captures after final environment filtering using the 
     createPiEnvironment(
       {
         ...process.env,
-        DEPUTYDEV_HOME: directory,
-        PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
-        PI_DEPUTYDEV_BACKUP_HOME: "/wrong/backup-home",
+        AXON_HOME: directory,
+        PI_AXON_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
+        PI_AXON_BACKUP_HOME: "/wrong/backup-home",
       },
       paths,
     ),
   );
-  expect(environment["DEPUTYDEV_HOME"]).toBeUndefined();
+  expect(environment["AXON_HOME"]).toBeUndefined();
   const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
     env: environment,
     stdout: "pipe",
@@ -491,8 +565,12 @@ test("native backup bundle captures after final environment filtering using the 
   expect(exitCode).toBe(0);
   const output = JSON.parse(stdout) as { events: string[]; commands: string[]; calls: string[] };
   expect(output.events).toEqual(["session_start", "session_shutdown", "session_tree"]);
-  expect(output.commands).toEqual(["deputydev-backup-now", "deputydev-backups"]);
-  expect(output.calls).toEqual(["/api/v1/sessions/status", "/api/v1/sessions"]);
+  expect(output.commands).toEqual(["axon-backup-now", "axon-backups"]);
+  expect(output.calls).toEqual([
+    "/api/v1/sessions/status",
+    "/api/v1/sessions/status",
+    "/api/v1/sessions",
+  ]);
   expect(await controller.status()).toContain("pending streams: 1");
   const scope = (await readdir(controller.root)).find((name) => /^[a-f0-9]{64}$/.test(name));
   if (!scope) throw new Error("Missing backup scope");
@@ -505,7 +583,25 @@ test("native backup bundle captures after final environment filtering using the 
   expect(state.next.snapshot.display_name).toBe("Bundle title");
 });
 
-test("CLI lists quoted names and explicit untitled labels", async () => {
+test("CLI exposes session operations without user enable/disable commands", async () => {
+  const child = Bun.spawn(
+    [process.execPath, join(import.meta.dir, "../src/index.ts"), "sessions", "--help"],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(code).toBe(0);
+  expect(stderr).toBe("");
+  expect(stdout).toContain("status");
+  expect(stdout).toContain("retry");
+  expect(stdout).not.toMatch(/^\s+(enable|disable|pause)\b/m);
+  expect(stdout).not.toContain("accept-sensitive-data");
+});
+
+test("CLI lists readable titles, local backup times and sizes across pages", async () => {
   const { paths } = await source();
   await saveEncryptedSession(paths, "synthetic-token");
   const named = remote();
@@ -513,33 +609,107 @@ test("CLI lists quoted names and explicit untitled labels", async () => {
   if (!named.snapshot) throw new Error("Missing named session snapshot");
   named.snapshot.display_name = named.display_name;
   const unnamed = remote();
-  const previousHome = process.env["DEPUTYDEV_HOME"];
-  process.env["DEPUTYDEV_HOME"] = directory;
+  const previousHome = process.env["AXON_HOME"];
+  process.env["AXON_HOME"] = directory;
   const output = spyOn(console, "log").mockImplementation(() => {});
+  const cursor = { before: timestamp, before_id: named.id };
+  const requests: URL[] = [];
   const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
     input: string | URL | Request,
   ) => {
-    const path = new URL(String(input)).pathname;
-    return path.endsWith("/status")
-      ? Response.json({ enabled: true, owner_user_team_id: "1" })
-      : Response.json({ sessions: [named, unnamed], next: null });
+    const url = new URL(String(input));
+    requests.push(url);
+    if (url.pathname.endsWith("/status"))
+      return Response.json({ enabled: true, owner_user_team_id: "1" });
+    return url.searchParams.has("before")
+      ? Response.json({ sessions: [unnamed], next: null })
+      : Response.json({ sessions: [named], next: cursor });
   }) as typeof fetch);
   try {
     await runSessions("list");
-    expect(output.mock.calls).toHaveLength(2);
-    expect(output.mock.calls[0]?.[0]).toContain(
-      `${named.id}\t${JSON.stringify(named.display_name)}\t`,
-    );
-    expect(output.mock.calls[1]?.[0]).toContain(`${unnamed.id}\t(untitled)\t`);
+    expect(output.mock.calls).toHaveLength(1);
+    const listing = String(output.mock.calls[0]?.[0]);
+    expect(listing).toContain(named.id);
+    expect(listing).toContain(named.display_name);
+    expect(listing).not.toContain(JSON.stringify(named.display_name));
+    expect(listing).toContain(unnamed.id);
+    expect(listing).toContain("(no title)");
+    expect(listing).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(listing).toContain("KiB");
+    expect(listing).not.toContain("pi-jsonl");
+    expect(listing).not.toContain(timestamp);
+    expect(requests.at(-1)?.searchParams.get("before")).toBe(cursor.before);
+    expect(requests.at(-1)?.searchParams.get("before_id")).toBe(cursor.before_id);
   } finally {
     fetcher.mockRestore();
     output.mockRestore();
-    if (previousHome === undefined) delete process.env["DEPUTYDEV_HOME"];
-    else process.env["DEPUTYDEV_HOME"] = previousHome;
+    if (previousHome === undefined) delete process.env["AXON_HOME"];
+    else process.env["AXON_HOME"] = previousHome;
   }
 });
 
 describe("Owner-bound extension queue", () => {
+  test("backend policy enables backups automatically and ignores a local disable flag", async () => {
+    const { paths, file } = await source();
+    await saveEncryptedSession(paths, "synthetic-token");
+    const backend = new FakeBackend();
+    const controller = new SessionBackups(
+      paths,
+      new BackupApi(paths, "https://backend.example.test", backend.fetcher),
+    );
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
+    const binding = JSON.parse(await readFile(join(controller.root, "settings.json"), "utf8"));
+    expect(binding.enabled).toBeUndefined();
+    await writeFile(
+      join(controller.root, "settings.json"),
+      JSON.stringify({ ...binding, enabled: false }),
+    );
+    await writeFile(file, namedRaw(["New checkpoint"]));
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
+    expect(backend.uploads).toBe(2);
+  });
+
+  test("unavailable policy does not capture or upload a new session", async () => {
+    const { paths, file } = await source();
+    await saveEncryptedSession(paths, "synthetic-token");
+    const controller = new SessionBackups(
+      paths,
+      new BackupApi(paths, "https://backend.example.test", (async (
+        _input: string | URL | Request,
+      ): Promise<Response> => {
+        throw new Error("offline");
+      }) as typeof fetch),
+    );
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain(
+      "policy unavailable",
+    );
+    expect(await readdir(controller.root).catch(() => [])).toEqual([]);
+  });
+
+  test("administrator disabling policy after signing prevents object transfer", async () => {
+    const { paths, file } = await source();
+    await saveEncryptedSession(paths, "synthetic-token");
+    const backend = new FakeBackend();
+    let disableOnce = true;
+    const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
+      const response = await backend.fetcher(input, init);
+      if (disableOnce && String(input).endsWith("backup-upload")) {
+        backend.enabled = false;
+        disableOnce = false;
+      }
+      return response;
+    }) as typeof fetch;
+    const controller = new SessionBackups(
+      paths,
+      new BackupApi(paths, "https://backend.example.test", fetcher),
+    );
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("pending");
+    expect(backend.uploads).toBe(0);
+    backend.enabled = true;
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
+    expect(backend.uploads).toBe(1);
+  });
+
   test("renames and cleared titles commit with their snapshots and survive a lost response", async () => {
     const { paths, file } = await source();
     await saveEncryptedSession(paths, "synthetic-token");
@@ -548,7 +718,7 @@ describe("Owner-bound extension queue", () => {
       paths,
       new BackupApi(paths, "https://backend.example.test", backend.fetcher),
     );
-    await controller.enable();
+    await controller.prepare();
     await writeFile(file, namedRaw(["Original"]));
     expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
     expect(backend.remote.display_name).toBe("Original");
@@ -562,14 +732,14 @@ describe("Owner-bound extension queue", () => {
     expect(backend.uploads).toBe(2);
     await writeFile(file, namedRaw(["Original", "Renamed", ""]));
     expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("committed");
-    expect(backend.remote.display_name).toBeNull();
+    expect(backend.remote.display_name).toBe("/historical/path");
     if (!backend.remote.snapshot) throw new Error("Missing committed snapshot");
-    expect(backend.remote.snapshot.display_name).toBeNull();
+    expect(backend.remote.snapshot.display_name).toBe("/historical/path");
     expect(backend.uploads).toBe(3);
     await controller.boundary(file, nativeId, resume, "manual");
     expect(backend.uploads).toBe(3);
   });
-  test("consent required; retries uncertain commit under same account; repeated boundaries coalesce", async () => {
+  test("administrator policy controls automatic capture; uncertain commits coalesce", async () => {
     const { paths, file } = await source();
     await saveEncryptedSession(paths, "synthetic-token");
     const backend = new FakeBackend();
@@ -577,9 +747,13 @@ describe("Owner-bound extension queue", () => {
       paths,
       new BackupApi(paths, "https://backend.example.test", backend.fetcher),
     );
-    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain("disabled");
-    expect(backend.calls).toHaveLength(0);
-    await controller.enable();
+    backend.enabled = false;
+    expect(await controller.boundary(file, nativeId, resume, "manual")).toContain(
+      "disabled by administrator",
+    );
+    expect(backend.calls.map((call) => call.path)).toEqual(["/api/v1/sessions/status"]);
+    expect(await readdir(controller.root).catch(() => [])).toEqual([]);
+    backend.enabled = true;
     backend.failFinalizeOnce = true;
     expect(await controller.boundary(file, nativeId, resume, "session_shutdown")).toContain(
       "pending",
@@ -594,7 +768,7 @@ describe("Owner-bound extension queue", () => {
     expect(backend.uploads).toBe(1);
     await restarted.boundary(file, nativeId, resume, "session_shutdown");
     expect(backend.uploads).toBe(1);
-    await restarted.disable();
+    backend.enabled = false;
     expect(await restarted.boundary(file, nativeId, resume, "manual")).toContain("disabled");
   });
   test("download verifies and archives original bytes; restored backups use a new destination stream", async () => {
@@ -643,7 +817,7 @@ describe("Owner-bound extension queue", () => {
       paths,
       new BackupApi(paths, "https://backend.example.test", backend.fetcher),
     );
-    await backups.enable();
+    await backups.prepare();
     await backups.boundary(
       restored,
       manager.getSessionId(),
@@ -667,7 +841,7 @@ describe("Owner-bound extension queue", () => {
       paths,
       new BackupApi(paths, "https://backend.example.test", backend.fetcher),
     );
-    await controller.enable();
+    await controller.prepare();
     await rm(file);
     expect(await controller.boundary(file, nativeId, resume, "session_start")).toContain(
       "No session content",
@@ -686,7 +860,7 @@ describe("Owner-bound extension queue", () => {
       paths,
       new BackupApi(paths, "https://backend.example.test", backend.fetcher),
     );
-    await controller.enable();
+    await controller.prepare();
     backend.failFinalizeOnce = true;
     await controller.boundary(file, nativeId, resume, "session_shutdown");
     await saveEncryptedSession(paths, "new-user-token");
@@ -695,9 +869,9 @@ describe("Owner-bound extension queue", () => {
     expect(await controller.boundary(file, nativeId, resume, "session_start")).toContain(
       "account changed",
     );
-    expect(backend.calls.slice(before).map((call) => call.path)).toEqual([
-      "/api/v1/sessions/status",
-    ]);
+    expect(
+      backend.calls.slice(before).every((call) => call.path === "/api/v1/sessions/status"),
+    ).toBe(true);
     expect(backend.uploads).toBe(1);
   });
   test("account change between verification and API request is blocked", async () => {
@@ -712,26 +886,45 @@ describe("Owner-bound extension queue", () => {
     );
     expect(backend.calls).toHaveLength(1);
   });
-  test("extension registers only lifecycle/tree/manual hooks, never message or turn sync", () => {
-    const previousOrigin = process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
-    const previousHome = process.env["PI_DEPUTYDEV_BACKUP_HOME"];
-    process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"] = "https://backend.example.test";
-    process.env["PI_DEPUTYDEV_BACKUP_HOME"] = directory;
+  test("extension has lifecycle hooks but rejects user backup policy toggles", async () => {
+    const previousOrigin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    const previousHome = process.env["PI_AXON_BACKUP_HOME"];
+    process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = "https://backend.example.test";
+    process.env["PI_AXON_BACKUP_HOME"] = directory;
     const events: string[] = [];
     const commands: string[] = [];
+    let backupHandler: ((args: string, ctx: ExtensionContext) => Promise<void>) | undefined;
     sessionBackupExtension({
       on: (name: string, _handler: (event: unknown, ctx: ExtensionContext) => unknown) => {
         events.push(name);
       },
-      registerCommand: (name: string) => {
+      registerCommand: (name: string, command: { handler: typeof backupHandler }) => {
         commands.push(name);
+        if (name === "axon-backups") backupHandler = command.handler;
       },
     } as unknown as ExtensionAPI);
-    if (previousOrigin === undefined) delete process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"];
-    else process.env["PI_DEPUTYDEV_BACKUP_SERVICE_ORIGIN"] = previousOrigin;
-    if (previousHome === undefined) delete process.env["PI_DEPUTYDEV_BACKUP_HOME"];
-    else process.env["PI_DEPUTYDEV_BACKUP_HOME"] = previousHome;
+    if (previousOrigin === undefined) delete process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
+    else process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = previousOrigin;
+    if (previousHome === undefined) delete process.env["PI_AXON_BACKUP_HOME"];
+    else process.env["PI_AXON_BACKUP_HOME"] = previousHome;
     expect(events).toEqual(["session_start", "session_shutdown", "session_tree"]);
-    expect(commands).toEqual(["deputydev-backup-now", "deputydev-backups"]);
+    expect(commands).toEqual(["axon-backup-now", "axon-backups"]);
+    if (!backupHandler) throw new Error("Missing backup command");
+    const notices: string[] = [];
+    for (const action of ["enable", "disable", "pause"]) {
+      await backupHandler(action, {
+        hasUI: true,
+        ui: {
+          notify: (message: string) => notices.push(message),
+          confirm: () => {
+            throw new Error("No consent prompt expected");
+          },
+        },
+      } as unknown as ExtensionContext);
+    }
+    expect(notices).toHaveLength(3);
+    expect(notices.every((notice) => notice.includes("controlled by the administrator"))).toBe(
+      true,
+    );
   });
 });

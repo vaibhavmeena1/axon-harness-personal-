@@ -13,9 +13,8 @@ const telemetrySchema = z.object({
   traceSampleRatio: z.number().finite().min(0).max(1).default(1),
   metricExportIntervalMs: z.number().int().min(1_000).max(300_000).default(10_000),
 });
-const webSearchSchema = z.object({
+const webSearchSchema = z.strictObject({
   enabled: z.boolean(),
-  endpoint: z.literal("/api/v1/web-search"),
   model: z.string().min(1).max(256),
   allowedModels: z.array(z.string().min(1).max(256)).max(33),
   timeoutMs: z.number().int().min(1_000).max(300_000),
@@ -23,6 +22,11 @@ const webSearchSchema = z.object({
   maxResultCharacters: z.number().int().min(1).max(100_000),
   maxOutputTokens: z.number().int().min(1).max(65_536),
   maxSources: z.number().int().min(1).max(100),
+  temperature: z.number().finite().min(0).max(2),
+  thinkingLevel: z.enum(["low", "medium", "high"]).nullish(),
+  searchContextSize: z.enum(["low", "medium", "high"]).nullish(),
+  useUrlContext: z.boolean(),
+  requireGrounding: z.boolean(),
 });
 const piSchema = z.strictObject({
   codemodeEnabled: z.boolean(),

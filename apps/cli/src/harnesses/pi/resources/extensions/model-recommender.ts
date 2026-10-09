@@ -9,7 +9,7 @@ import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi
 /**
  * Offers a task-appropriate model before the first prompt of a session runs.
  *
- * Ranking comes from DeputyDev's Jev-backed routing API
+ * Ranking comes from Axon's Jev-backed routing API
  * (`PI_MODEL_RECOMMENDER_URL`). The backend owns task assessment and model
  * policy; this extension only validates available recommendations and presents
  * the picker once per session.
@@ -431,7 +431,7 @@ export function createModelRecommender(
     let appliedRequestId: string | undefined;
     const emit = (stage: string, outcome: string, details: Record<string, unknown> = {}): void => {
       try {
-        pi.events.emit("deputydev:telemetry", {
+        pi.events.emit("axon:telemetry", {
           category: "recommender",
           stage,
           outcome,

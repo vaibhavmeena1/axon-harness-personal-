@@ -1,4 +1,4 @@
-# DeputyDev Harness Launcher Plan
+# Axon Harness Launcher Plan
 
 ## Implementation status — 2026-09-04
 
@@ -13,7 +13,7 @@
 - [x] Registered the `pi` harness and its executable override metadata.
 - [x] Dispatches harness IDs before Commander and preserves every subsequent argument token.
 - [x] Resolves validated overrides/PATH candidates and launches allowlisted executables directly with inherited cwd and stdio.
-- [x] Strips DeputyDev control variables, emits only redacted opt-in debug previews, and propagates child exit/signal status.
+- [x] Strips Axon control variables, emits only redacted opt-in debug previews, and propagates child exit/signal status.
 - [x] Added an isolated Pi setup-check pipeline with append-only, disabled-by-default organization MCP synchronization.
 - [x] Added dedicated Pi agent/session paths and ordered environment overrides, including disabled Pi version checks and removal of Pi-documented provider API keys.
 - [x] Added content-addressed Pi resource materialization, an independently typechecked core extension, and explicit resource arguments.
@@ -31,21 +31,21 @@
 - [ ] Remaining Phase 2 Pi auth behavior and runtime state writers.
 - [ ] Installer, release, updater, rollback, interactive auth setup, and runtime garbage collection.
 
-The Pi adapter preserves forwarded argument tokens. Pi has an additive MCP bootstrap check, dedicated `~/.deputydev/pi` agent/session paths, explicit DeputyDev resource injection, and required-package reconciliation; auth onboarding remains for its dedicated phase.
+The Pi adapter preserves forwarded argument tokens. Pi has an additive MCP bootstrap check, dedicated `~/.axon/pi` agent/session paths, explicit Axon resource injection, and required-package reconciliation; auth onboarding remains for its dedicated phase.
 
 ---
 
 ## 1. Goal
 
-Build a native CLI launcher named **`ddcli`** that starts Pi with DeputyDev-managed configuration, environment variables, extensions, skills, prompts, and themes.
+Build a native CLI launcher named **`axon`** that starts Pi with Axon-managed configuration, environment variables, extensions, skills, prompts, and themes.
 
-The core user experience is `ddcli pi`; Pi is the only supported harness.
+The core user experience is `axon pi`; Pi is the only supported harness.
 
 Everything after the harness token is forwarded to that harness. The launcher owns preparation and process execution; the selected harness owns its UI, command behavior, sessions, and termination status.
 
 ```text
-ddcli pi --model openai/gpt-4o "Review this repository"
-ddcli pi -p -- "- Summarize these points"
+axon pi --model openai/gpt-4o "Review this repository"
+axon pi -p -- "- Summarize these points"
 ```
 
 ---
@@ -58,18 +58,18 @@ This document and `shipplan.md` must use one set of product-level contracts. If 
 
 | Contract | Value |
 |---|---|
-| Stable application ID | `deputydev` |
-| Current command | `ddcli` |
-| Display name | `DeputyDev` |
-| Home override | `DEPUTYDEV_HOME` |
-| Default home | `~/.deputydev` |
-| Pi agent directory | `${DEPUTYDEV_HOME}/pi` (default `~/.deputydev/pi`) |
-| Pi session directory | `${DEPUTYDEV_HOME}/pi/sessions` (default `~/.deputydev/pi/sessions`) |
-| Debug switch | `DEPUTYDEV_DEBUG=1` |
-| Build service origin | validated `DEPUTYDEV_SERVICE_ORIGIN` compiled as `BUILD_SERVICE_ORIGIN` |
-| Binary override for Pi | `DEPUTYDEV_PI_BIN` |
+| Stable application ID | `axon` |
+| Current command | `axon` |
+| Display name | `Axon` |
+| Home override | `AXON_HOME` |
+| Default home | `~/.axon` |
+| Pi agent directory | `${AXON_HOME}/pi` (default `~/.axon/pi`) |
+| Pi session directory | `${AXON_HOME}/pi/sessions` (default `~/.axon/pi/sessions`) |
+| Debug switch | `AXON_DEBUG=1` |
+| Build service origin | validated `AXON_SERVICE_ORIGIN` compiled as `BUILD_SERVICE_ORIGIN` |
+| Binary override for Pi | `AXON_PI_BIN` |
 
-Pi uses one fixed DeputyDev-owned data directory rather than a named profile.
+Pi uses one fixed Axon-owned data directory rather than a named profile.
 
 ### State ownership
 
@@ -84,18 +84,18 @@ Never let unrelated components atomically rewrite the same JSON object.
 
 ### Environment registry
 
-All DeputyDev-owned variables are declared in one module. Harness children use an explicit DeputyDev-variable allowlist; by default strip every `DEPUTYDEV_*` control variable, including:
+All Axon-owned variables are declared in one module. Harness children use an explicit Axon-variable allowlist; by default strip every `AXON_*` control variable, including:
 
-- `DEPUTYDEV_SWAPPED`
-- `DEPUTYDEV_INTERNAL_NO_UPDATE`
-- `DEPUTYDEV_PIN`
-- `DEPUTYDEV_DEBUG`
-- `DEPUTYDEV_NO_UPDATE`
-- `DEPUTYDEV_ALLOW_CI_UPDATE`
+- `AXON_SWAPPED`
+- `AXON_INTERNAL_NO_UPDATE`
+- `AXON_PIN`
+- `AXON_DEBUG`
+- `AXON_NO_UPDATE`
+- `AXON_ALLOW_CI_UPDATE`
 
-Pass a DeputyDev-owned variable into a harness only when the registry documents it as harness-facing. Document every variable's owner, consumers, whether it may reach a harness, and whether it is safe to print.
+Pass a Axon-owned variable into a harness only when the registry documents it as harness-facing. Document every variable's owner, consumers, whether it may reach a harness, and whether it is safe to print.
 
-`DEPUTYDEV_SERVICE_ORIGIN` is build/development configuration, not a harness-facing variable. Local tooling reads it from the ignored `.env`; staging and production builds receive it from their GitHub Actions environment and compile it as `BUILD_SERVICE_ORIGIN`. Released binaries do not autoload `.env` or allow ambient project configuration to redirect service traffic.
+`AXON_SERVICE_ORIGIN` is build/development configuration, not a harness-facing variable. Local tooling reads it from the ignored `.env`; staging and production builds receive it from their GitHub Actions environment and compile it as `BUILD_SERVICE_ORIGIN`. Released binaries do not autoload `.env` or allow ambient project configuration to redirect service traffic.
 
 The installer, signed distribution manifest, post-auth client config, and Pi MCP catalog use fixed paths under that one origin:
 
@@ -151,7 +151,7 @@ Pi exposes repeatable resource flags suitable for per-invocation activation:
 - `--append-system-prompt <text-or-path>`
 - `--session-dir <path>`
 
-It also exposes `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`. Every `ddcli pi` invocation, including Pi package commands, overrides inherited values with `${DEPUTYDEV_HOME}/pi` and `${DEPUTYDEV_HOME}/pi/sessions`. DeputyDev should use explicit flags for DeputyDev-owned resources and must not mutate the user's normal `~/.pi/agent` settings.
+It also exposes `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`. Every `axon pi` invocation, including Pi package commands, overrides inherited values with `${AXON_HOME}/pi` and `${AXON_HOME}/pi/sessions`. Axon should use explicit flags for Axon-owned resources and must not mutate the user's normal `~/.pi/agent` settings.
 
 ### Blocking unknowns
 
@@ -170,13 +170,13 @@ Do not implement an assumption until the spike records a command, version, obser
 ### Harness launches
 
 ```text
-ddcli pi [pi arguments...]
+axon pi [pi arguments...]
 ```
 
 Rules:
 
-1. `ddcli --help` and `ddcli --version` belong to DeputyDev.
-2. `ddcli pi --help` launches `pi --help`.
+1. `axon --help` and `axon --version` belong to Axon.
+2. `axon pi --help` launches `pi --help`.
 3. Every token after the harness token is preserved exactly, including order, empty strings, newlines, leading dashes, and a literal `--`.
 4. Harness options are never declared as Commander options.
 5. Unknown first positional tokens are launcher errors; arbitrary executable passthrough is forbidden.
@@ -201,13 +201,13 @@ If global launcher options before a harness are added later, implement a dedicat
 ### Launcher-owned commands
 
 ```text
-ddcli harnesses
-ddcli doctor [harness]
-ddcli paths
-ddcli setup <harness> [--import-auth]
-ddcli gc
-ddcli rollback
-ddcli uninstall
+axon harnesses
+axon doctor [harness]
+axon paths
+axon setup <harness> [--import-auth]
+axon gc
+axon rollback
+axon uninstall
 ```
 
 `doctor`, `paths`, `harnesses`, `rollback`, `uninstall`, `--help`, and `--version` remain available when a required-update gate blocks harness execution. Recovery and diagnostics must work offline.
@@ -217,7 +217,7 @@ ddcli uninstall
 Argument insertion is adapter-owned, not universally “before user args.”
 
 - Pi resource flags precede exact user arguments where Pi's repeatable/last-value behavior is verified.
-- Collision behavior must be explicit: append both, skip DeputyDev's value, or reject. Never rely on accidental parser precedence.
+- Collision behavior must be explicit: append both, skip Axon's value, or reject. Never rely on accidental parser precedence.
 
 Golden tests are the executable specification of these rules.
 
@@ -305,10 +305,10 @@ Use an architecture test or a dependency graph tool. If dependency-cruiser is se
 ## 6. Runtime layout and ownership
 
 ```text
-~/.deputydev/
+~/.axon/
 ├── bin/
-│   ├── ddcli
-│   └── ddcli.prev
+│   ├── axon
+│   └── axon.prev
 ├── runtime/
 │   ├── current -> 1.4.2-a3f9c1
 │   └── 1.4.2-a3f9c1/
@@ -322,7 +322,7 @@ Use an architecture test or a dependency graph tool. If dependency-cruiser is se
 │   ├── tmp/
 │   └── sessions/                    # PI_CODING_AGENT_SESSION_DIR
 ├── staged/
-│   ├── ddcli
+│   ├── axon
 │   └── meta.json
 ├── locks/
 ├── state.json
@@ -334,7 +334,7 @@ The runtime key is `<version>-<short-asset-manifest-hash>`, not version alone. T
 
 Materialization creates the immutable versioned directory, then atomically replaces a temporary `runtime/current` symlink. Pi arguments use the immutable versioned path so a running process cannot change resources underneath it; `runtime/current` is for inspection only.
 
-Keep old versioned directories because a running harness can still have one open. Runtime collection is explicit (`ddcli gc`), age-based (default retention: 30 days), and never runs on the launch path. It must not delete the current target or a directory known to be active.
+Keep old versioned directories because a running harness can still have one open. Runtime collection is explicit (`axon gc`), age-based (default retention: 30 days), and never runs on the launch path. It must not delete the current target or a directory known to be active.
 
 The home directory is created with mode `0700`. On POSIX, refuse updater/materialization writes if the root is owned by another UID or is group/world writable; `doctor` reports exact remediation.
 
@@ -384,16 +384,16 @@ A warm launch performs local stamp/path checks only and writes nothing.
 
 ## 8. Pi adapter, packages, and auth onboarding
 
-Pi does not expose named profiles. DeputyDev will create one fixed, mutable Pi data directory and override these values for every `ddcli pi` invocation:
+Pi does not expose named profiles. Axon will create one fixed, mutable Pi data directory and override these values for every `axon pi` invocation:
 
 ```text
-PI_CODING_AGENT_DIR=${DEPUTYDEV_HOME}/pi
-PI_CODING_AGENT_SESSION_DIR=${DEPUTYDEV_HOME}/pi/sessions
+PI_CODING_AGENT_DIR=${AXON_HOME}/pi
+PI_CODING_AGENT_SESSION_DIR=${AXON_HOME}/pi/sessions
 ```
 
-The defaults are `~/.deputydev/pi` and `~/.deputydev/pi/sessions`. Both variables also apply when the forwarded Pi command is `install`, `remove`, `update`, `list`, or `config`, so package lifecycle operations target DeputyDev's Pi directory rather than `~/.pi/agent`.
+The defaults are `~/.axon/pi` and `~/.axon/pi/sessions`. Both variables also apply when the forwarded Pi command is `install`, `remove`, `update`, `list`, or `config`, so package lifecycle operations target Axon's Pi directory rather than `~/.pi/agent`.
 
-DeputyDev-owned resources are content-addressed under `runtime/<version>-<hash>` and activated through explicit Pi flags using immutable versioned paths. Required community packages are declared in the embedded manifest and reconciled only inside the dedicated Pi directory. Exact versions change with the embedded manifest; minimum versions enforce a hard floor; floating versions remain under Pi/user update control. Healthy warm launches run local checks only, and unrelated package settings are preserved. See `plans/pi-package-provisioning.md` for the complete policy.
+Axon-owned resources are content-addressed under `runtime/<version>-<hash>` and activated through explicit Pi flags using immutable versioned paths. Required community packages are declared in the embedded manifest and reconciled only inside the dedicated Pi directory. Exact versions change with the embedded manifest; minimum versions enforce a hard floor; floating versions remain under Pi/user update control. Healthy warm launches run local checks only, and unrelated package settings are preserved. See `plans/pi-package-provisioning.md` for the complete policy.
 
 Directory isolation hides the user's normal Pi settings, auth, installed packages, temporary package cache, and sessions. It is not a security sandbox: project resources, other inherited credentials, and user-global paths may still be visible. The adapter sets `PI_SKIP_VERSION_CHECK=1` and removes every Pi-documented provider API key (listed in `PI_STRIPPED_PROVIDER_VARIABLES`), while retaining the organization LiteLLM variables. The Pi MCP adapter reads the standard user-global `~/.config/mcp/mcp.json` independently of `PI_CODING_AGENT_DIR`.
 
@@ -408,7 +408,7 @@ Reconciliation is append-only by server name. Existing definitions and user enab
 Ship explicit, consented first-run import:
 
 - On an interactive first launch, if managed auth is absent and a supported source auth file exists, explain the boundary and offer to copy only the auth material.
-- On print/piped/non-TTY launches, never prompt. Fail with an actionable instruction: `ddcli setup pi --import-auth`.
+- On print/piped/non-TTY launches, never prompt. Fail with an actionable instruction: `axon setup pi --import-auth`.
 - Copy rather than symlink so an atomic rewrite by the harness cannot replace the link unexpectedly.
 - Preserve restrictive permissions (`0600` for credential files), never overwrite newer managed credentials, record import provenance without secret values, and validate the exact format/version before copying.
 - `doctor pi` reports whether the dedicated Pi directory has usable credentials without printing providers, tokens, or file contents.
@@ -423,8 +423,8 @@ The Phase 0 spike must identify exact source/destination paths and confirm wheth
 Build child environments in deterministic layers:
 
 1. inherited process environment
-2. removal of DeputyDev control variables not explicitly allowlisted for harnesses
-3. DeputyDev public/shared variables that are explicitly harness-facing
+2. removal of Axon control variables not explicitly allowlisted for harnesses
+3. Axon public/shared variables that are explicitly harness-facing
 4. Pi data-directory variables
 5. other harness-specific variables
 6. invocation-specific overrides, if introduced later
@@ -444,12 +444,12 @@ function createHarnessEnvironment(
 ): NodeJS.ProcessEnv;
 ```
 
-The helper first copies and sanitizes the inherited environment using the DeputyDev registry, then applies each override object in order. A string sets or replaces a value, `undefined` explicitly removes a value, and a later override wins. It always returns a fresh object and never mutates `process.env` or an earlier layer.
+The helper first copies and sanitizes the inherited environment using the Axon registry, then applies each override object in order. A string sets or replaces a value, `undefined` explicitly removes a value, and a later override wins. It always returns a fresh object and never mutates `process.env` or an earlier layer.
 
 Each adapter owns small, named override builders for its semantics and composes them at the launch boundary. For example, the Pi adapter includes this directory layer:
 
 ```ts
-function createPiDirectoryOverrides(paths: DeputyDevPaths): EnvironmentOverrides {
+function createPiDirectoryOverrides(paths: AxonPaths): EnvironmentOverrides {
   return {
     PI_CODING_AGENT_DIR: paths.pi,
     PI_CODING_AGENT_SESSION_DIR: paths.piSessions,
@@ -457,14 +457,14 @@ function createPiDirectoryOverrides(paths: DeputyDevPaths): EnvironmentOverrides
 }
 ```
 
-Future Pi features can add independent layers for package setup, invocation policy, or other Pi variables without rewriting sanitization or copying the full inherited environment. Tests cover precedence, explicit removal, adapter-specific credential policy, DeputyDev-variable stripping, and input immutability. Foreign harness variables such as `PI_*`, `XDG_*`, or provider keys do not belong in the `DEPUTYDEV_ENVIRONMENT_REGISTRY`; that registry remains limited to DeputyDev-owned controls.
+Future Pi features can add independent layers for package setup, invocation policy, or other Pi variables without rewriting sanitization or copying the full inherited environment. Tests cover precedence, explicit removal, adapter-specific credential policy, Axon-variable stripping, and input immutability. Foreign harness variables such as `PI_*`, `XDG_*`, or provider keys do not belong in the `AXON_ENVIRONMENT_REGISTRY`; that registry remains limited to Axon-owned controls.
 
 Rules:
 
 - Pi sets `PI_SKIP_VERSION_CHECK=1` and removes inherited Pi-documented provider API keys while retaining organization LiteLLM variables; persist auth only through the explicit import/login policy.
 - Never print the complete child environment.
 - Redact names containing `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `CREDENTIAL`, or `AUTH`.
-- Redacted debug launch previews go to stderr only when `DEPUTYDEV_DEBUG=1`.
+- Redacted debug launch previews go to stderr only when `AXON_DEBUG=1`.
 - Do not delete unrelated inherited variables unless an adapter documents the reason and tests it.
 - Do not expose arbitrary environment-setting CLI flags in the MVP.
 - Disable compiled-executable `.env`/`bunfig.toml` autoload; `.env` is consumed by local build/development tooling, not by a released launcher running inside an arbitrary project.
@@ -517,7 +517,7 @@ With inherited stdio and parent/child in the same foreground process group, the 
 
 | Stable ID | Candidate name | Override |
 |---|---|---|
-| `pi` | `pi` | `DEPUTYDEV_PI_BIN` |
+| `pi` | `pi` | `AXON_PI_BIN` |
 
 An override is still validated as an executable path and never evaluated through a shell.
 
@@ -540,7 +540,7 @@ For a harness launch:
 7. Verify/materialize the content-addressed runtime.
 8. Prepare/auth-check the Pi data directory.
 9. Build the adapter-owned final launch spec.
-10. Emit a redacted stderr preview only under `DEPUTYDEV_DEBUG=1`.
+10. Emit a redacted stderr preview only under `AXON_DEBUG=1`.
 11. Spawn with inherited stdio and wait.
 12. If an older verified update was staged before this invocation, swap it after the harness exits.
 13. Start detached manifest refresh/staging when eligible.
@@ -560,9 +560,9 @@ Optional updates never add a re-exec hop around the harness. Mandatory foregroun
 - effective Pi agent/session directory environment values
 - auth readiness without secrets
 - resource/provisioning status
-- DeputyDev home permissions/ownership
-- whether `~/.deputydev/bin` is on PATH
-- whether `command -v ddcli` resolves to the managed binary rather than a shadowing package-manager copy
+- Axon home permissions/ownership
+- whether `~/.axon/bin` is on PATH
+- whether `command -v axon` resolves to the managed binary rather than a shadowing package-manager copy
 - platform/container status and remediation
 
 `uninstall` removes the managed binary and can optionally remove cached runtimes. It always preserves Pi settings, auth, and sessions; it never silently destroys user data.
@@ -580,7 +580,7 @@ Both installer and CLI detect unsupported OS/architecture/container execution. T
 - Runtime directories are immutable and separate from the mutable Pi directory.
 - External plugins are pinned to versions or immutable revisions.
 - Auth import requires consent, validates format, and preserves restrictive modes.
-- `~/.deputydev` is same-user private; the local threat model trusts same-UID processes, as other user-space toolchain managers do.
+- `~/.axon` is same-user private; the local threat model trusts same-UID processes, as other user-space toolchain managers do.
 - Staged binaries are re-hashed immediately before swap; a signed remote manifest does not protect a user-writable staging window by itself.
 - Harness plugins/extensions execute with user permissions and are trusted release inputs.
 
@@ -590,7 +590,7 @@ Both installer and CLI detect unsupported OS/architecture/container execution. T
 
 ### Fake harness
 
-Create a tiny hermetic fixture that emits JSON for argv, cwd, selected env, and TTY state, and can exit with a requested code or signal. Point the Pi adapter at it through `DEPUTYDEV_PI_BIN`. CI must not require Pi for core launcher tests.
+Create a tiny hermetic fixture that emits JSON for argv, cwd, selected env, and TTY state, and can exit with a requested code or signal. Point the Pi adapter at it through `AXON_PI_BIN`. CI must not require Pi for core launcher tests.
 
 ### Golden argument table
 
@@ -617,7 +617,7 @@ Use Bun's PTY support or a pinned PTY test dependency only after the Phase 0.5 s
 
 ### Materialization/data-directory tests
 
-Use temporary `DEPUTYDEV_HOME` roots to verify the exact Pi agent/session paths, environment overrides on all forwarded Pi commands, separation from `~/.pi/agent`, traversal rejection, concurrent first launches, content-hash invalidation for `0.1.0-dev`, atomic `current` replacement, interrupted writes, auth import permissions, and explicit age-based GC.
+Use temporary `AXON_HOME` roots to verify the exact Pi agent/session paths, environment overrides on all forwarded Pi commands, separation from `~/.pi/agent`, traversal rejection, concurrent first launches, content-hash invalidation for `0.1.0-dev`, atomic `current` replacement, interrupted writes, auth import permissions, and explicit age-based GC.
 
 ### Architecture tests
 
@@ -656,7 +656,7 @@ Complete this before Phase 1; it de-risks the exact passthrough claim.
 
 ### Phase 2 — Pi
 
-1. [x] Add `${DEPUTYDEV_HOME}/pi` and `${DEPUTYDEV_HOME}/pi/sessions` path contracts through `DeputyDevPaths.pi` and `DeputyDevPaths.piSessions`.
+1. [x] Add `${AXON_HOME}/pi` and `${AXON_HOME}/pi/sessions` path contracts through `AxonPaths.pi` and `AxonPaths.piSessions`.
 2. [x] Extend the shared environment builder with ordered override layers, then use Pi-owned layers to override both directory variables and remove explicitly disallowed inherited credentials.
 3. [x] Add content-addressed materialization and stable `runtime/current` paths.
 4. [x] Add one real Pi extension plus its independent typecheck.
@@ -690,14 +690,14 @@ Delay optional background auto-staging until Pi provisioning is stable.
 - Pi launches through the stable `pi` registry ID.
 - Harness argv is preserved byte-for-byte at the token level, including `--`, whitespace, and newlines.
 - Commander cannot consume harness `--help`/`--version`.
-- Every `ddcli pi` invocation uses `${DEPUTYDEV_HOME}/pi` for `PI_CODING_AGENT_DIR` and `${DEPUTYDEV_HOME}/pi/sessions` for `PI_CODING_AGENT_SESSION_DIR` without modifying `~/.pi/agent`.
+- Every `axon pi` invocation uses `${AXON_HOME}/pi` for `PI_CODING_AGENT_DIR` and `${AXON_HOME}/pi/sessions` for `PI_CODING_AGENT_SESSION_DIR` without modifying `~/.pi/agent`.
 - Pi has an explicit first-run auth path for users with on-disk credentials.
 - Warm print/piped launches perform no network request.
 - Post-auth client config may be user-specific but is never required for startup, updates, recovery, or reaching that phase.
 - Runtime materialization is content-addressed, checksum-verified, atomic, and invisible on warm launches.
 - Pi receives immutable versioned runtime paths; GC never runs during launch.
 - Exit codes and child signal deaths are preserved, including Ctrl+C under a PTY.
-- Internal DeputyDev variables do not leak into harness subprocess trees.
+- Internal Axon variables do not leak into harness subprocess trees.
 - Ordered environment overlays preserve inherited credentials, override harness values deterministically, support explicit removal, and never mutate `process.env`.
 - Home ownership/modes and staged-binary hashes are verified.
 - CI enforces adapter import isolation.
@@ -706,14 +706,14 @@ Delay optional background auto-staging until Pi provisioning is stable.
 
 ## 18. Decisions to keep explicit
 
-1. DeputyDev is a launcher, not a replacement harness.
+1. Axon is a launcher, not a replacement harness.
 2. The only supported harness ID is `pi`.
 3. Pi resources remain separate from launcher code.
 4. Adapter files start shallow; resource identity earns directory depth.
 5. Harness arguments bypass Commander entirely.
 6. Process execution is direct and signal-correct.
 7. Cached update enforcement is local; ordinary refresh/staging is background work.
-8. Pi uses one fixed DeputyDev-owned data directory at `${DEPUTYDEV_HOME}/pi`; it is not modeled as a named profile, and isolation includes an explicit auth and package onboarding contract.
+8. Pi uses one fixed Axon-owned data directory at `${AXON_HOME}/pi`; it is not modeled as a named profile, and isolation includes an explicit auth and package onboarding contract.
 9. Harness environment customization uses one ordered, immutable overlay mechanism; the Pi adapter adds focused layers instead of duplicating environment construction.
 10. Runtime identity is based on resource content, and Pi receives an immutable versioned path.
 11. Optional updates swap after command exit; mandatory updates alone may re-exec before launch.

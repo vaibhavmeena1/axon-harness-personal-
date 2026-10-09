@@ -38,12 +38,12 @@ export function printDebugLaunchPreview(input: {
   readonly cwd: string;
 }): void {
   console.error(
-    `[deputydev] launch ${JSON.stringify({
+    `[axon] launch ${JSON.stringify({
       harness: input.harness,
       executable: input.executable,
       arguments: redactArguments(input.arguments),
       cwd: input.cwd,
-      environment: "inherited; DeputyDev control variables stripped",
+      environment: "inherited; Axon control variables stripped",
     })}`,
   );
 }

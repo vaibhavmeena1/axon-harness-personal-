@@ -1,6 +1,6 @@
 # Telemetry schema
 
-Schema version: 4 (GenAI development conventions, pinned Pi 1.0.4 lifecycle attribution).
+Schema version: 4 (GenAI development conventions, pinned Pi 1.1.0 lifecycle attribution).
 
 This schema adopts the supplied development conventions; their names are not a promise of stable upstream semantics.
 
@@ -9,27 +9,29 @@ This schema adopts the supplied development conventions; their names are not a p
 | Attribute | Description |
 |---|---|
 | `service.name` | Managed service name, default `pi-coding-agent` |
-| `service.version` | Extension version embedded when DeputyDev builds the standalone bundle |
+| `service.version` | Extension version embedded when Axon builds the standalone bundle |
 | `service.instance.id` | Per-process random instance ID |
 | `user.id` | Managed: auth user ID or verified email; env fallback: Git email or installation UUID |
 | `user.email` | Managed: verified auth email; env fallback: raw effective Git email when available |
 | `user.name` | Optional verified auth-service name, managed mode only |
-| `deputydev.user_team_id` | Authenticated user-team membership ID, managed mode only |
-| `pi.identity.source` | `deputydev_auth`, `git_email`, or `installation_id` |
+| `axon.user_team_id` | Authenticated user-team membership ID, managed mode only |
+| `pi.identity.source` | `axon_auth`, `git_email`, or `installation_id` |
 | `pi.extension.name` | `pi-org-telemetry` |
 | `pi.extension.version` | Extension version |
-| `deputydev.cli.version` | CLI build version supplied by the managed launcher |
+| `axon.cli.version` | CLI build version supplied by the managed launcher |
 | `pi.version` | pi version, when pi can be imported at runtime |
 | `os.type` | `darwin`, `linux`, `windows`, ... |
 | `host.arch` | `amd64`, `arm64`, ... |
 | `process.runtime.name` | `node` or `bun` |
 | `process.runtime.version` | Runtime version |
+| `terminal.type` | Bounded host classification: `vscode`, `cursor`, `windsurf`, `zed`, `jetbrains`, `iterm`, `apple_terminal`, `ghostty`, `warp`, `wezterm`, `kitty`, `alacritty`, `hyper`, `windows_terminal`, `tmux`, `screen`, `ssh`, `other`, or `none` (non-TTY) |
 
 ## Common span and log attributes
 
 | Attribute | Description |
 |---|---|
 | `user.id`, `user.email`, `pi.identity.source` | Duplicated from the resource for backends that do not index resource attributes |
+| `terminal.type` | Duplicated from the resource on every span, log, and metric point; constant per process, so it adds no per-process series |
 | `session.id` | Current pi session ID |
 | `gen_ai.conversation.id` | Current pi session ID |
 | `pi.session.parent_id` | Parent pi session ID when this process was spawned from another pi session's tool (subagents) |
@@ -49,6 +51,7 @@ This schema adopts the supplied development conventions; their names are not a p
 | `execute_tool {name}` | INTERNAL | Active turn or parent tool | One execution, parallel-safe by call ID; `gen_ai.operation.name=execute_tool` |
 | `pi.user.wait` | INTERNAL | Active turn/run/interaction | Time blocked on extension UI |
 | `pi.session.compaction` | INTERNAL | Active interaction or root | Manual, threshold, or overflow compaction |
+| `pi.session` | INTERNAL | Root | Session summary created at session end with the session's start time; carries the totals below. Subject to trace sampling |
 
 Only transcript-owned assistant messages open inference slots. Provider-only warming does not create inference spans or count usage. Known Google APIs use `generate_content`; the known chat APIs use `chat`. Unknown APIs or overlapping request hooks retain custom lifecycle attribution.
 
@@ -75,6 +78,21 @@ Only transcript-owned assistant messages open inference slots. Provider-only war
 
 Actual failed operations receive ERROR status. User cancellation and instrumentation closure remain UNSET and do not emit client exception logs. Gateway IDs stay separate from completion IDs; no trace context is injected.
 
+### `pi.session` summary attributes
+
+Also present on the `pi.session.ended` log, which is not sampled.
+
+| Attribute | Description |
+|---|---|
+| `pi.session.cost.usd` | Sum of Pi's cost estimate over every usage source in the session |
+| `pi.session.tokens.input` | Inclusive input (`input + cacheRead + cacheWrite`) |
+| `pi.session.tokens.output`, `pi.session.tokens.reasoning` | Output (including reasoning) and its reasoning subset |
+| `pi.session.tokens.cache_read`, `pi.session.tokens.cache_write` | Cache subsets of input |
+| `pi.session.interactions`, `pi.session.llm_requests`, `pi.session.tool_calls` | Submitted interactions, observed inference calls, top-level tool calls |
+| `pi.session.duration_s` | Session wall-clock duration |
+
+Totals cover usage recorded through metrics, so the same limits apply: unreported usage and cache warming are absent. A crashed process emits no summary.
+
 ### `execute_tool {name}` attributes
 
 | Attribute | Description |
@@ -92,7 +110,7 @@ Actual failed operations receive ERROR status. User cancellation and instrumenta
 
 ## Metrics
 
-All metric points carry `user.id`, `pi.identity.source`, optional `user.email`, and relevant dimensions. Activity/operation metrics also carry `pi.mode`; token/cost points use usage-source and available provider/model dimensions.
+All metric points carry `user.id`, `pi.identity.source`, optional `user.email`, `terminal.type`, and relevant dimensions. Activity/operation metrics also carry `pi.mode`; token/cost points use usage-source and available provider/model dimensions.
 Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics do not, to keep series counts bounded; query cost per repository from spans or logs.
 
 | Metric | Instrument | Unit | Dimensions |
@@ -100,6 +118,9 @@ Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics d
 | `pi.session.started` | Counter | `{session}` | activity, reason, ephemeral |
 | `pi.session.ended` | Counter | `{session}` | activity, reason |
 | `pi.session.duration` | Histogram | `s` | activity, reason |
+| `pi.session.cost` | Histogram | `USD` | mode, repository; one point per finished session |
+| `pi.session.tokens` | Histogram | `{token}` | mode, repository; inclusive input plus output per finished session |
+| `pi.session.interactions` | Histogram | `{interaction}` | mode, repository; interactions per finished session |
 | `pi.user.input.count` | Counter | `{input}` | activity, source, streaming behavior |
 | `pi.user.intervention.count` | Counter | `{intervention}` | activity, kind |
 | `pi.user.wait.duration` | Histogram | `s` | activity, outcome |
@@ -110,12 +131,12 @@ Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics d
 | `pi.agent.run.repeated` | Counter | `{run}` | activity |
 | `pi.turn.count` | Counter | `{turn}` | activity |
 | `pi.turn.duration` | Histogram | `s` | activity, outcome |
-| `pi.llm.requests` | Counter | `{request}` | provider, request model |
+| `pi.llm.requests` | Counter | `{request}` | provider, request model, thinking level |
 | `pi.llm.errors` | Counter | `{error}` | provider, error type |
 | `pi.llm.truncated` | Counter | `{response}` | provider, response model |
 | `pi.llm.duration` | Histogram | `s` | provider, request/response model, synthesized |
 | `pi.context.utilization` | Histogram | `%` | provider, request model |
-| `pi.tokens.input` | Counter | `{token}` | `pi.usage.source`, provider, request model, known response model |
+| `pi.tokens.input` | Counter | `{token}` | `pi.usage.source`, provider, request model, known response model, thinking level (assistant source only) |
 | `pi.tokens.output` | Counter | `{token}` | same |
 | `pi.tokens.cache_read` | Counter | `{token}` | same |
 | `pi.tokens.cache_write` | Counter | `{token}` | same |
@@ -130,6 +151,8 @@ Activity metrics also carry `pi.repo.slug`. Token, cost, LLM, and tool metrics d
 | `pi.telemetry.dropped` | Counter | `{record}` | signal, reason (`handler` + event name when an extension handler threw) |
 
 `pi.tokens.input`, `pi.tokens.cache_read`, and `pi.tokens.cache_write` retain Pi's disjoint categories; their sum is inclusive input. Output already includes reasoning, so do not add `pi.tokens.reasoning` to output or total tokens. Cost is Pi's estimate, not measured billing.
+
+`pi.thinking.level` on metrics is the Pi thinking level requested for the inference call, limited to `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `other`. Session histograms are recorded once at session end, so their `_sum` (for example cost by repository) lags until sessions close; per-session cost/token boundaries are listed in `src/otel/instruments.ts`.
 
 `pi.usage.source` is `assistant`, `tool`, `compaction`, or `branch_summary`. Tool metrics count only finalized top-level transcript result usage: pinned Pi adds descendants' own usage before `message_start`, then emits `message_end` on that aggregate. Execution events (including nested calls) are not additional usage points. Missing or unreported usage and cache-warming usage are not invented; totals need not equal all billed/session work.
 
@@ -155,7 +178,7 @@ No streaming chunk, first-token, process, skill, workflow, or plan instruments a
 | Event name | Severity | Purpose |
 |---|---|---|
 | `pi.session.started` | INFO | Session runtime started |
-| `pi.session.ended` | INFO | Session runtime shut down |
+| `pi.session.ended` | INFO | Session runtime shut down, with the `pi.session` summary totals |
 | `pi.user.input` | INFO | User/RPC/extension input metadata received (includes text length and image count) |
 | `pi.user.intervention` | INFO | Model, thinking, session, shell, steer, follow-up, or UI action |
 | `pi.interaction.settled` | INFO/WARN | Interaction completed or failed/interrupted |
@@ -168,7 +191,7 @@ Log bodies are fixed strings. Variable data is stored in attributes.
 
 ## Product observations (additive)
 
-See [Product telemetry](product-telemetry.md) for the `deputydev.*` event counters, duration/byte/
+See [Product telemetry](product-telemetry.md) for the `axon.*` event counters, duration/byte/
 assessment histograms, structured operation logs and spans. Dimensions include component, stage,
 outcome, bounded reason, model, selected rank, policy version and CLI version. Numeric scores and
 correlation IDs are never dimensions; product metrics do not include repository/session IDs.

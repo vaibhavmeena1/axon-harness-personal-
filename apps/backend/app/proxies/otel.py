@@ -1,6 +1,7 @@
 """Bounded, authenticated OTLP/HTTP ingestion with server-authoritative identity."""
 
 import asyncio
+import logging
 import os
 import ssl
 import time
@@ -13,6 +14,7 @@ from google.protobuf.message import DecodeError, Message
 from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+from starlette.requests import ClientDisconnect
 
 from app.authentication import authenticate_request
 from app.clients.auth_service import AuthServiceError, get_auth_service_client
@@ -26,6 +28,7 @@ _MESSAGES = {
     "logs": ExportLogsServiceRequest,
 }
 _NO_STORE = {"Cache-Control": "no-store"}
+logger = logging.getLogger(__name__)
 
 
 def _error(code: int, message: str, *, headers: dict[str, str] | None = None) -> HTTPException:
@@ -69,8 +72,8 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
         if isinstance(user_id, int) and not isinstance(user_id, bool) and user_id > 0
         else email,
         "user.email": email,
-        "pi.identity.source": "deputydev_auth",
-        "deputydev.user_team_id": str(auth_data.user_team_id),
+        "pi.identity.source": "axon_auth",
+        "axon.user_team_id": str(auth_data.user_team_id),
     }
     if name:
         attributes["user.name"] = name
@@ -79,7 +82,7 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
 
 def _is_identity(key: str) -> bool:
     key = key.lower()
-    return key.startswith(("user.", "enduser.")) or key in {"pi.identity.source", "deputydev.user_team_id"}
+    return key.startswith(("user.", "enduser.")) or key in {"pi.identity.source", "axon.user_team_id"}
 
 
 def rewrite_identity(message: Message, identity: dict[str, str]) -> None:
@@ -277,10 +280,15 @@ async def ingest(request: Request, signal: str) -> Response:
         refresh = request.state.auth_response_headers.get("x-session-refresh-token")
         if _identity_text(refresh, 16384) and str(refresh).isascii():
             headers["x-session-refresh-token"] = refresh
-        if not runtime.admit(identity["deputydev.user_team_id"]):
+        if not runtime.admit(identity["axon.user_team_id"]):
             raise _error(429, "Telemetry rate limit exceeded", headers={"Retry-After": "60"})
         body = await _attributed_payload(request, runtime.settings, signal, identity)
         return await _forward(runtime, signal, body, headers)
+    except ClientDisconnect:
+        # No complete batch exists to attribute/forward. The client is already gone;
+        # return the conventional cancellation status and release capacity normally.
+        logger.info("Telemetry upload cancelled signal=%s reason=client_disconnected", signal)
+        return Response(status_code=499, headers=headers)
     except HTTPException as exc:
         exc.headers = {**headers, **(exc.headers or {})}
         raise

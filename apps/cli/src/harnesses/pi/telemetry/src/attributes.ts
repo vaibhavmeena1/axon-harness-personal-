@@ -15,6 +15,7 @@ export const ATTR_OS_TYPE = "os.type";
 export const ATTR_HOST_ARCH = "host.arch";
 export const ATTR_RUNTIME_NAME = "process.runtime.name";
 export const ATTR_RUNTIME_VERSION = "process.runtime.version";
+export const ATTR_TERMINAL_TYPE = "terminal.type";
 
 export const ATTR_OPERATION = "gen_ai.operation.name";
 export const ATTR_PROVIDER = "gen_ai.provider.name";
@@ -46,6 +47,16 @@ export const ATTR_CONTEXT_WINDOW = "pi.context.window";
 export const ATTR_CONTEXT_PERCENT = "pi.context.percent";
 export const ATTR_THINKING_LEVEL = "pi.thinking.level";
 export const ATTR_PROVIDER_THINKING_LEVEL = "pi.thinking.provider_level";
+export const ATTR_SESSION_COST = "pi.session.cost.usd";
+export const ATTR_SESSION_INPUT_TOKENS = "pi.session.tokens.input";
+export const ATTR_SESSION_OUTPUT_TOKENS = "pi.session.tokens.output";
+export const ATTR_SESSION_CACHE_READ_TOKENS = "pi.session.tokens.cache_read";
+export const ATTR_SESSION_CACHE_WRITE_TOKENS = "pi.session.tokens.cache_write";
+export const ATTR_SESSION_REASONING_TOKENS = "pi.session.tokens.reasoning";
+export const ATTR_SESSION_INTERACTIONS = "pi.session.interactions";
+export const ATTR_SESSION_LLM_REQUESTS = "pi.session.llm_requests";
+export const ATTR_SESSION_TOOL_CALLS = "pi.session.tool_calls";
+export const ATTR_SESSION_DURATION = "pi.session.duration_s";
 export const ATTR_LLM_TRUNCATED = "pi.llm.truncated";
 
 export const SPAN_INTERACTION = "invoke_agent pi";
@@ -55,6 +66,7 @@ export const SPAN_LLM = "chat";
 export const SPAN_TOOL = "execute_tool";
 export const SPAN_USER_WAIT = "pi.user.wait";
 export const SPAN_COMPACTION = "pi.session.compaction";
+export const SPAN_SESSION = "pi.session";
 
 /** Units for counter instruments, keyed by metric name (UCUM). */
 export const COUNTER_UNITS: Readonly<Record<string, string>> = {

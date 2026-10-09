@@ -6,17 +6,17 @@ import { isTrue } from "./launcher/debug-preview.ts";
 import { LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "./product/identity.ts";
-import { resolveDeputyDevPaths } from "./product/paths.ts";
+import { resolveAxonPaths } from "./product/paths.ts";
 import { flushProductTelemetry } from "./telemetry/client.ts";
 
-const DEBUG_ENVIRONMENT_VARIABLE = "DEPUTYDEV_DEBUG";
+const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 
 function printUnexpectedError(error: unknown): void {
   console.error(`${PRODUCT_IDENTITY.command}: unexpected launcher failure`);
   if (isTrue(process.env[DEBUG_ENVIRONMENT_VARIABLE])) {
     console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   } else {
-    console.error(`Rerun with DEPUTYDEV_DEBUG=1 for diagnostic details.`);
+    console.error(`Rerun with AXON_DEBUG=1 for diagnostic details.`);
   }
 }
 
@@ -41,7 +41,7 @@ export async function main(
     printUnexpectedError(error);
     process.exitCode = LAUNCHER_EXIT_STATUS.profileFailure;
   } finally {
-    await flushProductTelemetry(resolveDeputyDevPaths(), isPiOffline(process.env, argumentsVector));
+    await flushProductTelemetry(resolveAxonPaths(), isPiOffline(process.env, argumentsVector));
   }
 }
 

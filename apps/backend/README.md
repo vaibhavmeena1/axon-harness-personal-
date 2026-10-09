@@ -1,6 +1,6 @@
-# DeputyDev Console Backend
+# Axon Console Backend
 
-The centralized management API for DeputyDev CLI installations. It also serves the `apps/frontend` console as static files from the same origin.
+The centralized management API for Axon CLI installations. It also serves the `apps/frontend` console as static files from the same origin.
 
 ## Prerequisites
 
@@ -36,22 +36,78 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
 
 For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
-Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through DeputyDev's backend using a saved DeputyDev session, not the LiteLLM master key.
+Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through Axon's backend using a saved Axon session, not the LiteLLM master key.
 
 ### Provisioning users into an existing LiteLLM team
 
-With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteLLM team ID** and `TEAM_ROLE` to `"user"` (default) or `"admin"`. This assigns all provisioned DeputyDev users to that team and binds their backend-only virtual keys to it. `TEAM_ROLE` is the **team membership role**, not the global LiteLLM user role, which remains `internal_user`. Grant `admin` only if those users should manage the team.
+With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteLLM team ID** and `TEAM_ROLE` to `"user"` (default) or `"admin"`. This assigns all provisioned Axon users to that team and binds their backend-only virtual keys to it. `TEAM_ROLE` is the **team membership role**, not the global LiteLLM user role, which remains `internal_user`. Grant `admin` only if those users should manage the team.
 
 ```json
 "TEAM_ID": "your-existing-litellm-team-id",
 "TEAM_ROLE": "user"
 ```
 
-New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified DeputyDev team ID and creates that native team if needed.
+New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified Axon team ID and creates that native team if needed.
 
-No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing user/team/key policies and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified DeputyDev `user_team_id`, and key metadata retains the original DeputyDev team ID even when the native LiteLLM team differs.
+No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing budgets, model/MCP permissions, and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
+
+New backend-managed keys use `key_type: "default"` with an explicit route allowlist:
+`["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`. Do not combine that list with the
+`llm_api` key preset: LiteLLM overwrites explicit routes with the preset. This allows inference,
+the two CLI key/user metadata reads, and all `/team/*` paths. The team wildcard is not read-only:
+team writes are allowed through the key route gate, but LiteLLM's native role, membership, and
+endpoint authorization checks still apply. It does not grant proxy-admin privileges or permit
+key/user management writes.
+The proxy pins GET `/key/info` to the current backend credential's SHA-256 hash, replacing any
+caller-supplied `key` query parameters. LiteLLM therefore echoes only a hash, never the backend
+credential, and callers cannot use this route to inspect another key. Other routes remain streamed unchanged.
+
+After a backend restart, identity provisioning lazily upgrades active keys with either previous
+harness default (`["llm_api_routes"]` or `["llm_api_routes", "/key/info", "/v2/user/info"]`)
+only when their metadata identifies them as this harness's key for
+the same verified user (`source=meta-harness`, matching `axon_user_team_id` or the older
+`deputydev_user_team_id` ownership marker). The upgrade changes
+only `allowed_routes` and is read back before caching the key. Custom route lists, unmanaged keys,
+blocked/expired keys, budgets, spend, and MCP grants are not changed. No key recreation or login
+reset is required. MCP still requires separately registered servers and grants.
 
 Restart the backend after changing these settings. Changing `TEAM_ID` selects a different user/team key; it does not remove old memberships or revoke old keys. This is a provisioning setting only—the proxy allowlist and inference-body attribution are unchanged.
+
+### LiteLLM request diagnostics
+
+In addition to Uvicorn access logs, the backend emits one diagnostic line per LiteLLM request.
+Successful requests use INFO; failures use WARNING. Cancelled requests and disconnected clients
+use INFO. An app-only console handler is installed when no application/deployment handler exists;
+it does not enable HTTP client debug logging or replace deployment logging configuration.
+
+Example (timings and ID are illustrative):
+
+```text
+WARNING: app.proxies.litellm LiteLLM request request_id=8f96f2e7 method=GET path=/key/info stage=upstream reason=upstream_permission_denied upstream_status=403 status=403 credential_mode=virtual_key upstream_duration_ms=12.4 duration_ms=18.2 completed=true error_type=none
+```
+
+- `request_id` is returned as `X-Request-ID`, including on auth/provisioning/transport errors,
+  and forwarded to LiteLLM for proxied requests. Safe caller-supplied IDs are retained; others
+  are replaced with a UUID.
+- `stage` distinguishes `session_auth`, proxy readiness (`proxy`), `identity_sync`, `upstream`,
+  `upstream_stream`, and `downstream_stream`.
+- `upstream_status` preserves the original LiteLLM status; `status` is the response sent to the
+  CLI. Upstream 401 and 403 still become a sanitized 403; `upstream_authentication_failed` versus
+  `upstream_permission_denied` distinguishes them in diagnostics without invalidating the Axon session.
+- `credential_mode=virtual_key` means native user/team credentials; `configured_key` means
+  identity sync is disabled and the configured API key is used. `unresolved` means no key mode
+  was resolved. A 403 from `/key/info`, `/v2/user/info`, or `/mcp` should prompt inspection of
+  LiteLLM endpoint permissions, user/team/key policy, and MCP permissions—not a CLI login reset.
+- `upstream_duration_ms` measures the forwarded call to response headers (not identity provisioning);
+  `duration_ms` covers the full request, including auth, provisioning, and streaming. `completed=false`
+  distinguishes an interrupted stream even when HTTP 200 headers have already been sent.
+
+Diagnostics never include authorization headers, sessions, keys, query strings, bodies, email, or
+raw exception text/tracebacks. Only known static endpoint paths are logged; other paths become
+`<other>` so file IDs and arbitrary path content cannot leak. Exact upstream error bodies remain
+redacted because LiteLLM can include backend-only keys in them; use the correlated LiteLLM server
+logs for detailed policy denial reasons. If deployment logging is provided, enable INFO for the
+`app` namespace to see successful-request diagnostics.
 
 ## Serving the console frontend
 
@@ -64,7 +120,8 @@ Routing, in match order:
 | `/api/v1/*` | FastAPI routers |
 | `/install.sh` | Public, unauthenticated CLI installer |
 | `/api/v1/auth/browser-login` | Existing public browser-login start POST and GET polling at `/{session_id}` |
-| `/api/v1/cli/config` | Session-authenticated, non-secret CLI telemetry settings |
+| `/api/v1/cli/config` | Session-authenticated, non-secret telemetry, search, and Pi preferences |
+| `/litellm/*` | Session-authenticated LiteLLM proxy; streaming, native identity, and model authorization |
 | `/api/v1/otel/v1/{traces,metrics,logs}` | Session-authenticated OTLP/HTTP proxy with authoritative identity |
 | `/api/v1/cli/releases/*` | Public release discovery, hashes, and CloudFront downloads; private upload-signing POST |
 | `/ping` | FastAPI liveness route |
@@ -74,11 +131,39 @@ Routing, in match order:
 
 The mount is registered in `app/main.py` *after* the API routers, including `/install.sh`. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every registered route has been tried.
 
-`/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, then fetches `/<version>/checksums.txt` and `/<version>/ddcli-darwin-arm64.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
+`/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, then fetches `/<version>/checksums.txt` and `/<version>/axon-darwin-arm64.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
+
+### Web search
+
+Web search is implemented by the standalone Pi extension, not a separate backend search API.
+The backend publishes the non-secret `WEB_SEARCH` preferences through `/api/v1/cli/config`.
+The CLI pins the extension to its authenticated local relay, which forwards the completion through
+`/litellm/v1/chat/completions`. The backend authenticates the session and resolves the same native
+LiteLLM user/team key used for ordinary model calls. No provider or admin key is sent to Pi.
+
+Set `WEB_SEARCH.ENABLED=true` to register the tool on managed launches; the template defaults to false.
+`MODEL` defaults to `gemini-3.8-flash` and must name a search-capable LiteLLM alias.
+`ALLOWED_MODELS` supplies additional managed model preferences, not server-side permissions.
+All preferences are validated and projected to client config: timeout, query/result/token/source limits,
+`TEMPERATURE`, `THINKING_LEVEL`, `SEARCH_CONTEXT_SIZE`, `USE_URL_CONTEXT`, and `REQUIRE_GROUNDING`.
+The extension owns its system prompt, adds the current UTC date, requests `web_search_options`,
+parses raw provider grounding/citations, and returns token usage plus LiteLLM's response cost to Pi.
+
+`THINKING_LEVEL` accepts `"low"`, `"medium"`, or `"high"`; null leaves model reasoning unchanged.
+The extension sends it as LiteLLM `reasoning_effort`. `SEARCH_CONTEXT_SIZE` accepts the same levels;
+null sends `web_search_options: {}`. **Gemini ignores search context size in LiteLLM 1.104.0**,
+so it is an optional preference for providers that support it, not a Gemini search-depth control.
+`USE_URL_CONTEXT` adds the Gemini-specific URL-context tool. `REQUIRE_GROUNDING` defaults to true
+and rejects answers without citations or search queries. `MAX_OUTPUT_TOKENS` remains the model's
+thinking/output budget. The obsolete `SEARCH_TOOL` and token-based thinking settings are rejected.
+
+These settings configure the managed client and can be ignored by a modified client. LiteLLM must
+own actual model permissions, budgets, and rate limits. Routing and credentials are never distributed
+through search config. Restart the backend after editing `config.json`; relaunch Pi to receive changes.
 
 ### CLI client configuration
 
-`GET /api/v1/cli/config` requires `Authorization: Bearer <DeputyDev encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
+`GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 
 The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-based telemetry unchanged. To manage it centrally, configure an approved collector, for example:
 
@@ -106,15 +191,20 @@ The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-b
 }
 ```
 
-This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a DeputyDev credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
+This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a Axon credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
 
-Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved DeputyDev session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
+Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved Axon session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
 
-The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=deputydev_auth`, and `deputydev.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
+Clients that disconnect during a telemetry upload are treated as cancellations, not server errors:
+the incomplete batch is not forwarded, concurrency capacity is released, and an INFO line records
+`reason=client_disconnected` without a traceback or payload. The handler uses the conventional
+499 cancellation status; the disconnected client may not receive a response.
+
+The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=axon_auth`, and `axon.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
 
 `PROXY.UPSTREAM_URL` is a private collector base (optional path prefix), not a signal-specific URL. Its origin must be explicitly approved in `ALLOWED_TELEMETRY_ORIGINS`. HTTP is allowed for trusted private-network collectors; public CLI-to-backend traffic requires HTTPS except local development. `PROXY.HEADERS` stays server-side. Caller authorization/cookies/query parameters are never forwarded. Redirects are refused; OTLP response bodies/statuses/Retry-After are preserved. Gzip uploads are decoded with a bounded expansion limit; collector requests are sent as uncompressed protobuf. Wire/decoded payload, response, record-count, timeout, and concurrent-request limits are enforced. The per-user-team rate limit and concurrency limit are **per backend worker**; add ingress/global controls for multiple workers and unauthenticated abuse.
 
-Environment fallback retains standard HTTP/protobuf or gRPC exporters and environment-supplied headers/API keys. It never automatically attaches a DeputyDev session, and its Git-email/installation-UUID attribution remains unchanged. Collector access and retention must cover verified employee identity and private repository names.
+Environment fallback retains standard HTTP/protobuf or gRPC exporters and environment-supplied headers/API keys. It never automatically attaches a Axon session, and its Git-email/installation-UUID attribution remains unchanged. Collector access and retention must cover verified employee identity and private repository names.
 
 #### Pi startup defaults
 
@@ -127,8 +217,8 @@ The template enables codemode for managed Pi launches through:
 ```
 
 The config API projects this as `"pi": { "codemodeEnabled": true }`. Before launching Pi,
-`ddcli` merges `"+codemode"` into `$DEPUTYDEV_HOME/pi/settings.json` (normally
-`~/.deputydev/pi/settings.json`), preserving other tool choices, packages, and unrelated settings.
+`axon` merges `"+codemode"` into `$AXON_HOME/pi/settings.json` (normally
+`~/.axon/pi/settings.json`), preserving other tool choices, packages, and unrelated settings.
 It leaves `codemode.inlineBudget` unset, so Pi uses its default of 3000 unless the user has configured it.
 Standalone `~/.pi/agent/settings.json` is never modified.
 
@@ -152,9 +242,53 @@ picker with backend traces/logs. Backend and CLI metrics use `component` to avoi
 This does not automatically instrument every backend HTTP/DB operation. See
 [product telemetry](../cli/src/harnesses/pi/telemetry/docs/product-telemetry.md). Restart after changing config.
 
+### Storage architecture and S3 settings
+
+`app/clients/s3.py` owns reusable SDK transport operations and connection cleanup;
+`app/clients/cloudfront.py` signs download URLs locally with a key parsed once per signer.
+`app/listeners/storage.py` initializes separate release and session S3 clients/services for each
+application worker and closes their pools on shutdown or failed startup. Services receive injected
+clients, so tests and standalone tools do not need to patch SDK construction. Session-only bucket
+safety checks and bounded payload validation live in `services/sessions/bucket_policy.py` and
+`services/sessions/integrity.py`; they are not generic S3 defaults.
+
+Session backups are enabled **only** by `"ENABLED": true` inside `SESSION_BACKUPS` in backend `config.json` (omitted/`false` disables them). `SESSION_BACKUPS.ENABLED` accepts only JSON booleans; strings, numbers, and null are rejected. Environment variables cannot override this policy. Configure private storage first and restart after changing the flag. Managed Pi clients follow the authenticated backend policy automatically; users cannot enable, disable, or pause backups through the CLI or Pi. Notify users that enabled backups include complete sensitive session transcripts.
+
+Both `CLI_RELEASES` and `SESSION_BACKUPS` use the same nested `S3` configuration:
+
+```json
+"S3": {
+  "BUCKET": "your-private-bucket",
+  "REGION": "ap-south-1",
+  "ENDPOINT_URL": null,
+  "CREDENTIALS": {},
+  "CONNECT_TIMEOUT_SECONDS": 5,
+  "READ_TIMEOUT_SECONDS": 10,
+  "MAX_RETRIES": 1
+}
+```
+
+`CREDENTIALS: {}` uses the AWS default credential chain, preferably short-lived role credentials.
+For a separately credentialed bucket, private JSON can supply paired `ACCESS_KEY_ID` and
+`SECRET_ACCESS_KEY`, plus an optional `SESSION_TOKEN`, inside `S3.CREDENTIALS`. `ENDPOINT_URL` is
+optional and must be an HTTPS origin without credentials, query, fragment or path. Timeout values
+are integers from 1–300 seconds. `MAX_RETRIES` is 0–10 **additional** attempts; `null` keeps SDK/environment
+retry defaults. The template preserves release defaults of 60/60 seconds and SDK retries, versus
+session defaults of 5/10 seconds and one retry. `KEY_PREFIX`, URL lifetimes and safety settings stay
+at feature level. Neither section inherits the other section’s credentials or bucket policy.
+
+**Migrating an existing private config:** move release `BUCKET`/`REGION` into `CLI_RELEASES.S3`.
+For sessions, move `AWS_BUCKET_NAME`/`AWS_REGION` into `SESSION_BACKUPS.S3` as `BUCKET`/`REGION`;
+move credential keys into `S3.CREDENTIALS` and any former `CREDENTIALS.ENDPOINT_URL` into
+`S3.ENDPOINT_URL`. The old layout is not accepted for enabled storage. Leave real credentials in
+the ignored `config.json`, not the template, and restart after changes.
+
+See [session storage and reconciliation](../../docs/session-backup-and-restore.md#6-private-object-storage-configuration)
+for private/create-only bucket requirements and operator tools.
+
 ### CLI releases (macOS arm64 only)
 
-Copy the `CLI_RELEASES` section from `config_template.json` into the ignored `config.json`. The checked-in example is **disabled**, with placeholder bucket, signing credentials, and hashes. Set a private S3 `BUCKET`, `REGION`, an immutable `KEY_PREFIX`, a random `UPLOAD_AUTH_KEY` of at least 32 characters, CloudFront `DISTRIBUTION_URL`, trusted `KEY_PAIR_ID` and RSA `PRIVATE_KEY` (PEM with newlines represented as JSON `\\n`). Supply each version's `s3_key`, compressed `archive_sha256`, and decompressed `binary_sha256` under `VERSIONS`, with `LATEST_VERSION` referencing an already published version (leave it empty while staging the very first release; public `latest` returns 503 until promotion). Set `ENABLED` to `true` only after real values are provided. The server validates enabled settings at startup. Settings are cached: **restart the backend** after staging a version or promoting `LATEST_VERSION`.
+Copy the `CLI_RELEASES` section from `config_template.json` into the ignored `config.json`. The checked-in example is **disabled**, with placeholder bucket, signing credentials, and hashes. Set a private `S3.BUCKET`, `S3.REGION`, an immutable `KEY_PREFIX`, a random `UPLOAD_AUTH_KEY` of at least 32 characters, CloudFront `DISTRIBUTION_URL`, trusted `KEY_PAIR_ID` and RSA `PRIVATE_KEY` (PEM with newlines represented as JSON `\\n`). Supply each version's `s3_key`, compressed `archive_sha256`, and decompressed `binary_sha256` under `VERSIONS`, with `LATEST_VERSION` referencing an already published version (leave it empty while staging the very first release; public `latest` returns 503 until promotion). Set `ENABLED` to `true` only after real values are provided. The server validates enabled settings at startup. Settings are cached: **restart the backend** after staging a version or promoting `LATEST_VERSION`.
 
 The private bucket should permit origin reads only through CloudFront Origin Access Control, and allow backend role `s3:PutObject` for the dedicated `cli/releases/` prefix (plus `s3:GetObject` only if internal direct GET signing is required). Enable bucket versioning / protect published keys against deletion. Allow the CloudFront trusted key group to verify signed URLs. Use short-lived AWS role credentials (default AWS credential chain); do **not** put AWS access keys, the upload secret, or the CloudFront private key into `install.sh`, checked-in config, frontend assets, or CLI builds. Anyone who can reach the public endpoint can obtain a short-lived download URL; the upload signer is secret-protected.
 
@@ -180,7 +314,7 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=deputydev-console-backend -t deputydev-console-backend .
+DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend .
 ```
 
 Or `bun run build:backend-image` from the repository root.

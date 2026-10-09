@@ -11,7 +11,8 @@ import httpx
 import pytest
 
 from app.clients.auth_service import AuthenticatedUser
-from app.clients.litellm import LiteLLMIdentityClient, LiteLLMIdentityError
+from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
+from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
 
 
@@ -63,6 +64,8 @@ class IdentityAPI:
         self.requests: list[httpx.Request] = []
         self.attach_teams_on_user_create = True
         self.persist_membership = True
+        self.persist_key_update = True
+        self.key_update_status = 200
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -90,10 +93,25 @@ class IdentityAPI:
             if self.persist_membership:
                 self.teams[payload["team_id"]]["members_with_roles"].append(deepcopy(payload["member"]))
         elif path == "/key/generate":
-            key_hash = hashlib.sha256(payload["key"].encode()).hexdigest()
-            self.keys[key_hash] = deepcopy(payload)
+            self._generate_key(payload)
+        elif path == "/key/update":
+            return self._update_key(payload)
         else:
             raise AssertionError(f"Unexpected management write: {path}")
+        return httpx.Response(200, json={})
+
+    def _generate_key(self, payload: dict[str, Any]) -> None:
+        key_hash = hashlib.sha256(payload["key"].encode()).hexdigest()
+        self.keys[key_hash] = deepcopy(payload)
+        # Stock LiteLLM's llm_api preset overrides any explicit route list.
+        if payload.get("key_type") == "llm_api":
+            self.keys[key_hash]["allowed_routes"] = ["llm_api_routes"]
+
+    def _update_key(self, payload: dict[str, Any]) -> httpx.Response:
+        if self.key_update_status != 200:
+            return httpx.Response(self.key_update_status, json={"error": "rejected"})
+        if self.persist_key_update:
+            self.keys[payload["key"]].update({name: value for name, value in payload.items() if name != "key"})
         return httpx.Response(200, json={})
 
     def posted(self, path: str) -> list[dict[str, Any]]:
@@ -106,7 +124,7 @@ class IdentityAPI:
 
 async def provision(settings: LiteLLMSettings, user: AuthenticatedUser, api: IdentityAPI) -> str:
     async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-        return await LiteLLMIdentityClient(settings, client).ensure_identity(user)
+        return await LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client)).authenticated_key(user)
 
 
 @pytest.mark.parametrize("role", ["user", "admin"])
@@ -131,8 +149,10 @@ def test_new_user_joins_configured_team_without_budgets(
     assert generated["key"] == key
     assert generated["user_id"] == "12"
     assert generated["team_id"] == settings.team_id
-    assert generated["key_type"] == "llm_api"
-    assert generated["metadata"]["deputydev_team_id"] == "7"
+    assert generated["key_type"] == "default"
+    assert generated["allowed_routes"] == ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]
+    assert not api.posted("/key/update")
+    assert generated["metadata"]["axon_team_id"] == "7"
     assert "max_budget" not in generated
     original_team["members_with_roles"] = [{"user_id": "12", "role": role}]
     assert api.teams[settings.team_id] == original_team
@@ -165,7 +185,7 @@ def test_existing_membership_and_key_policy_are_preserved(settings: LiteLLMSetti
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, client)
+            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
             key = identity._virtual_key("12", settings.team_id)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             stored_key = {"user_id": "12", "team_id": settings.team_id, "max_budget": 5, "models": ["custom"]}
@@ -195,7 +215,7 @@ def test_invalid_configured_team_fails_before_creating_user_or_key(
     assert all(request.method == "GET" for request in api.requests)
 
 
-def test_blank_team_id_retains_deputydev_team_provisioning(settings: LiteLLMSettings, user: AuthenticatedUser) -> None:
+def test_blank_team_id_retains_axon_team_provisioning(settings: LiteLLMSettings, user: AuthenticatedUser) -> None:
     api = IdentityAPI()
     asyncio.run(provision(replace(settings, team_id="", team_role="admin"), user, api))
     assert "teams" not in api.posted("/user/new")[0]
@@ -242,7 +262,7 @@ def test_disabled_existing_key_is_not_replaced(settings: LiteLLMSettings, user: 
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, client)
+            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
             key = identity._virtual_key("12", settings.team_id)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = {
                 "user_id": "12",
@@ -262,10 +282,19 @@ def test_same_identity_reuses_cached_key(settings: LiteLLMSettings, user: Authen
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, client)
+            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
             key = await identity.ensure_identity(user)
             count = len(api.requests)
             assert await identity.ensure_identity(user) == key
             assert len(api.requests) == count
 
     asyncio.run(run())
+
+
+def test_sync_disabled_uses_configured_key_without_management_requests(
+    settings: LiteLLMSettings, user: AuthenticatedUser
+) -> None:
+    api = IdentityAPI()
+    disabled = replace(settings, identity_sync_enabled=False)
+    assert asyncio.run(provision(disabled, user, api)) == settings.api_key
+    assert not api.requests

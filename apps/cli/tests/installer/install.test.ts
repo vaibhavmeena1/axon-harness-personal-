@@ -40,14 +40,14 @@ async function writeExecutable(path: string, contents: string): Promise<void> {
 }
 
 async function createFixture(options: FixtureOptions = {}): Promise<InstallerFixture> {
-  const root = await mkdtemp(join(tmpdir(), "ddcli-installer-"));
+  const root = await mkdtemp(join(tmpdir(), "axon-installer-"));
   fixtureRoots.push(root);
   const releaseVersion = options.releaseVersion ?? "0.1.0";
   const releaseDirectory = join(root, "release");
   const exactReleaseDirectory = join(releaseDirectory, releaseVersion);
   const mockBin = join(root, "mock-bin");
   const home = join(root, "home");
-  const managedHome = join(home, ".deputydev");
+  const managedHome = join(home, ".axon");
   const requestLog = join(root, "requests.log");
   await Promise.all([
     mkdir(exactReleaseDirectory, { recursive: true }),
@@ -64,11 +64,11 @@ async function createFixture(options: FixtureOptions = {}): Promise<InstallerFix
     : Bun.gzipSync(binaryBytes);
   const checksums =
     options.checksums ??
-    `${sha256(archiveBytes)}  ddcli-darwin-arm64.gz\n${sha256(binaryBytes)}  ddcli-darwin-arm64\n`;
+    `${sha256(archiveBytes)}  axon-darwin-arm64.gz\n${sha256(binaryBytes)}  axon-darwin-arm64\n`;
 
   await Promise.all([
     Bun.write(join(releaseDirectory, "VERSION"), `${releaseVersion}\n`),
-    Bun.write(join(exactReleaseDirectory, "ddcli-darwin-arm64.gz"), archiveBytes),
+    Bun.write(join(exactReleaseDirectory, "axon-darwin-arm64.gz"), archiveBytes),
     Bun.write(join(exactReleaseDirectory, "checksums.txt"), checksums),
     Bun.write(requestLog, ""),
   ]);
@@ -138,7 +138,7 @@ async function runInstaller(
       HOME: fixture.home,
       PATH: `${fixture.mockBin}:/usr/bin:/bin:/usr/sbin:/sbin`,
       container: "",
-      _DDCLI_RELEASES_URL: releasesUrl,
+      _AXON_RELEASES_URL: releasesUrl,
       MOCK_RELEASES_URL: releasesUrl,
       MOCK_RELEASE_DIR: fixture.releaseDirectory,
       MOCK_RELEASE_VERSION: fixture.releaseVersion,
@@ -226,15 +226,15 @@ describe("install.sh verified installation", () => {
   test("downloads from one exact release and installs without sudo", async () => {
     const fixture = await createFixture();
     const result = await runInstaller(fixture);
-    const installedPath = join(fixture.managedHome, "bin", "ddcli");
+    const installedPath = join(fixture.managedHome, "bin", "axon");
     const requests = await Bun.file(fixture.requestLog).text();
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(`Installed ddcli 0.1.0 at ${installedPath}`);
+    expect(result.stdout).toContain(`Installed axon 0.1.0 at ${installedPath}`);
     expect(await Bun.file(installedPath).text()).toContain("0.1.0");
     expect(requests).toContain("/latest/VERSION");
     expect(requests).toContain("/0.1.0/checksums.txt");
-    expect(requests).toContain("/0.1.0/ddcli-darwin-arm64.gz");
+    expect(requests).toContain("/0.1.0/axon-darwin-arm64.gz");
     expect(requests).not.toContain("/latest/checksums.txt");
   });
 
@@ -248,7 +248,7 @@ describe("install.sh verified installation", () => {
 
   test("rejects a compressed hash mismatch", async () => {
     const fixture = await createFixture({
-      checksums: `${"0".repeat(64)}  ddcli-darwin-arm64.gz\n${"1".repeat(64)}  ddcli-darwin-arm64\n`,
+      checksums: `${"0".repeat(64)}  axon-darwin-arm64.gz\n${"1".repeat(64)}  axon-darwin-arm64\n`,
     });
     const result = await runInstaller(fixture);
 
@@ -275,30 +275,30 @@ describe("install.sh verified installation", () => {
   test("preserves an existing installation and atomically replaces it", async () => {
     const fixture = await createFixture();
     const binDirectory = join(fixture.managedHome, "bin");
-    const installedPath = join(binDirectory, "ddcli");
+    const installedPath = join(binDirectory, "axon");
     await mkdir(binDirectory, { recursive: true });
     await Bun.write(installedPath, "old installation\n");
     await chmod(installedPath, 0o755);
 
     const result = await runInstaller(fixture);
     const temporaryFiles = (await readdir(binDirectory)).filter((name) =>
-      name.startsWith(".ddcli-"),
+      name.startsWith(".axon-"),
     );
 
     expect(result.exitCode).toBe(0);
-    expect(await Bun.file(join(binDirectory, "ddcli.prev")).text()).toBe("old installation\n");
+    expect(await Bun.file(join(binDirectory, "axon.prev")).text()).toBe("old installation\n");
     expect(await Bun.file(installedPath).text()).toContain("0.1.0");
     expect(temporaryFiles).toEqual([]);
   });
 
-  test("honors DEPUTYDEV_HOME", async () => {
+  test("honors AXON_HOME", async () => {
     const fixture = await createFixture();
-    const customHome = join(fixture.root, "custom deputydev home");
-    const result = await runInstaller(fixture, { DEPUTYDEV_HOME: customHome });
+    const customHome = join(fixture.root, "custom axon home");
+    const result = await runInstaller(fixture, { AXON_HOME: customHome });
 
     expect(result.exitCode).toBe(0);
-    expect(await Bun.file(join(customHome, "bin", "ddcli")).exists()).toBe(true);
-    expect(await Bun.file(join(fixture.managedHome, "bin", "ddcli")).exists()).toBe(false);
+    expect(await Bun.file(join(customHome, "bin", "axon")).exists()).toBe(true);
+    expect(await Bun.file(join(fixture.managedHome, "bin", "axon")).exists()).toBe(false);
   });
 
   test("prints an exact PATH instruction when the managed bin is absent", async () => {
@@ -308,6 +308,6 @@ describe("install.sh verified installation", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain(`${fixture.managedHome}/bin is not on PATH`);
     expect(result.stdout).toContain(`export PATH="${fixture.managedHome}/bin:$PATH"`);
-    expect(result.stdout).toContain("After updating PATH, run: ddcli doctor");
+    expect(result.stdout).toContain("After updating PATH, run: axon doctor");
   });
 });

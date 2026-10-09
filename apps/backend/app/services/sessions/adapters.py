@@ -63,6 +63,22 @@ def validate_entry_payload(entry: dict) -> None:
         raise InvalidSessionError("Invalid Pi message content")
 
 
+def user_message_text(message: dict) -> str | None:
+    if message["role"] != "user":
+        return None
+    content = message["content"]
+    text = (
+        content
+        if isinstance(content, str)
+        else " ".join(
+            block["text"]
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str)
+        )
+    )
+    return normalize_display_name(text)
+
+
 def validate_pi(source: BinaryIO, native_id: str | None, metadata: dict[str, object]) -> str | None:
     pi_resume(metadata)
     items = records(source)
@@ -80,6 +96,7 @@ def validate_pi(source: BinaryIO, native_id: str | None, metadata: dict[str, obj
     ):
         raise InvalidSessionError("Invalid Pi header or native identity")
     display_name = None
+    first_message = None
     ids: set[str] = set()
     references: list[str] = []
     types = {
@@ -108,6 +125,8 @@ def validate_pi(source: BinaryIO, native_id: str | None, metadata: dict[str, obj
         ):
             raise InvalidSessionError("Invalid Pi entry tree")
         validate_entry_payload(entry)
+        if first_message is None and entry["type"] == "message":
+            first_message = user_message_text(entry["message"])
         if entry["type"] == "session_info":
             display_name = normalize_display_name(entry["name"])
         if entry["type"] == "compaction":
@@ -119,7 +138,8 @@ def validate_pi(source: BinaryIO, native_id: str | None, metadata: dict[str, obj
         raise InvalidSessionError("Empty Pi session or invalid compaction reference")
     if metadata["leaf_known"] and metadata["selected_leaf_id"] is not None and metadata["selected_leaf_id"] not in ids:
         raise InvalidSessionError("Selected leaf is absent from Pi snapshot")
-    return display_name
+    # File order keeps the first-message fallback stable as the tree grows.
+    return display_name or first_message
 
 
 class Adapter:
