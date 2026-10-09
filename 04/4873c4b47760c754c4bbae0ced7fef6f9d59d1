@@ -1,0 +1,135 @@
+apps/backend/app/routers/model_recommendations.py
+  s_009e5e54abe68d::t_c0d2340675df86 60
+apps/cli/src/harnesses/pi/resources/themes/axon-dark.json
+  s_009e5e54abe68d::t_9fe6f3497e5e06 2-82
+  s_009e5e54abe68d::t_93551bab6f2de7 1,83
+apps/backend/app/services/model_recommendation/dependencies.py
+  s_009e5e54abe68d::t_c0d2340675df86 7-8,13,15-16
+apps/backend/app/core/config.py
+  s_a85b54de46636d::t_e787197d280cbe 9
+  s_a85b54de46636d::t_d75b5486acb1f5 95,486
+apps/backend/tests/test_migration_loader.py
+  s_a85b54de46636d::t_0b63eee423cbbd 1-45
+apps/cli/src/harnesses/pi/adapter.ts
+  s_009e5e54abe68d::t_9fe6f3497e5e06 20
+  s_009e5e54abe68d::t_90e97475cea838 159-162,165
+apps/cli/src/harnesses/pi/resources/themes/axon-light.json
+  s_009e5e54abe68d::t_93551bab6f2de7 1,83
+  s_009e5e54abe68d::t_9fe6f3497e5e06 2-82
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_009e5e54abe68d::t_ea1d72789ce167 1,25-44,46-57,60-64,68,71,73,75-147,149-155,157-165,167-181,195,197-198,201-202,204,206-207,209-215,217,219-222,224,226,234
+  s_009e5e54abe68d::t_45520c5b8c63a1 156,166
+  s_009e5e54abe68d::t_4794a64e193455 196,199-200,203,208,216,227-232,411
+  s_009e5e54abe68d::t_069cbb8803b284 192-194,218,223,233,235
+  s_009e5e54abe68d::t_5aaf778513a73d 45,148
+apps/backend/app/listeners/litellm.py
+  s_009e5e54abe68d::t_c0d2340675df86 7-12,21,26,29,41
+package.json
+  s_a85b54de46636d::t_3602e357cd01f8 28
+apps/cli/src/product/manifest.ts
+  s_009e5e54abe68d::t_86e9acd7b45601 18-23,66-77,80,106-107,142-149
+apps/backend/app/models/session_backup.py
+  s_a85b54de46636d::t_f718626736823e 4
+docs/session-backup-and-restore.md
+  s_a85b54de46636d::t_ded70ede29396f 174,183,339
+apps/backend/tests/test_build_backend_image.py
+  s_a85b54de46636d::t_e50c556b9e23d1 1-71
+apps/backend/README.md
+  s_a85b54de46636d::t_09ff999d1db7eb 340,343-347,357-368
+  s_a85b54de46636d::t_fda04977a36768 369
+  s_a85b54de46636d::t_c95ef7acefe39c 31,233-254
+apps/cli/tests/launcher.test.ts
+  s_009e5e54abe68d::t_021f31137c025b 339-343
+apps/cli/tests/axon-theme.test.ts
+  s_009e5e54abe68d::t_47e3cf998d6566 20
+  s_009e5e54abe68d::t_f8ec59b741d0cb 1-19,21-118
+apps/cli/tests/pi-package-setup.test.ts
+  s_009e5e54abe68d::t_558421f5af37a4 710-711,713
+apps/backend/tests/test_litellm_transport.py
+  s_c91f5c60c70741::t_cad630445566dd 41-85
+apps/backend/deployment/run_migrations.sh
+  s_a85b54de46636d::t_257258e6e0fda2 5
+apps/backend/app/clients/litellm/transport.py
+  s_c91f5c60c70741::t_26a953c5d5c7b2 5,12-17,20-25,27,54-55
+  s_c91f5c60c70741::t_5b6e32f2bbb563 18-19
+  s_c91f5c60c70741::t_79b19f0890e1c5 72
+apps/cli/tests/axon-header.test.ts
+  s_009e5e54abe68d::t_71abaf4467635d 241
+  s_009e5e54abe68d::t_1f81368b77ece2 3,51,72,81,83,85,87,101-102,105,107-114,122-130,145-165,172,186,189,201,204-209,211-214,222-225,233-240,242,248,254,262,288,292-296,299,308,325-326,332,334-335,341-343,348-354,357,367
+  s_009e5e54abe68d::t_9b286750e33730 79-80,96-100,210,221,232,243-244,249-253,297-298,300
+  s_009e5e54abe68d::t_af17a4627ff540 255
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_009e5e54abe68d::t_90e97475cea838 1,5,8-10,46-65
+  s_e9ef40d4d83ebf::t_dc4e0d772900fd 66
+apps/backend/tests/test_session_database.py
+  s_a85b54de46636d::t_5484ec49f1acf3 24,126-127,130-132,134,138-177
+Dockerfile
+  s_a85b54de46636d::t_142d6f575c4e97 1-2,4-6,17-21,51-52,58-60,63,75-76,82-84,90
+apps/backend/app/proxies/litellm.py
+  s_c91f5c60c70741::t_2b37de4036c096 21,71,363-373,401
+  s_c91f5c60c70741::t_8710cb7b0d52d6 374-394
+apps/backend/tests/test_litellm_lifecycle.py
+  s_009e5e54abe68d::t_c0d2340675df86 41-42,48,63-64,68-69,71,73-75
+apps/backend/tests/test_product_telemetry.py
+  s_009e5e54abe68d::t_c0d2340675df86 51,86
+apps/backend/app/clients/litellm/dependencies.py
+  s_009e5e54abe68d::t_c0d2340675df86 1-5,9-17
+apps/backend/app/services/model_recommendation/service.py
+  s_009e5e54abe68d::t_c0d2340675df86 3,26-27,40,44
+scripts/build-backend-image.sh
+  s_a85b54de46636d::t_ddd4f24c8773b4 1-22
+apps/backend/deployment/run_migrations.py
+  s_a85b54de46636d::t_9f20a072a97bc5 1,3-6,9-10,16,19-23,26-90,92-102
+apps/backend/tests/test_litellm_streaming.py
+  s_c91f5c60c70741::t_5015dedb061040 7,236
+  s_c91f5c60c70741::t_e77480d6bf44e6 209-235,237-258
+apps/backend/app/clients/litellm/decisions.py
+  s_009e5e54abe68d::t_84f559bb452696 1,3,8-9,11,14-15,18-19,21-23,25-26,28,31,33-42,46,48
+apps/backend/config_template.json
+  s_009e5e54abe68d::t_c8208e43fa44d2 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "044873c4b47760c754c4bbae0ced7fef6f9d59d1",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_009e5e54abe68d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47661eab-ce1f-498a-84eb-22f9990d7693",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_a85b54de46636d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a12077-e654-7231-ad05-6c6c53988b39",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_c91f5c60c70741": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a12081-b7c8-72bb-bccb-511d4864739c",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_e9ef40d4d83ebf": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a12083-e5d6-72c5-8441-017ccb4193c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}

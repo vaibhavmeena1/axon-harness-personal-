@@ -1,0 +1,127 @@
+apps/backend/config_template.json
+  s_75797ee41aca08::t_c4e0a12e6ce5e1 106,108
+  s_3391fe79893a45::t_0f7b12bbeaaa75 107
+apps/cli/tests/auth-telemetry.test.ts
+  s_d411b51809292f::t_a81a4d32a5cba9 48-98
+apps/backend/tests/test_litellm_lifecycle.py
+  s_3391fe79893a45::t_62ab66be6e680c 30,40-42,59-60,69
+apps/backend/tests/test_product_telemetry.py
+  s_dbb9ee43946f08::t_ea2859d41cff39 5,17,26,55-56,88-90,93-95,106-107
+apps/backend/app/services/model_recommendation/dependencies.py
+  s_dbb9ee43946f08::t_0613cca2f32276 5,10-11,15-19,22-27,30,32-33
+  s_75797ee41aca08::t_4e635f9472da30 7-8,20-21
+apps/cli/src/cli/auth/request-relay.ts
+  s_75797ee41aca08::t_97b51a1294b739 8,75-76,79-81,83-84,89-133,146-172,236,240-243,266,279-280
+  s_d411b51809292f::t_af3005b0c8c0a1 9,77-78,82,85-88,134-145,173-176,180,203,262,267-271,273,304,319,328
+apps/backend/app/clients/litellm/identity.py
+  s_dbb9ee43946f08::t_d3d52cf5f02fbd 20,24
+apps/backend/app/listeners/litellm.py
+  s_3391fe79893a45::t_4b2af76ce6e48c 21,37
+apps/backend/tests/test_litellm_pool_isolation.py
+  s_3391fe79893a45::t_d29b1bb8561b28 1-209
+apps/backend/app/clients/litellm/decisions.py
+  s_3391fe79893a45::t_ac601b2d8438aa 22
+  s_dbb9ee43946f08::t_f38b1b12e3c8e1 31,35-36
+  s_75797ee41aca08::t_363d972600a67e 3-4,14,27-29,38-57
+apps/backend/app/core/config.py
+  s_75797ee41aca08::t_c4e0a12e6ce5e1 96-97,490,515,544-546
+  s_3391fe79893a45::t_d0c0decd152995 98,516
+apps/backend/tests/test_litellm_decisions.py
+  s_dbb9ee43946f08::t_f8b6a0b893c360 6,98-104,106-116,339-343,398-442,444-461,465-479
+  s_75797ee41aca08::t_72f34f7db0ac4e 236-239
+  s_dbb9ee43946f08::t_aa9610b4bece22 443
+  s_dbb9ee43946f08::t_9e2cdfa8c53be1 14,17,24,38,80,91,132-134,152-154,172-174,256-258,282-292,299-300,308,313-328,331,351-354,367-374
+  s_3391fe79893a45::t_aef359ff27b0eb 67
+  s_3391fe79893a45::t_27e95b0f12e814 77,105,129,149,169,253,329
+  s_75797ee41aca08::t_0d2bb45c8057d1 183-235,240-246
+  s_dbb9ee43946f08::t_e7960c72274d6c 462-464
+  s_75797ee41aca08::t_0d495d2c319971 480-482
+apps/backend/app/clients/litellm/transport.py
+  s_3391fe79893a45::t_7f9209623db10d 1,27,29-30,33-39,41-46,50,59-72,94,119,124-128
+apps/backend/tests/test_litellm_transport.py
+  s_3391fe79893a45::t_21004baede77a4 95
+  s_3391fe79893a45::t_8e7b2017031916 137-143
+apps/backend/tests/test_litellm_proxy.py
+  s_75797ee41aca08::t_17bbe7b81c1944 63-65
+  s_3391fe79893a45::t_705d6942de6270 39-52,56-62,66-71,83-84
+  s_75797ee41aca08::t_6fb58d1b2d863d 38,53,55,72-82
+  s_75797ee41aca08::t_17fef2885d84d7 54
+apps/cli/tests/request-relay.test.ts
+  s_75797ee41aca08::t_ab28271e8fe4c8 258-345
+  s_d411b51809292f::t_450ab60582626a 1-257
+apps/backend/app/clients/litellm/dependencies.py
+  s_dbb9ee43946f08::t_230fa026ddecc8 6,13-18
+  s_dbb9ee43946f08::t_4d761c9fe90175 19-20
+apps/cli/src/cli/auth/session-recovery.ts
+  s_d411b51809292f::t_59812e0bdd0f50 6,22,41-54,59,93,96,127
+apps/cli/README.md
+  s_d411b51809292f::t_99186681d3a141 124-126,130
+  s_75797ee41aca08::t_b4b4da9a38e141 127-129
+apps/cli/tests/web-search-relay.test.ts
+  s_d411b51809292f::t_78379777f2b8d0 79-82
+apps/backend/tests/test_litellm_metadata_routes.py
+  s_3391fe79893a45::t_3015063c3852e7 59-61,76-78,96-98,142-144,173
+  s_dbb9ee43946f08::t_e7cc7c1f9bac65 24,44-51
+apps/cli/src/cli/auth/wait-for-auth.ts
+  s_d411b51809292f::t_e9ac424a4a8cd1 1-14
+apps/backend/tests/test_litellm_identity.py
+  s_dbb9ee43946f08::t_8a7be6ac6aa50b 155
+  s_3391fe79893a45::t_be9a10e05b7227 127-129,190-192,269-271,291-293
+apps/backend/README.md
+  s_75797ee41aca08::t_91473f13374253 32,34,50-52,56,58-59
+  s_dbb9ee43946f08::t_de5e23b31cbc98 77,79,87-89,264-273
+  s_3391fe79893a45::t_0d830682500b8d 49,53-54
+  s_3391fe79893a45::t_f35ca22cb67a18 33,45-48,55,57,60-62,263
+apps/backend/app/routers/model_recommendations.py
+  s_dbb9ee43946f08::t_f6cec47adbd4b8 9-10,19,38,63-67,71
+  s_dbb9ee43946f08::t_3dff37b1901b24 68-70
+apps/backend/app/services/model_recommendation/service.py
+  s_dbb9ee43946f08::t_3b8414fe45c282 3,5,28,30,37-38,45-51
+apps/backend/app/authentication.py
+  s_75797ee41aca08::t_4e635f9472da30 44-45,50,52-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "f0af2ccfb5940344d882549ad4a14c59ee9e6dcf",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_3391fe79893a45": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a12096-dda6-7275-a2dc-a30e11c4f4c3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_75797ee41aca08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1caa098-ee53-4a94-8038-895545247a8d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_d411b51809292f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a12093-b370-752d-b2aa-a32ae2c9aaaf",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_dbb9ee43946f08": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1208f-2121-75fe-8b4f-250e3a34f3a4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
