@@ -107,11 +107,11 @@ async function summarize(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
   config: CompactionConfig,
+  model: SummaryModel,
   preparation: CompactionPreparation,
   signal: AbortSignal,
   customInstructions?: string,
 ) {
-  const model = summaryModel(ctx, config);
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs ?? 120_000)]);
   // Pi's extractor skips file metadata from hook-provided compactions. Restore
   // it explicitly so repeated custom summaries keep tracking previous files.
@@ -168,7 +168,11 @@ async function summarize(
     },
     undefined,
     SettingsManager.inMemory(pi.getSettings()).getRetrySettings(),
-  );
+  ).catch((error: unknown) => {
+    // Providers may wrap an abort in a generic error. Preserve our actual timeout/cancellation.
+    requestSignal.throwIfAborted();
+    throw error;
+  });
   requestSignal.throwIfAborted();
   return result;
 }
@@ -179,7 +183,19 @@ export default function compactionExtension(pi: ExtensionAPI): void {
   let lastFailureAt = 0;
   let lastRequestedLeaf: string | null | undefined;
   let lastOutcome: "completed" | "aborted" | "error" | undefined;
+  let summaryOutcome: "success" | "failed" | "skipped" | "cancelled" | undefined;
+  let summaryReason: string | undefined;
   const warnings = new Set<string>();
+
+  // Match the recommender's content-free product-event contract. Never send summaries,
+  // custom instructions, file metadata, credentials, or raw exception text.
+  const emit = (stage: string, outcome: string, details: Record<string, unknown> = {}): void => {
+    try {
+      pi.events.emit("axon:telemetry", { category: "compaction", stage, outcome, ...details });
+    } catch {
+      /* Observability must never affect compaction or native history retention. */
+    }
+  };
 
   const warn = (ctx: ExtensionContext, message: string) => {
     if (warnings.has(message)) return;
@@ -202,6 +218,8 @@ export default function compactionExtension(pi: ExtensionAPI): void {
     lastFailureAt = 0;
     lastRequestedLeaf = undefined;
     lastOutcome = undefined;
+    summaryOutcome = undefined;
+    summaryReason = undefined;
     warnings.clear();
   });
 
@@ -210,37 +228,75 @@ export default function compactionExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_before_compact", async (event, ctx) => {
+    const trigger =
+      thresholdRequestPending && event.reason === "manual" ? "extension_threshold" : event.reason;
+    const startedAt = Date.now();
+    let modelId: string | undefined;
+    summaryOutcome = undefined;
+    summaryReason = undefined;
+    const finish = (
+      outcome: "success" | "failed" | "skipped" | "cancelled",
+      reason?: string,
+    ): void => {
+      summaryOutcome = outcome;
+      summaryReason = reason;
+      emit("summarize", outcome, {
+        trigger,
+        reason,
+        model: modelId,
+        durationMs: Date.now() - startedAt,
+      });
+    };
     const config = configFor(ctx);
     // Fail closed: invalid overrides must not silently use an unintended model.
-    if (!config) return { cancel: true };
+    if (!config) {
+      finish("failed", "validation");
+      return { cancel: true };
+    }
     if (!hasOverrides(config)) return;
     if (
       event.reason === "threshold" &&
       config.thresholdTokens !== undefined &&
       event.preparation.tokensBefore < config.thresholdTokens
     ) {
+      finish("skipped", "below_threshold");
       return { cancel: true };
     }
-    if (
-      summarizing ||
-      (event.reason === "threshold" && Date.now() - lastFailureAt < FAILURE_COOLDOWN_MS)
-    ) {
+    if (summarizing) {
+      finish("skipped", "busy");
+      return { cancel: true };
+    }
+    if (event.reason === "threshold" && Date.now() - lastFailureAt < FAILURE_COOLDOWN_MS) {
+      finish("skipped", "cooldown");
       return { cancel: true };
     }
     summarizing = true;
     try {
-      return {
-        compaction: await summarize(
-          pi,
-          ctx,
-          config,
-          event.preparation,
-          event.signal,
-          event.customInstructions,
-        ),
-      };
-    } catch {
+      const model = summaryModel(ctx, config);
+      modelId = `${model.provider}/${model.id}`;
+      emit("summarize", "pending", { trigger, model: modelId });
+      const compaction = await summarize(
+        pi,
+        ctx,
+        config,
+        model,
+        event.preparation,
+        event.signal,
+        event.customInstructions,
+      );
+      // Native session_compact remains authoritative for durable completion and usage.
+      finish("success");
+      return { compaction };
+    } catch (error: unknown) {
       lastFailureAt = Date.now();
+      finish(
+        event.signal.aborted ? "cancelled" : "failed",
+        event.signal.aborted
+          ? "cancelled"
+          : error instanceof Error && error.name === "TimeoutError"
+            ? "timeout"
+            : "unavailable",
+      );
       if (!event.signal.aborted) {
         warn(
           ctx,
@@ -280,22 +336,42 @@ export default function compactionExtension(pi: ExtensionAPI): void {
     // Only await callbacks after isIdle(): awaiting during a tool/agent run would
     // deadlock its abort. Waiting here lets print/JSON sessions persist before exit.
     // Pi labels extension-requested compaction as manual, even for this trigger.
+    // Publish the marker before requesting it so telemetry can distinguish automation.
+    const startedAt = Date.now();
+    summaryOutcome = undefined;
+    summaryReason = undefined;
+    emit("trigger", "auto_selected", { trigger: "extension_threshold" });
     await new Promise<void>((resolve) => {
-      ctx.compact({
-        onComplete: () => {
-          thresholdRequestPending = false;
-          resolve();
-        },
-        onError: () => {
-          thresholdRequestPending = false;
+      let completed = false;
+      const finish = (succeeded: boolean): void => {
+        if (completed) return;
+        completed = true;
+        thresholdRequestPending = false;
+        const outcome = succeeded
+          ? "success"
+          : summaryOutcome === "success"
+            ? "failed"
+            : (summaryOutcome ?? "failed");
+        emit("trigger", outcome, {
+          trigger: "extension_threshold",
+          ...(succeeded ? {} : { reason: summaryReason ?? "unavailable" }),
+          durationMs: Date.now() - startedAt,
+        });
+        resolve();
+        if (!succeeded) {
           lastFailureAt = Date.now();
           warn(
             ctx,
             "Threshold compaction could not complete. History was kept; use /compact to retry.",
           );
-          resolve();
-        },
-      });
+        }
+      };
+      try {
+        ctx.compact({ onComplete: () => finish(true), onError: () => finish(false) });
+      } catch {
+        // Also clear the marker if the host cannot even enqueue the request.
+        finish(false);
+      }
     });
   });
 
