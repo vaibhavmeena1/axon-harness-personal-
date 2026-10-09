@@ -1,3 +1,5 @@
+import { detectTerminalType, type TerminalType } from "./terminal.ts";
+
 export interface ResourceEnvironment {
   readonly extensionVersion: string;
   readonly piVersion?: string;
@@ -6,11 +8,12 @@ export interface ResourceEnvironment {
   readonly hostArch: string;
   readonly runtimeName: string;
   readonly runtimeVersion: string;
+  readonly terminalType: TerminalType;
 }
 
 export type PiModuleImporter = () => Promise<{ VERSION?: unknown }>;
 
-export const PI_ORG_TELEMETRY_VERSION = "0.5.0-axon.1";
+export const PI_ORG_TELEMETRY_VERSION = "0.6.0-axon.1";
 
 const OS_TYPES: Readonly<Record<string, string>> = {
   win32: "windows",
@@ -52,6 +55,7 @@ export function describeEnvironment(
   platform: string = process.platform,
   arch: string = process.arch,
   versions: NodeJS.ProcessVersions = process.versions,
+  terminalType: TerminalType = detectTerminalType(),
 ): ResourceEnvironment {
   const bun = Reflect.get(versions, "bun") as string | undefined;
   return {
@@ -65,5 +69,6 @@ export function describeEnvironment(
     hostArch: HOST_ARCHS[arch] ?? arch,
     runtimeName: bun ? "bun" : "node",
     runtimeVersion: bun ?? versions.node,
+    terminalType,
   };
 }

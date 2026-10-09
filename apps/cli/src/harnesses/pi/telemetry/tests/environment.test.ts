@@ -9,7 +9,7 @@ import {
 
 test("uses the version embedded in the standalone Axon extension", () => {
   assert.equal(readExtensionVersion(), PI_ORG_TELEMETRY_VERSION);
-  assert.equal(readExtensionVersion(), "0.5.0-axon.1");
+  assert.equal(readExtensionVersion(), "0.6.0-axon.1");
 });
 
 test("falls back when pi cannot be imported", async () => {
@@ -24,9 +24,14 @@ test("falls back when pi cannot be imported", async () => {
 });
 
 test("maps platform and arch to semantic-convention values", () => {
-  const environment = describeEnvironment("0.85.1", "0.2.0", "win32", "x64", {
-    node: "22.19.0",
-  } as NodeJS.ProcessVersions);
+  const environment = describeEnvironment(
+    "0.85.1",
+    "0.2.0",
+    "win32",
+    "x64",
+    { node: "22.19.0" } as NodeJS.ProcessVersions,
+    "windows_terminal",
+  );
   assert.deepEqual(environment, {
     extensionVersion: "0.2.0",
     piVersion: "0.85.1",
@@ -34,6 +39,7 @@ test("maps platform and arch to semantic-convention values", () => {
     hostArch: "amd64",
     runtimeName: "node",
     runtimeVersion: "22.19.0",
+    terminalType: "windows_terminal",
   });
   const bun = describeEnvironment(undefined, "0.2.0", "darwin", "arm64", {
     node: "22.0.0",

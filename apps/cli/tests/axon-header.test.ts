@@ -79,8 +79,10 @@ function header(
   theme = {
     fg: (_color: string, text: string) => `\u001b[36m${text}\u001b[0m`,
   } as unknown as Theme,
+  backupState?: string,
 ): Header {
-  const { setHeader } = setup();
+  const { setHeader, emitBackup } = setup();
+  if (backupState !== undefined) emitBackup(backupState);
   const factory = setHeader.mock.calls[0]?.[0];
   if (!factory) throw new Error("Axon header was not registered");
   return factory({} as Parameters<HeaderFactory>[0], theme) as Header;
@@ -153,6 +155,49 @@ describe("Axon startup header", () => {
     expect(requestRender).toHaveBeenCalledTimes(7);
   });
 
+  test("right-aligns backup status with a consistent gutter and preserves the title", () => {
+    process.env["PI_AXON_CLI_VERSION"] = "0.1.0-dev";
+    const component = header(undefined, "saved");
+    for (const width of [32, 40, 48, 80, 120]) {
+      const first = stripVTControlCharacters(component.render(width)[0] ?? "");
+      expect(first).toContain("Axon v0.1.0-dev");
+      expect(first).toEndWith("Backup: saved");
+      expect(visibleWidth(first)).toBe(width - 1);
+      expect(first).not.toContain(" · Backup:");
+    }
+  });
+
+  test("keeps the wordmark and logo intact when a long version competes with backup status", () => {
+    process.env["PI_AXON_CLI_VERSION"] = `1.0.0-${"a".repeat(65)}`;
+    const component = header(undefined, "checking");
+    for (const width of [25, 26, 32, 40, 48, 80, 120]) {
+      const first = stripVTControlCharacters(component.render(width)[0] ?? "");
+      expect(first).toContain("Axon");
+      expect(first).toEndWith("Backup: checking…");
+      expect(visibleWidth(first)).toBe(width - 1);
+      if (width >= 48) expect(first).toStartWith("    ●      Axon");
+    }
+    expect(text(component, 20).split("\n")[0]).toContain("Axon");
+    expect(text(component, 20).split("\n")[0]).not.toContain("Backup:");
+  });
+
+  test("uses semantic colors for backup activity, success, warnings, and disabled backup", () => {
+    const theme = {
+      fg: (color: string, value: string) => `<${color}>${value}</${color}>`,
+    } as unknown as Theme;
+    for (const [state, label, color] of [
+      ["checking", "checking…", "accent"],
+      ["syncing", "syncing…", "accent"],
+      ["saved", "saved", "success"],
+      ["ready", "on", "success"],
+      ["pending", "pending", "warning"],
+      ["paused", "paused", "warning"],
+      ["off", "off", "dim"],
+    ]) {
+      expect(header(theme, state).render(200)[0]).toContain(`<${color}>${label}</${color}>`);
+    }
+  });
+
   test("retains early backup updates and ignores untrusted status payloads", () => {
     const { setHeader, emitBackup } = setup();
     emitBackup("pending");
@@ -195,6 +240,47 @@ describe("Axon startup header", () => {
     component.setExpanded(false);
     expect(text(component)).not.toContain("external editor");
     expect(text(component)).toContain("ctrl+o more");
+  });
+
+  test("wraps complete shortcut groups instead of clipping later actions", () => {
+    const component = header();
+    for (const width of [24, 32, 40, 48, 80, 120]) {
+      const output = text(component, width);
+      for (const label of [
+        "escape interrupt",
+        "ctrl+l models",
+        "/ commands",
+        "! shell",
+        "ctrl+o more",
+        "/hotkeys all shortcuts",
+      ]) {
+        expect(output).toContain(label);
+      }
+      for (const line of output.split("\n")) {
+        expect(line.trim()).not.toStartWith("·");
+        expect(line.trim()).not.toEndWith("·");
+      }
+    }
+    expect(component.render(100)).toHaveLength(6);
+  });
+
+  test("wraps expanded help and adapts to keybinding changes on the same component", () => {
+    const component = header();
+    component.setExpanded(true);
+    const output = text(component, 24);
+    expect(output).toContain("external editor");
+    expect(output.replace(/\s+/g, " ")).toContain("ctrl+c clear / twice to exit");
+    expect(output.replace(/\s+/g, " ")).toContain("ctrl+v attach files/images");
+    getKeybindings().setUserBindings({
+      "app.interrupt": "ctrl+shift+x",
+      "app.model.select": [],
+    });
+    component.invalidate();
+    expect(text(component, 40)).toContain("ctrl+shift+x interrupt");
+    expect(text(component, 40)).not.toContain("ctrl+l models");
+    expect(text(component, 40)).not.toContain("escape interrupt");
+    component.setExpanded(false);
+    expect(text(component, 40)).toContain("ctrl+o more");
   });
 
   test("falls back to a text wordmark in narrow terminals and fits every line", () => {

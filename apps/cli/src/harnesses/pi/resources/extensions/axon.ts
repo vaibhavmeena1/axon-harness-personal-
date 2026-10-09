@@ -6,7 +6,7 @@ import {
   type Theme,
   VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 const ENTRY_TYPE = "axon-status";
 // Keep this bus contract in sync with session-backup/index.ts; this extension ships standalone.
@@ -22,7 +22,7 @@ const BACKUP_LABELS = {
 } as const;
 type BackupHeaderState = keyof typeof BACKUP_LABELS;
 
-/** A small connected-node A mark; all colors and shortcut labels follow Pi's active settings. */
+/** Compact, responsive branding; all colors and shortcuts follow Pi's active settings. */
 function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | undefined) {
   const rawVersion = process.env["PI_AXON_CLI_VERSION"];
   const version =
@@ -31,10 +31,10 @@ function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | u
 
   const hint = (action: AppKeybinding, description: string): string | undefined => {
     const key = keyText(action);
-    return key ? theme.fg("dim", key) + theme.fg("muted", ` ${description}`) : undefined;
+    return key ? rawHint(key, description) : undefined;
   };
   const rawHint = (key: string, description: string): string =>
-    theme.fg("dim", key) + theme.fg("muted", ` ${description}`);
+    theme.fg("accent", key) + theme.fg("muted", ` ${description}`);
 
   return {
     setExpanded(value: boolean) {
@@ -43,31 +43,56 @@ function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | u
     invalidate() {},
     render(width: number): string[] {
       if (width <= 0) return [];
+      const padding = width > 2 ? 1 : 0;
+      const contentWidth = width - padding * 2;
+      const showLogo = width >= 48;
       const title = theme.fg("accent", "Axon") + theme.fg("dim", version);
       const attribution = theme.fg("dim", `Powered by Pi v${VERSION}`);
       const withBackup = (line: string): string => {
         const state = backupState();
         if (state === undefined) return line;
         const color =
-          state === "saved"
+          state === "saved" || state === "ready"
             ? "success"
             : state === "paused" || state === "pending"
               ? "warning"
-              : "dim";
-        const badge = theme.fg(color, `Backup: ${BACKUP_LABELS[state]}`);
-        const available = width - 1 - visibleWidth(badge) - 3;
-        if (available < 4) return line;
-        return truncateToWidth(line, available, "") + theme.fg("dim", " · ") + badge;
+              : state === "checking" || state === "syncing"
+                ? "accent"
+                : "dim";
+        const badge = theme.fg("dim", "Backup: ") + theme.fg(color, BACKUP_LABELS[state]);
+        const available = contentWidth - visibleWidth(badge) - 2;
+        // Preserve the wordmark (and the entire logo when present) before showing a badge.
+        const minimumTitleWidth = showLogo ? 14 : 4;
+        if (available < minimumTitleWidth) return line;
+        const left = truncateToWidth(line, available, available === minimumTitleWidth ? "" : "…");
+        return left + " ".repeat(contentWidth - visibleWidth(left) - visibleWidth(badge)) + badge;
       };
-      const brand =
-        width >= 48
-          ? [
-              withBackup(theme.fg("accent", "   ●      ") + title),
-              theme.fg("accent", "  ╱ ╲     ") +
-                theme.fg("muted", "TATA 1mg · Your coding workspace"),
-              theme.fg("accent", " ●───●    ") + attribution,
-            ]
-          : [withBackup(title), theme.fg("muted", "TATA 1mg"), attribution];
+      const brand = showLogo
+        ? [
+            withBackup(theme.fg("accent", "   ●      ") + title),
+            theme.fg("accent", "  ╱ ╲     ") +
+              theme.fg("muted", "TATA 1mg · Your coding workspace"),
+            theme.fg("accent", " ●───●    ") + attribution,
+          ]
+        : [withBackup(title), theme.fg("muted", "TATA 1mg"), attribution];
+      const separator = theme.fg("dim", " · ");
+      // Keep each shortcut intact when possible, wrapping rather than dropping later actions.
+      const wrapHints = (hints: string[]): string[] => {
+        const lines: string[] = [];
+        let current = "";
+        for (const item of hints) {
+          if (current && visibleWidth(current + separator + item) <= contentWidth) {
+            current += separator + item;
+          } else {
+            if (current) lines.push(current);
+            const wrapped = wrapTextWithAnsi(item, contentWidth);
+            lines.push(...wrapped.slice(0, -1));
+            current = wrapped.at(-1) ?? "";
+          }
+        }
+        if (current) lines.push(current);
+        return lines;
+      };
       const shortcuts = [
         hint("app.interrupt", "interrupt"),
         hint("app.model.select", "models"),
@@ -92,10 +117,14 @@ function createAxonHeader(theme: Theme, backupState: () => BackupHeaderState | u
       const lines = [
         ...brand,
         "",
-        ...(expanded ? shortcuts : [shortcuts.join(theme.fg("muted", " · "))]),
-        help.join(theme.fg("muted", " · ")),
+        ...(expanded
+          ? shortcuts.flatMap((item) => wrapTextWithAnsi(item, contentWidth))
+          : wrapHints(shortcuts)),
+        ...wrapHints(help),
       ];
-      return lines.map((line) => truncateToWidth(` ${line}`, width, ""));
+      return lines.map((line) =>
+        line ? " ".repeat(padding) + truncateToWidth(line, contentWidth) : "",
+      );
     },
   };
 }

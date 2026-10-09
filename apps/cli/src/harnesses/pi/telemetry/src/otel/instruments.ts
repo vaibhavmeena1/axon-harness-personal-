@@ -45,3 +45,25 @@ export const GEN_AI_HISTOGRAMS: Readonly<
     dimensions: AGENT_DIMENSIONS,
   },
 };
+
+const SESSION_DIMENSIONS = ["pi.mode", "pi.repo.slug"];
+/** Per-session summary distributions, recorded once at session end. */
+export const SESSION_HISTOGRAMS: Readonly<
+  Record<string, { unit: string; boundaries: number[]; dimensions: string[] }>
+> = {
+  "pi.session.cost": {
+    unit: "USD",
+    boundaries: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100],
+    dimensions: SESSION_DIMENSIONS,
+  },
+  "pi.session.tokens": {
+    unit: "{token}",
+    boundaries: [1e3, 1e4, 5e4, 1e5, 2.5e5, 5e5, 1e6, 2.5e6, 5e6, 1e7, 2.5e7, 5e7],
+    dimensions: SESSION_DIMENSIONS,
+  },
+  "pi.session.interactions": {
+    unit: "{interaction}",
+    boundaries: [0, 1, 2, 5, 10, 20, 50, 100, 200],
+    dimensions: SESSION_DIMENSIONS,
+  },
+};
