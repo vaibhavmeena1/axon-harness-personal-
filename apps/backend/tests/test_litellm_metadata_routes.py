@@ -21,7 +21,7 @@ from tests.test_litellm_streaming import verified_scope
 
 pytest_plugins = ["tests.test_litellm_identity"]
 
-EXPECTED_ROUTES = ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]
+EXPECTED_ROUTES = ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]
 
 
 def stored_policy(settings: LiteLLMSettings) -> dict:
@@ -41,7 +41,14 @@ def stored_policy(settings: LiteLLMSettings) -> dict:
 
 
 @pytest.mark.parametrize("owner_field", ["axon_user_team_id", "deputydev_user_team_id"])
-@pytest.mark.parametrize("old_routes", [["llm_api_routes"], ["llm_api_routes", "/key/info", "/v2/user/info"]])
+@pytest.mark.parametrize(
+    "old_routes",
+    [
+        ["llm_api_routes"],
+        ["llm_api_routes", "/key/info", "/v2/user/info"],
+        ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"],
+    ],
+)
 def test_migrate_original_managed_key_preserves_other_policies(
     settings: LiteLLMSettings, user: AuthenticatedUser, owner_field: str, old_routes: list[str]
 ) -> None:
@@ -49,7 +56,9 @@ def test_migrate_original_managed_key_preserves_other_policies(
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = identity._virtual_key("12", settings.team_id)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
@@ -64,7 +73,9 @@ def test_migrate_original_managed_key_preserves_other_policies(
             assert await identity.ensure_identity(user) == key
             assert len(api.requests) == count
             # A fresh backend instance also sees the persisted upgrade, without writing again.
-            another = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            another = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             assert await another.ensure_identity(user) == key
             assert len(api.posted("/key/update")) == 1
 
@@ -82,7 +93,9 @@ def test_do_not_override_custom_unmanaged_or_inactive_keys(
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = identity._virtual_key("12", settings.team_id)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
@@ -126,7 +139,9 @@ def test_failed_migration_fails_closed_without_caching(
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = identity._virtual_key("12", settings.team_id)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = stored_policy(settings)
             with pytest.raises(LiteLLMIdentityError):
@@ -155,7 +170,7 @@ def test_key_info_hashes_and_pins_credential_without_leaking_it(
             return httpx.Response(200, json={"key": request.url.params["key"], "info": {"spend": 2, "max_budget": 5}})
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(upstream)) as client:
-            transport = LiteLLMTransport(settings, client=client)
+            transport = LiteLLMTransport(settings, client=client, management_client=client)
             identity = LiteLLMIdentityClient(settings, transport)
             user_key = "backend-only-key"
             identity._cache[(12, settings.team_id)] = (float("inf"), user_key)

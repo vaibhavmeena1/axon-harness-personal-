@@ -41,15 +41,20 @@ async def authenticate_request(request: Request, *, parse_body: bool = False) ->
     return auth_response.auth_data
 
 
-async def authenticate_identity(request: Request) -> AuthenticatedUser:
-    """Require the richer identity LiteLLM needs, without trusting caller-supplied fields."""
-    auth_data = await authenticate_request(request)
+def litellm_identity(auth_data: AuthData) -> AuthenticatedUser:
+    """Build the richer identity LiteLLM needs from auth-service data only."""
     try:
         identity = AuthenticatedUser.model_validate(auth_data.model_dump())
     except ValidationError as exc:
         raise AuthServiceError("Auth service returned incomplete LiteLLM identity") from exc
-    if not identity.user_email:
+    if not identity.user_email.strip():
         raise AuthServiceError("Auth service returned an invalid identity")
+    return identity
+
+
+async def authenticate_identity(request: Request) -> AuthenticatedUser:
+    """Require the richer identity LiteLLM needs, without trusting caller-supplied fields."""
+    identity = litellm_identity(await authenticate_request(request))
     request.state.authenticated_user = identity
     return identity
 

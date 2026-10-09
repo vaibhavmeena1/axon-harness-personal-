@@ -21,7 +21,11 @@ import {
   resolvePiExecutable,
 } from "./installation.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
-import { applyPiDefaults, applyPiProviderDefaults } from "./settings-defaults.ts";
+import {
+  applyPiDefaults,
+  applyPiProviderDefaults,
+  axonThemeArguments,
+} from "./settings-defaults.ts";
 import { type PiSetupResult, preparePiSetup } from "./setup/index.ts";
 import { inspectPiPackages } from "./setup/packages/doctor.ts";
 import { createTelemetryOverrides } from "./telemetry-environment.ts";
@@ -176,9 +180,13 @@ export function createPiAdapter(): HarnessAdapter {
           PI_AXON_AUTH_RELAY_KEY: relay.capability,
         };
       }
+      const themeArguments =
+        setup.invocationKind === "interactive"
+          ? await axonThemeArguments(context.paths, context.cwd, userArguments)
+          : [];
       return Object.freeze({
         executable: context.executable,
-        arguments: [...resourceArguments, ...userArguments],
+        arguments: [...resourceArguments, ...themeArguments, ...userArguments],
         environment: createPiEnvironment(
           context.environment,
           context.paths,

@@ -4,6 +4,7 @@ import asyncio
 import gzip
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
+from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -201,6 +202,56 @@ def test_proxy_failures_never_forward_model_traffic(failure: str) -> None:
         assert b"secret" not in messages[1]["body"]
         assert httpx.Headers(messages[0]["headers"])["cache-control"] == "no-store"
         transport.send_stream.assert_not_awaited()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "raw_path",
+    [
+        b"/.",
+        b"/../../other/x",
+        b"/v1/./models",
+        b"/v1/../models",
+        b"/v1/%2e/models",
+        b"/%2e%2e/%2E%2E/other/x",
+        b"/.%2e/%2e./other/x",
+        b"/%2e%2e%2f%2e%2e%2fother/x",
+        b"/%252e%252e%252fother/x",
+    ],
+)
+@pytest.mark.parametrize("include_raw_path", [True, False])
+def test_proxy_rejects_dot_segments_before_credentials_or_body(raw_path: bytes, include_raw_path: bool) -> None:
+    async def run() -> None:
+        app = FastAPI()
+        transport = AsyncMock(spec=LiteLLMTransport)
+        transport.send_stream.return_value = httpx.Response(200, content=b"upstream")
+        app.state.litellm_transport = transport
+        identity = AsyncMock(spec=LiteLLMIdentityClient)
+        identity.authenticated_key.return_value = "backend-only-key"
+        app.state.litellm_identity_client = identity
+        scope = verified_scope(app)
+        # Inject an ASGI path directly: an HTTPX test client normalizes literal
+        # dot segments before the request can reach the mounted proxy.
+        scope["path"] = "/edge/litellm" + unquote(raw_path.decode("ascii"))
+        scope["raw_path"] = b"/edge/litellm" + raw_path
+        if not include_raw_path:
+            scope.pop("raw_path")
+        receive = AsyncMock(return_value={"type": "http.request", "body": b""})
+        messages: list[Message] = []
+
+        async def send(message: Message) -> None:
+            messages.append(message)
+
+        await LiteLLMRequestLoggingMiddleware(LiteLLMProxy())(scope, receive, send)
+        assert messages[0]["status"] == 400
+        assert messages[1]["body"] == b'{"detail":"Invalid LiteLLM request path"}'
+        response_headers = httpx.Headers(messages[0]["headers"])
+        assert response_headers["cache-control"] == "no-store"
+        assert response_headers["x-request-id"] == "trusted-request-id"
+        identity.authenticated_key.assert_not_awaited()
+        transport.send_stream.assert_not_awaited()
+        receive.assert_not_awaited()
 
     asyncio.run(run())
 

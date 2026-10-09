@@ -17,10 +17,11 @@ from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
 
 # Explicit routes are required: the llm_api preset overwrites allowed_routes.
-_MANAGED_KEY_ROUTES = ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*")
+_MANAGED_KEY_ROUTES = ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone")
 _PREVIOUS_MANAGED_KEY_ROUTES = (
     ("llm_api_routes",),
     ("llm_api_routes", "/key/info", "/v2/user/info"),
+    ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*"),
 )
 logger = logging.getLogger(__name__)
 

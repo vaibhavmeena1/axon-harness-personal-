@@ -708,7 +708,10 @@ describe("package and resource locks", () => {
       "web-search.ts",
       "compaction.ts",
       "terminal-permissions.ts",
+      "axon-dark.json",
+      "axon-light.json",
     ]);
+    expect(first.arguments.filter((argument) => argument === "--theme")).toHaveLength(2);
     for (const path of materializedPaths) {
       expect(await Bun.file(path).exists()).toBe(true);
     }

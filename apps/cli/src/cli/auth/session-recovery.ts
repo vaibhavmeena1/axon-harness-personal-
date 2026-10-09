@@ -3,6 +3,7 @@ import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { runAuthLogin } from "../commands/auth.ts";
 import { loadEncryptedSession } from "./session.ts";
 import { verifyEncryptedSession } from "./verification.ts";
+import { waitForAuthWork } from "./wait-for-auth.ts";
 
 const CONTROL_PATH = "/_axon/auth";
 const UI_HEARTBEAT_MS = 10_000;
@@ -18,6 +19,7 @@ interface PendingRecovery {
     failure?: { outcome: "failed" | "cancelled"; reason: string },
   ) => void;
   state: "required" | "logging-in";
+  waiters: number;
 }
 
 export interface SessionRecovery {
@@ -36,11 +38,25 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
   let pending: PendingRecovery | undefined;
   let disposed = false;
 
+  async function waitForRecovery(recovery: PendingRecovery, signal: AbortSignal): Promise<boolean> {
+    recovery.waiters += 1;
+    try {
+      return await waitForAuthWork(recovery.result, signal);
+    } catch (error) {
+      if (signal.aborted) return false;
+      throw error;
+    } finally {
+      recovery.waiters -= 1;
+      // One cancelled subagent must not cancel login for other waiting requests.
+      if (recovery.waiters === 0) recovery.finish(false);
+    }
+  }
+
   return {
     async recover(signal) {
       // No registered interactive UI means a scripted/RPC request must fail promptly.
       if (disposed || signal.aborted || Date.now() >= connectedUntil) return false;
-      if (pending !== undefined) return pending.result;
+      if (pending !== undefined) return waitForRecovery(pending, signal);
 
       let resolveResult: (authenticated: boolean) => void = () => {};
       const result = new Promise<boolean>((resolve) => {
@@ -53,7 +69,6 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
         if (pending !== recovery) return;
         pending = undefined;
         clearTimeout(timeout);
-        signal.removeEventListener("abort", onAbort);
         controller.abort();
         emitProductEvent({
           category: "auth",
@@ -64,7 +79,6 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
         });
         resolveResult(authenticated);
       };
-      const onAbort = (): void => finish(false);
       const timeout = setTimeout(
         () => finish(false, { outcome: "failed", reason: "timeout" }),
         RECOVERY_TIMEOUT_MS,
@@ -76,11 +90,10 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
         result,
         finish,
         state: "required",
+        waiters: 0,
       };
       pending = recovery;
-      signal.addEventListener("abort", onAbort, { once: true });
-      if (signal.aborted) finish(false);
-      return result;
+      return waitForRecovery(recovery, signal);
     },
     async handle(request, url) {
       if (!url.pathname.startsWith(`${CONTROL_PATH}/`)) return undefined;
@@ -111,7 +124,7 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
         return controlResponse({ detail: "Browser login is already in progress" }, 409);
       }
 
-      // Run outside the managed-request queue: that request is waiting for this login.
+      // Run independently of managed requests: they are waiting for this shared login.
       recovery.state = "logging-in";
       const signal = AbortSignal.any([recovery.controller.signal, request.signal]);
       let authenticated = false;

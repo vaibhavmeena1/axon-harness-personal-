@@ -28,6 +28,10 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
   "UPSTREAM_URL": "http://localhost:4000",
   "UPSTREAM_ROOT_PATH": "/",
   "API_KEY": "replace-with-litellm-master-key",
+  "DECISION_TIMEOUT_SECONDS": 120,
+  "READ_TIMEOUT_SECONDS": 360,
+  "MANAGEMENT_MAX_CONNECTIONS": 20,
+  "DECISION_MAX_CONCURRENCY": 10,
   "IDENTITY_SYNC_ENABLED": true,
   "TEAM_ID": "",
   "TEAM_ROLE": "user"
@@ -37,6 +41,24 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
 For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
 Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through Axon's backend using a saved Axon session, not the LiteLLM master key.
+
+### LiteLLM connection pools and stream timeouts
+
+Each backend worker owns separate HTTP pools for proxy streams and buffered identity/decision calls.
+`MAX_CONNECTIONS` limits the streaming pool (default 100); `MANAGEMENT_MAX_CONNECTIONS` limits the
+buffered pool (default 20), so stalled streams cannot consume provisioning capacity.
+`DECISION_MAX_CONCURRENCY` (default 10, must be less than `MANAGEMENT_MAX_CONNECTIONS`) caps
+in-flight recommendation decisions per worker so they cannot starve identity sync; requests beyond
+the cap fail fast with a sanitized 502 instead of queueing.
+`POOL_TIMEOUT_SECONDS` bounds streaming pool waits; buffered calls use their identity/decision
+request timeouts, including while waiting for a connection.
+
+`READ_TIMEOUT_SECONDS` is a positive integer (default 360) limiting upstream inactivity while waiting
+for response headers or the next network chunk. It is not a total stream-duration limit: active
+streams can run longer. Non-streaming requests send nothing until they finish, so it must exceed
+the longest non-streaming client budget: Pi web search (`stream: false`) allows up to 300 seconds.
+A timeout before response headers produces a sanitized 502; after headers it aborts the stream
+and releases the upstream connection, without attempting to send a second HTTP response.
 
 ### Provisioning users into an existing LiteLLM team
 
@@ -52,9 +74,9 @@ New users are created with a `teams` entry and `auto_create_key: false`; existin
 No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing budgets, model/MCP permissions, and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
 
 New backend-managed keys use `key_type: "default"` with an explicit route allowlist:
-`["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`. Do not combine that list with the
+`["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]`. Do not combine that list with the
 `llm_api` key preset: LiteLLM overwrites explicit routes with the preset. This allows inference,
-the two CLI key/user metadata reads, and all `/team/*` paths. The team wildcard is not read-only:
+model recommendations via `/v1/systemone`, the two CLI key/user metadata reads, and all `/team/*` paths. The team wildcard is not read-only:
 team writes are allowed through the key route gate, but LiteLLM's native role, membership, and
 endpoint authorization checks still apply. It does not grant proxy-admin privileges or permit
 key/user management writes.
@@ -62,8 +84,9 @@ The proxy pins GET `/key/info` to the current backend credential's SHA-256 hash,
 caller-supplied `key` query parameters. LiteLLM therefore echoes only a hash, never the backend
 credential, and callers cannot use this route to inspect another key. Other routes remain streamed unchanged.
 
-After a backend restart, identity provisioning lazily upgrades active keys with either previous
-harness default (`["llm_api_routes"]` or `["llm_api_routes", "/key/info", "/v2/user/info"]`)
+After a backend restart, identity provisioning lazily upgrades active keys with a previous
+harness default (`["llm_api_routes"]`, `["llm_api_routes", "/key/info", "/v2/user/info"]`,
+or `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`)
 only when their metadata identifies them as this harness's key for
 the same verified user (`source=meta-harness`, matching `axon_user_team_id` or the older
 `deputydev_user_team_id` ownership marker). The upgrade changes
@@ -229,6 +252,32 @@ unauthenticated, and failed config fetches do not change Pi settings. Defaults a
 and reused offline. Unsafe settings or a busy settings lock are left untouched, without blocking launch.
 Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch.
 
+### Model recommendations through LiteLLM
+
+`POST /api/v1/model-recommendations` assesses a coding task with Jev and deterministically ranks
+the compatible models in the backend catalog. Register `typesafe/jev-1.13` as a model alias in
+LiteLLM and ensure the deployment supports **`POST /v1/systemone`**. This endpoint accepts our
+existing `model`/`state`/`questions` payload and returns typed `answers`; `/v1/decisions` expects
+a different format and is not interchangeable.
+
+The backend reuses its app-owned buffered LiteLLM HTTP pool (isolated from proxy streams) and the private `LITELLM.UPSTREAM_URL`
+and `UPSTREAM_ROOT_PATH`. Assessments always use the caller's backend-managed LiteLLM virtual
+key, resolved from verified auth-service identity, even when `IDENTITY_SYNC_ENABLED` is false
+for the proxy. The configured `API_KEY` is used only for management/provisioning in this flow,
+never for assessment inference. There is no fallback to shared credentials. The caller's
+user/team/key policy must allow `/v1/systemone` and the Jev alias. Keys never reach the CLI.
+`LITELLM.DECISION_TIMEOUT_SECONDS` is a positive integer (default 120) bounding the buffered
+assessment request. The recommendation API, catalog, ranking, and assessment parsing are unchanged.
+Missing verified identity or failed provisioning returns a sanitized 503; disabled identities
+return 403. Failed inference requests or malformed assessments return a sanitized 502; disabled
+current models return 204 without inference, and Axon session authentication remains required.
+
+There is no direct OpenRouter client or credential requirement in the backend. Remove the old
+`OPENROUTER` block from private `config.json` files and restart the backend after deployment.
+Provider credentials and routing now belong to LiteLLM. A Jev deployment configured as
+`openrouter/typesafe/jev-1.13` still uses OpenRouter upstream; removing that dependency entirely
+requires a supported alternative Jev provider configured in LiteLLM.
+
 ### Backend recommender telemetry
 
 `OPEN_TELEMETRY` now optionally initializes app-owned OTLP/HTTP trace/metric providers for the model
@@ -314,10 +363,14 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-DOCKER_BUILDKIT=1 docker build --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend .
+sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend
 ```
 
-Or `bun run build:backend-image` from the repository root.
+Or `bun run build:backend-image` from the repository root. Use the same script in CI; pass Docker build flags, but no build-context argument (the script supplies the repository root).
+
+The script attempts to pull `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8` for `linux/amd64`. If that pull fails (missing credentials, network access, or image), it builds with this project's existing public `cgr.dev/chainguard/wolfi-base:latest` instead. Run your CI's ECR Docker login **before** the script to enable the private base. A later build failure is not retried with another base.
+
+Both Python stages use the selected image. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. Direct `docker build` uses the public base by default; `--build-arg PYTHON_BASE_IMAGE=...` explicitly selects a base without automatic fallback.
 
 The Python dependencies resolve from PyPI; no Bitbucket SSH forwarding is required.
 
@@ -326,6 +379,19 @@ The build assumes it can reach npm, PyPI, and GitHub over untampered TLS. On a d
 ### Stage layout
 
 The frontend stage runs on `$BUILDPLATFORM` (natively), because its output is architecture-independent; pinning it to `linux/amd64` would run the whole Node toolchain under QEMU on an Apple Silicon machine. The Python stages stay on `linux/amd64` to match the deployment target, so they *are* emulated locally and are correspondingly slower. Node exists only in the frontend stage; the runtime image gets the built bundle and no JavaScript toolchain.
+
+### Database migrations inside a pod
+
+The image does **not** include dbmate. An administrator can run the reviewed SQL migrations with the image's Python and existing asyncpg dependency, using the pod's mounted `config.json`:
+
+```sh
+# In the backend working directory inside the pod, once per deployment:
+python -m deployment.run_migrations
+# Roll back only the latest migration, after reviewing its cleanup requirements:
+python -m deployment.run_migrations down
+```
+
+`deployment/run_migrations.sh` wraps the same command. The runner serializes concurrent runs with a PostgreSQL advisory lock and commits each migration with its entry in `META_HARNESS_schema_migrations`. Re-running it skips applied versions; it never dumps shared database schemas. It requires the existing `public.user_teams(id BIGINT PRIMARY KEY)` prerequisite for session backups. See [migration safety](../../docs/session-backup-and-restore.md#5-database-and-migration-safety).
 
 ## Commands
 

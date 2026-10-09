@@ -2,6 +2,7 @@
 
 import asyncio
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI, Request
@@ -13,6 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import StatusCode
 
 from app.clients.auth_service import AuthData
+from app.clients.litellm.identity import LiteLLMIdentityClient
 from app.services.model_recommendation.catalog import get_model_catalog, model_policy_version
 from app.services.model_recommendation.schemas import (
     AvailableModel,
@@ -21,6 +23,7 @@ from app.services.model_recommendation.schemas import (
 )
 from app.services.model_recommendation.service import ModelRecommendationError, ModelRecommendationService
 from app.telemetry import ProductTelemetry, parse_backend_telemetry, verified_telemetry_identity
+from tests.test_litellm_decisions import verified_user
 
 
 def test_backend_otel_http_configuration_and_private_headers() -> None:
@@ -48,8 +51,9 @@ def test_backend_otel_http_configuration_and_private_headers() -> None:
 
 @pytest.mark.parametrize("invalid", [False, True])
 def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(invalid: bool) -> None:
-    class OpenRouter:
-        async def create_decision(self, request: dict[str, Any]) -> dict[str, Any]:
+    class Decisions:
+        async def create_decision(self, request: dict[str, Any], *, api_key: str) -> dict[str, Any]:
+            assert api_key == "caller-virtual-key"
             assert request["state"]["task"] == "secret prompt"
             return (
                 {}
@@ -81,9 +85,14 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
     )
     identity = {"user.email": "verified@example.com", "user.id": "42"}
 
+    identity_client = AsyncMock(spec=LiteLLMIdentityClient)
+    identity_client.ensure_identity.return_value = "caller-virtual-key"
+
     async def run() -> ModelRecommendationResponse:
         with telemetry.operation("request", identity, **{"axon.recommendation.id": str(request.request_id)}):
-            return await ModelRecommendationService(OpenRouter()).recommend(request, telemetry, identity)
+            return await ModelRecommendationService(Decisions(), identity_client).recommend(
+                request, telemetry, identity, user=verified_user()
+            )
 
     if invalid:
         with pytest.raises(ModelRecommendationError):
@@ -94,6 +103,8 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
         assert response.policy_version == model_policy_version()
         assert response.assessment.complexity == 2.5
         assert response.recommendations
+    identity_client.ensure_identity.assert_awaited_once_with(verified_user())
+    identity_client.authenticated_key.assert_not_awaited()
     spans = exporter.get_finished_spans()
     assert not any(event.name == "exception" for span in spans for event in span.events)
     assert "secret prompt" not in repr(spans)

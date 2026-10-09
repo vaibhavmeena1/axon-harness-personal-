@@ -18,7 +18,7 @@ from app.authentication import AuthenticatedSessionMiddleware
 from app.clients.auth_service import AuthenticatedUser
 from app.clients.litellm.dependencies import LITELLM_IDENTITY_CLIENT_STATE_KEY, LITELLM_TRANSPORT_STATE_KEY
 from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
-from app.clients.litellm.transport import LiteLLMTransport
+from app.clients.litellm.transport import LiteLLMTransport, validate_raw_path
 from app.core.config import LiteLLMSettings
 
 LITELLM_MOUNT_PATH = "/litellm"
@@ -68,6 +68,7 @@ _PROTECTED_RESPONSE_HEADERS = {
     b"x-session-refresh-token",
 }
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
+_INVALID_PATH_BODY = b'{"detail":"Invalid LiteLLM request path"}'
 _BAD_GATEWAY_BODY = b'{"detail":"LiteLLM upstream is unavailable"}'
 _SERVICE_UNAVAILABLE_BODY = b'{"detail":"LiteLLM proxy is not ready"}'
 _IDENTITY_SYNC_UNAVAILABLE_BODY = b'{"detail":"LiteLLM user/team synchronization is unavailable"}'
@@ -360,12 +361,44 @@ async def _forward_authenticated_request(
     user: AuthenticatedUser,
     request_id: str,
 ) -> None:
+    raw_path = _relative_raw_path(scope, strip_mount_path=strip_mount_path)
+    try:
+        validate_raw_path(raw_path)
+    except ValueError:
+        diagnostic = _diagnostics(scope)
+        if diagnostic is not None:
+            diagnostic.reason = "invalid_path"
+        await _send_error(send, 400, _INVALID_PATH_BODY)
+        return
+
+    await _forward_safe_request(
+        scope=scope,
+        receive=receive,
+        send=send,
+        transport=transport,
+        identity=identity,
+        raw_path=raw_path,
+        user=user,
+        request_id=request_id,
+    )
+
+
+async def _forward_safe_request(
+    scope: Scope,
+    receive: Receive,
+    send: Send,
+    transport: LiteLLMTransport,
+    identity: LiteLLMIdentityClient,
+    raw_path: bytes,
+    user: AuthenticatedUser,
+    request_id: str,
+) -> None:
     first_message = await receive()
     if first_message["type"] == "http.disconnect":
         return
     method = str(scope.get("method", "GET"))
     has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
-    # Stream every path unchanged; LiteLLM owns payload validation and authorization.
+    # Stream safe paths unchanged; LiteLLM owns payload validation and authorization.
     content: AsyncIterator[bytes] | None = _request_body(first_message, receive) if has_body else None
 
     diagnostic = _prepare_identity_diagnostics(scope, identity)
@@ -396,7 +429,6 @@ async def _forward_authenticated_request(
     if upstream_api_key:
         request_headers.append((b"authorization", f"Bearer {upstream_api_key}".encode("ascii")))
 
-    raw_path = _relative_raw_path(scope, strip_mount_path=strip_mount_path)
     query_string = _metadata_query_string(method, raw_path, scope.get("query_string", b""), upstream_api_key)
     upstream_started = monotonic()
     if diagnostic is not None:

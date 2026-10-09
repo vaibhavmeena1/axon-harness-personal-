@@ -124,7 +124,9 @@ class IdentityAPI:
 
 async def provision(settings: LiteLLMSettings, user: AuthenticatedUser, api: IdentityAPI) -> str:
     async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-        return await LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client)).authenticated_key(user)
+        return await LiteLLMIdentityClient(
+            settings, LiteLLMTransport(settings, client=client, management_client=client)
+        ).authenticated_key(user)
 
 
 @pytest.mark.parametrize("role", ["user", "admin"])
@@ -150,7 +152,7 @@ def test_new_user_joins_configured_team_without_budgets(
     assert generated["user_id"] == "12"
     assert generated["team_id"] == settings.team_id
     assert generated["key_type"] == "default"
-    assert generated["allowed_routes"] == ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]
+    assert generated["allowed_routes"] == ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]
     assert not api.posted("/key/update")
     assert generated["metadata"]["axon_team_id"] == "7"
     assert "max_budget" not in generated
@@ -185,7 +187,9 @@ def test_existing_membership_and_key_policy_are_preserved(settings: LiteLLMSetti
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = identity._virtual_key("12", settings.team_id)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             stored_key = {"user_id": "12", "team_id": settings.team_id, "max_budget": 5, "models": ["custom"]}
@@ -262,7 +266,9 @@ def test_disabled_existing_key_is_not_replaced(settings: LiteLLMSettings, user: 
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = identity._virtual_key("12", settings.team_id)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = {
                 "user_id": "12",
@@ -282,7 +288,9 @@ def test_same_identity_reuses_cached_key(settings: LiteLLMSettings, user: Authen
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
-            identity = LiteLLMIdentityClient(settings, LiteLLMTransport(settings, client=client))
+            identity = LiteLLMIdentityClient(
+                settings, LiteLLMTransport(settings, client=client, management_client=client)
+            )
             key = await identity.ensure_identity(user)
             count = len(api.requests)
             assert await identity.ensure_identity(user) == key

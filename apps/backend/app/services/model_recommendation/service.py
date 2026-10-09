@@ -1,6 +1,8 @@
 """Backend orchestration for Jev-powered model recommendations."""
 
-from app.clients.openrouter import OpenRouterClient
+from app.clients.auth_service import AuthenticatedUser
+from app.clients.litellm.decisions import LiteLLMDecisionClient, LiteLLMDecisionError
+from app.clients.litellm.identity import LiteLLMIdentityClient
 from app.services.model_recommendation.catalog import model_policy_version
 from app.services.model_recommendation.jev import (
     JevAssessmentError,
@@ -23,25 +25,34 @@ class ModelRecommendationError(RuntimeError):
 class ModelRecommendationService:
     """Assess a user task with Jev and rank the models available to Pi."""
 
-    def __init__(self, openrouter_client: OpenRouterClient) -> None:
-        self._openrouter_client = openrouter_client
+    def __init__(self, decision_client: LiteLLMDecisionClient, identity_client: LiteLLMIdentityClient) -> None:
+        self._decision_client = decision_client
+        self._identity_client = identity_client
 
     async def recommend(
         self,
         request: ModelRecommendationRequest,
         telemetry: ProductTelemetry | None = None,
         identity: dict | None = None,
+        *,
+        user: AuthenticatedUser,
     ) -> ModelRecommendationResponse:
         """Return compatible models ordered by task fit."""
         telemetry = telemetry or product_telemetry()
         policy = model_policy_version()
         try:
             with telemetry.operation("assessment", identity, **{"axon.recommendation.id": str(request.request_id)}):
-                jev_response = await self._openrouter_client.create_decision(build_jev_request(request.prompt))
+                # Recommendations always require a virtual key, even when the proxy
+                # is configured to use shared credentials. Never use authenticated_key
+                # here: it returns the admin key when identity sync is disabled.
+                api_key = await self._identity_client.ensure_identity(user)
+                jev_response = await self._decision_client.create_decision(
+                    build_jev_request(request.prompt), api_key=api_key
+                )
                 assessment = parse_jev_assessment(jev_response)
             with telemetry.operation("ranking", identity):
                 recommendations = rank_available_models(request, assessment)
-        except (JevAssessmentError, ValueError) as exc:
+        except (LiteLLMDecisionError, JevAssessmentError, ValueError) as exc:
             raise ModelRecommendationError(str(exc)) from exc
 
         telemetry.event(

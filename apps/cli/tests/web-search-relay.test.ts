@@ -76,7 +76,10 @@ test("search uses the authenticated relay, persists rotation, and retains citati
     const child = Bun.spawn([process.execPath, "--no-env-file", "--eval", script], {
       cwd: resolve(import.meta.dir, ".."),
       env: {
-        ...process.env,
+        // Do not inherit web-search settings changed by another test or the caller's shell.
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([name]) => !name.startsWith("PI_WEB_SEARCH_")),
+        ),
         AXON_HOME: home,
         AXON_SERVICE_ORIGIN: server.url.origin,
         PI_WEB_SEARCH_ENABLED: "true",
