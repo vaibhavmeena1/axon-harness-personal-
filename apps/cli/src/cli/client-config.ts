@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BUILD_INFO } from "../build-info.ts";
+import { isSingleCommandPrefix } from "../harnesses/pi/resources/extensions/terminal-permissions.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 
@@ -32,6 +33,8 @@ const commandPrefixSchema = z
   .string()
   .min(1)
   .max(96)
+  // The extension measures UTF-16 code units, regardless of Zod's length semantics.
+  .refine((value) => value.length <= 96, "Command prefixes must be at most 96 characters")
   .refine(
     (value) =>
       value.trim().length > 0 &&
@@ -40,6 +43,10 @@ const commandPrefixSchema = z
         return code >= 32 && (code < 127 || code > 159);
       }),
     "Command prefixes must not be blank or contain control characters",
+  )
+  .refine(
+    isSingleCommandPrefix,
+    "Command prefixes must contain a single command with supported shell syntax",
   );
 const terminalPermissionsSchema = z.strictObject({
   yoloMode: z.boolean(),

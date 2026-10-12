@@ -4,11 +4,90 @@ This is a client-side approval guard, not an operating-system sandbox.
 Command lists contain literal command prefixes, never regular expressions.
 """
 
+import re
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
-CommandPrefix = Annotated[str, Field(min_length=1, max_length=96, pattern=r"^[^\x00-\x1f\x7f-\x9f]+$")]
+CONTROL_WORDS = frozenset(
+    {
+        "if",
+        "then",
+        "else",
+        "elif",
+        "fi",
+        "for",
+        "while",
+        "until",
+        "do",
+        "done",
+        "case",
+        "esac",
+        "function",
+        "select",
+        "in",
+        "coproc",
+    }
+)
+COMMAND_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./:=,@%+-")
+
+
+def _parse_command_prefix(command: str) -> tuple[list[str], str | None]:
+    """Return literal words and any unclosed quote, rejecting unsupported characters."""
+    # Match parseCommands in the standalone terminal-permissions.ts extension,
+    # restricted to one command. Shell tokenizers accept syntax that it cannot verify.
+    words: list[str] = []
+    word = ""
+    word_started = False
+    quote: str | None = None
+    for character in command:
+        if quote is not None:
+            if character == quote:
+                quote = None
+            else:
+                if quote == '"' and character in "$`\\":
+                    raise ValueError("Terminal command prefixes contain unsupported shell syntax")
+                word += character
+            continue
+        if character in ("'", '"'):
+            quote = character
+            word_started = True
+        elif character == " ":
+            if word_started:
+                words.append(word)
+            word = ""
+            word_started = False
+        else:
+            # This also rejects unquoted pipelines, chains, and expansions.
+            if character not in COMMAND_CHARACTERS:
+                raise ValueError("Terminal command prefixes contain unsupported shell syntax")
+            word_started = True
+            word += character
+    if word_started:
+        words.append(word)
+    return words, quote
+
+
+def _validate_command_prefix(command: str) -> str:
+    # JavaScript counts UTF-16 code units for the extension's 96-character limit.
+    if sum(2 if ord(character) > 0xFFFF else 1 for character in command) > 96:
+        raise ValueError("Terminal command prefixes must be at most 96 characters")
+    words, quote = _parse_command_prefix(command)
+    if (
+        quote is not None
+        or not words
+        or re.fullmatch(r"[a-zA-Z0-9_./-]+", words[0]) is None
+        or words[0] in CONTROL_WORDS
+    ):
+        raise ValueError("Terminal command prefixes contain unsupported shell syntax")
+    return command
+
+
+CommandPrefix = Annotated[
+    str,
+    Field(min_length=1, max_length=96, pattern=r"^[^\x00-\x1f\x7f-\x9f]+$"),
+    AfterValidator(_validate_command_prefix),
+]
 
 
 class CliTerminalPermissionsConfig(BaseModel):
@@ -54,8 +133,4 @@ def parse_terminal_permissions(raw: dict[str, object]) -> TerminalPermissionsSet
         return None
     if not isinstance(section, dict):
         raise ValueError("TERMINAL_PERMISSIONS must be an object")
-    settings = TerminalPermissionsSettings.model_validate(section)
-    for commands in (settings.auto_approve_commands, settings.require_approval_commands, settings.blocked_commands):
-        if any(not command.strip() for command in commands):
-            raise ValueError("Terminal command prefixes must not be blank")
-    return settings
+    return TerminalPermissionsSettings.model_validate(section)

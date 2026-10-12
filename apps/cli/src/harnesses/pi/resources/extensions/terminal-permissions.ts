@@ -43,6 +43,7 @@ type TerminalShell = "bash" | "powershell";
 type TerminalSource = "tool" | "nested_tool" | "user_bash";
 type CommandWords = readonly string[];
 
+// Alphabetic Bash control words; time is handled as a command wrapper below.
 const CONTROL_WORDS = new Set([
   "if",
   "then",
@@ -58,7 +59,10 @@ const CONTROL_WORDS = new Set([
   "esac",
   "function",
   "select",
+  "in",
+  "coproc",
 ]);
+// These commands can execute other commands or callbacks that this grammar cannot verify.
 const SHELL_WRAPPERS = new Set([
   "bash",
   "sh",
@@ -71,7 +75,9 @@ const SHELL_WRAPPERS = new Set([
   "pwsh",
   "powershell",
   "sudo",
+  "doas",
   "su",
+  "runuser",
   "env",
   "command",
   "builtin",
@@ -79,8 +85,20 @@ const SHELL_WRAPPERS = new Set([
   "eval",
   "source",
   ".",
+  "trap",
+  "bind",
+  "fc",
+  "mapfile",
+  "readarray",
   "xargs",
   "nohup",
+  "nice",
+  "timeout",
+  "setsid",
+  "stdbuf",
+  "ionice",
+  "chrt",
+  "taskset",
   "time",
 ]);
 
@@ -146,6 +164,12 @@ function parseCommands(command: string): CommandWords[] | undefined {
   return commands;
 }
 
+/** Shared with the launcher so managed policies use the extension's exact grammar. */
+export function isSingleCommandPrefix(command: string): boolean {
+  const parsed = parseCommands(command);
+  return parsed !== undefined && parsed.length === 1;
+}
+
 function commandList(value: unknown, name: string): readonly string[] {
   if (!Array.isArray(value) || value.length > 32) {
     throw new Error(`${name} must be a list of at most 32 commands`);
@@ -159,8 +183,7 @@ function commandList(value: unknown, name: string): readonly string[] {
     ) {
       throw new Error(`${name} must contain non-empty command prefixes of at most 96 characters`);
     }
-    const parsed = parseCommands(rule);
-    if (parsed === undefined || parsed.length !== 1) {
+    if (!isSingleCommandPrefix(rule)) {
       throw new Error(`${name} contains unsupported shell syntax`);
     }
     return rule.trim();
