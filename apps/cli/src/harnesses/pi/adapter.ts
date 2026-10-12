@@ -55,6 +55,7 @@ export function createPiAdapter(): HarnessAdapter {
       let litellmOverrides: EnvironmentOverrides = {
         PI_AXON_AUTH_RELAY_URL: undefined,
         PI_AXON_AUTH_RELAY_KEY: undefined,
+        PI_AXON_CONFIG_REFRESH_ENABLED: undefined,
       };
       let telemetryOverrides: EnvironmentOverrides = {};
       let webSearchOverrides: EnvironmentOverrides = {};
@@ -132,7 +133,9 @@ export function createPiAdapter(): HarnessAdapter {
         }
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
-        relay = startAuthenticatedRequestRelay(context.paths);
+        relay = startAuthenticatedRequestRelay(context.paths, {
+          allowPiConfigRefresh: !setup.offline,
+        });
         // Startup discovery seeds fresh models, but Pi restores its cached catalog over
         // them. Old per-launch relay URLs would then hide otherwise available models.
         // Keep the cache intact whenever the provider will not discover replacements.
@@ -167,6 +170,7 @@ export function createPiAdapter(): HarnessAdapter {
           ).toString(),
           PI_AXON_AUTH_RELAY_URL: relay.origin,
           PI_AXON_AUTH_RELAY_KEY: relay.capability,
+          PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
         };
       }
       const themeArguments =

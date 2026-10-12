@@ -17,6 +17,7 @@ let requests: string[] = [];
 let authorization: string | null;
 let mode: "valid" | "failed" | "switched" = "valid";
 let codemodeEnabled: boolean | undefined = true;
+let litellmMcpEnabled = true;
 const projectRoot = resolve(import.meta.dir, "..");
 
 beforeAll(async () => {
@@ -51,7 +52,9 @@ beforeAll(async () => {
         return Response.json(
           {
             schemaVersion: 1,
-            ...(codemodeEnabled === undefined ? {} : { pi: { codemodeEnabled } }),
+            ...(codemodeEnabled === undefined
+              ? {}
+              : { pi: { codemodeEnabled, litellmMcpEnabled } }),
             webSearch: {
               enabled: true,
               model: "gemini-3.8-flash",
@@ -174,6 +177,7 @@ describe("real Pi adapter client config integration", () => {
     expect(capability).toBeString();
     expect(capability).not.toBe("rotated-token");
     expect(environment["LITELLM_API_KEY"]).toBe(capability);
+    expect(environment["PI_AXON_CONFIG_REFRESH_ENABLED"]).toBe("true");
     expect(environment["PI_MODEL_RECOMMENDER_API_KEY"]).toBe(capability);
     const relayOrigin = environment["PI_AXON_AUTH_RELAY_URL"];
     if (relayOrigin === undefined) throw new Error("Missing local auth relay origin");
@@ -194,6 +198,7 @@ describe("real Pi adapter client config integration", () => {
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
+    expect(settings.litellm.mcp.enabled).toBe(true);
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
       normalizeManifestPackages(AXON_MANIFEST).map((entry) => entry.configuredSource),
@@ -228,6 +233,9 @@ describe("real Pi adapter client config integration", () => {
       } else {
         expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
       }
+      expect(environment["PI_AXON_CONFIG_REFRESH_ENABLED"]).toBe(
+        options.admin ? undefined : options.offline ? "false" : "true",
+      );
       if (options.offline || options.disabled)
         expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
       if (options.offline || options.searchDisabled)
@@ -237,16 +245,25 @@ describe("real Pi adapter client config integration", () => {
 
   test("backend config edits change startup defaults without checking or blocking CLI overrides", async () => {
     const settingsPath = join(root, "pi", "settings.json");
-    codemodeEnabled = false;
-    await launchSpec({ userArguments: ["--tools", "read,bash", "hello"] });
-    expect((await Bun.file(settingsPath).json()).defaultTools).toEqual(["-codemode"]);
-    codemodeEnabled = true;
-    await launchSpec({
-      disabled: true,
-      searchDisabled: true,
-      userArguments: ["--no-tools", "hello"],
-    });
-    expect((await Bun.file(settingsPath).json()).defaultTools).toEqual(["+codemode"]);
+    try {
+      for (const codemode of [true, false]) {
+        for (const mcp of [true, false]) {
+          codemodeEnabled = codemode;
+          litellmMcpEnabled = mcp;
+          await launchSpec({
+            disabled: true,
+            searchDisabled: true,
+            userArguments: ["--tools", "read,bash", "hello"],
+          });
+          const settings = await Bun.file(settingsPath).json();
+          expect(settings.defaultTools).toEqual([codemode ? "+codemode" : "-codemode"]);
+          expect(settings.litellm.mcp.enabled).toBe(mcp);
+        }
+      }
+    } finally {
+      codemodeEnabled = true;
+      litellmMcpEnabled = true;
+    }
   });
 
   test("missing defaults, offline and administrative launches keep the last local default", async () => {

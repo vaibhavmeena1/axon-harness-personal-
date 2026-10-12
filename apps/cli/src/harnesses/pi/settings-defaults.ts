@@ -41,8 +41,8 @@ export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
     const mcp = settingsObject(litellm["mcp"]);
     const config = {
       ...settings.config,
-      // The LiteLLM MCP bridge is optional and requires separate upstream permissions.
-      // Keep explicitly configured MCP preferences and all organization MCP servers.
+      // Without a fetched backend policy, leave the optional bridge off by default.
+      // Keep previously applied/local preferences and all organization MCP servers.
       litellm: { ...litellm, mcp: { enabled: false, ...mcp } },
     };
 
@@ -69,8 +69,12 @@ export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
   });
 }
 
-/** Apply startup defaults only; project settings and Pi CLI flags can still override them. */
-export async function applyPiDefaults(paths: AxonPaths, defaults: PiConfig): Promise<void> {
+/** Apply managed defaults; project settings and Pi CLI flags can still override them. */
+export async function applyPiDefaults(
+  paths: AxonPaths,
+  defaults: PiConfig,
+  options: { readonly beforeWrite?: () => Promise<void> } = {},
+): Promise<void> {
   // Share the package synchronizer's lock because both update the same settings file.
   await withFileLock(
     paths.piPackageLock,
@@ -97,8 +101,17 @@ export async function applyPiDefaults(paths: AxonPaths, defaults: PiConfig): Pro
         }
       }
 
-      if (JSON.stringify(current) !== JSON.stringify(tools)) {
-        await writePiSettings(settings, { ...settings.config, defaultTools: tools });
+      const litellm = settingsObject(settings.config["litellm"]);
+      const mcp = settingsObject(litellm["mcp"]);
+      const config = {
+        ...settings.config,
+        defaultTools: tools,
+        litellm: { ...litellm, mcp: { ...mcp, enabled: defaults.litellmMcpEnabled } },
+      };
+      if (JSON.stringify(settings.config) !== JSON.stringify(config)) {
+        // Recheck the credential/cancellation after waiting for the shared settings lock.
+        await options.beforeWrite?.();
+        await writePiSettings(settings, config);
       }
     },
     { timeoutMs: 700 },

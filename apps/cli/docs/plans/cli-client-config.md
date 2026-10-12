@@ -36,6 +36,10 @@ Example response:
 ```json
 {
   "schemaVersion": 1,
+  "pi": {
+    "codemodeEnabled": true,
+    "litellmMcpEnabled": true
+  },
   "telemetry": {
     "enabled": true,
     "endpoint": "/api/v1/otel",
@@ -66,6 +70,24 @@ Example response:
 - Backend settings are validated at startup and cached: restart after changing them. The checked-in template has null telemetry, so adding this feature does not silently enable export.
 
 ## Pi consumption and precedence
+
+`CLI_CLIENT_CONFIG.PI` independently controls `CODEMODE_ENABLED` and `LITELLM_MCP_ENABLED`;
+both must be JSON booleans when the section is present. They project as `pi.codemodeEnabled` and
+`pi.litellmMcpEnabled`. The launcher persists the tool-selection default and
+`litellm.mcp.enabled` in its managed Pi settings before startup, preserving unrelated settings and
+MCP exposure preferences. These are startup defaults, not enforced policy; normal Pi project/CLI
+overrides remain available. Omitted/null `PI`, offline/admin launches, failed config fetches, and
+account changes during the request retain the last local defaults. Restart the backend after edits;
+updated clients pick them up on their next authenticated online launch or `/reload`. On reload, a
+managed extension awaits `session_shutdown(reason: "reload")` to request a fresh fetch/apply through
+`POST /_axon/pi-defaults/refresh` on the capability-protected loopback relay. The launcher alone reads
+and rotates the real credential, validates the bounded config, and updates settings under the shared
+lock after rechecking cancellation/account identity. The refresh endpoint is disabled for offline
+launches. Quit/new/resume/fork do not fetch. Errors preserve current settings and do not block reload.
+This refresh applies only Pi defaults, not telemetry/search environment preferences. Pi rereads
+settings and recreates provider extensions afterward, so the MCP flag takes effect; its native
+reload behavior preserves already-active tools even when the codemode default changes. Organization
+MCP catalog sync remains separate and still adds new catalog entries disabled.
 
 After first-run login if necessary, an **online non-administrative Pi** invocation with a saved session makes one authenticated config GET while building its child environment, even with local telemetry/search switches off. The request is limited to 700 ms, including body reading, and 16 KiB, refuses redirects, validates schema version 1, and ignores unknown fields. There is no disk config cache.
 

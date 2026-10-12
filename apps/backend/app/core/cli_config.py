@@ -25,6 +25,7 @@ class CliPiConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     codemode_enabled: bool = Field(alias="codemodeEnabled", strict=True)
+    litellm_mcp_enabled: bool = Field(alias="litellmMcpEnabled", strict=True)
 
 
 def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
@@ -37,9 +38,14 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
     pi = section.get("PI")
     if pi is None:
         return None
-    if not isinstance(pi, dict) or set(pi) - {"CODEMODE_ENABLED"}:
+    if not isinstance(pi, dict) or set(pi) - {"CODEMODE_ENABLED", "LITELLM_MCP_ENABLED"}:
         raise ValueError("PI must contain only supported Pi defaults")
-    return CliPiConfig.model_validate({"codemodeEnabled": pi.get("CODEMODE_ENABLED")})
+    return CliPiConfig.model_validate(
+        {
+            "codemodeEnabled": pi.get("CODEMODE_ENABLED"),
+            "litellmMcpEnabled": pi.get("LITELLM_MCP_ENABLED"),
+        }
+    )
 
 
 @dataclass(frozen=True, slots=True)
