@@ -325,6 +325,8 @@ describe("launcher dispatch", () => {
     expect(activeRuntime).not.toBe("current");
     expect(stdout.arguments).toEqual([
       "--extension",
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "managed-config.ts"),
+      "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "axon.ts"),
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "pi-org-telemetry.mjs"),

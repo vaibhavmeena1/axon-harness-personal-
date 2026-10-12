@@ -1,8 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
+import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
+import { fetchClientConfig } from "../client-config.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "./session.ts";
 import { createSessionRecovery, type SessionRecovery } from "./session-recovery.ts";
 import { type SessionVerificationStatus, verifyEncryptedSession } from "./verification.ts";
@@ -297,8 +299,49 @@ async function forwardManagedRequest(
   return loginRequired();
 }
 
+/** Refresh only the Pi defaults; credentials and filesystem writes stay in the launcher. */
+async function refreshPiDefaults(
+  request: Request,
+  paths: AxonPaths,
+  session: RelaySession,
+): Promise<Response> {
+  let expectedSession = await session.load(request.signal);
+  if (expectedSession === undefined)
+    return relayError(401, "Authentication required to refresh Pi defaults.");
+  const result = await fetchClientConfig(expectedSession, {
+    fetcher: (input, init) =>
+      fetch(input, {
+        ...init,
+        signal: AbortSignal.any([request.signal, ...(init?.signal ? [init.signal] : [])]),
+      }),
+  });
+  // Preserve safe rotations even when the config body is invalid, just as at startup.
+  if (result.sessionRefreshToken) {
+    const outcome = await session.refresh(expectedSession, result.sessionRefreshToken);
+    if (outcome !== "saved") return relayError(409, "Pi defaults refresh was superseded.");
+    expectedSession = result.sessionRefreshToken;
+  }
+  const beforeWrite = async () => {
+    request.signal.throwIfAborted();
+    if ((await session.load(request.signal)) !== expectedSession) {
+      throw new Error("Pi defaults account changed during refresh");
+    }
+  };
+  await beforeWrite();
+  if (!result.config)
+    return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
+  if (result.config.pi) await applyPiDefaults(paths, result.config.pi, { beforeWrite });
+  return Response.json(
+    { applied: result.config.pi !== undefined },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 /** A per-launch, capability-protected loopback transport owned by axon, not a provider fork. */
-export function startAuthenticatedRequestRelay(paths: AxonPaths): AuthenticatedRequestRelay {
+export function startAuthenticatedRequestRelay(
+  paths: AxonPaths,
+  options: { readonly allowPiConfigRefresh?: boolean } = {},
+): AuthenticatedRequestRelay {
   const capability = `${crypto.randomUUID()}${crypto.randomUUID()}`;
   const recovery = createSessionRecovery(paths);
   const session = createRelaySession(paths);
@@ -319,6 +362,16 @@ export function startAuthenticatedRequestRelay(paths: AxonPaths): AuthenticatedR
       // Control calls never wait for authentication work so Pi can approve a pending login.
       const controlResponse = await recovery.handle(request, url);
       if (controlResponse !== undefined) return controlResponse;
+      if (url.pathname === "/_axon/pi-defaults/refresh") {
+        if (!options.allowPiConfigRefresh || request.method !== "POST" || url.search !== "") {
+          return relayError(404, "Axon endpoint is not available");
+        }
+        try {
+          return await refreshPiDefaults(request, paths, session);
+        } catch {
+          return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
+        }
+      }
       const allowed =
         url.pathname.startsWith("/litellm/") ||
         (url.pathname === "/api/v1/model-recommendations" && request.method === "POST");

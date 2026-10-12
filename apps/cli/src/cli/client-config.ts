@@ -30,6 +30,7 @@ const webSearchSchema = z.strictObject({
 });
 const piSchema = z.strictObject({
   codemodeEnabled: z.boolean(),
+  litellmMcpEnabled: z.boolean(),
 });
 const configSchema = z.object({
   schemaVersion: z.literal(1),
@@ -85,7 +86,7 @@ export interface ClientConfigResult {
 
 export interface ClientConfigFetchOptions {
   readonly serviceOrigin?: string;
-  readonly fetcher?: typeof fetch;
+  readonly fetcher?: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>;
   readonly timeoutMs?: number;
 }
 

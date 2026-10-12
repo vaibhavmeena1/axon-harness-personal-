@@ -701,6 +701,7 @@ describe("package and resource locks", () => {
     expect(first.arguments).toHaveLength(EMBEDDED_PI_RESOURCES.length * 2);
     const materializedPaths = first.arguments.filter((_argument, index) => index % 2 === 1);
     expect(materializedPaths.map((path) => path.split("/").at(-1))).toEqual([
+      "managed-config.ts",
       "axon.ts",
       "pi-org-telemetry.mjs",
       "model-recommender.ts",

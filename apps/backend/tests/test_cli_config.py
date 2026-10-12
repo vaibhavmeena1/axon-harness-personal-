@@ -49,7 +49,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
-        cli_pi=CliPiConfig.model_validate({"codemodeEnabled": True}),
+        cli_pi=CliPiConfig.model_validate({"codemodeEnabled": True, "litellmMcpEnabled": True}),
         web_search=web_search,
     )
     client = TestClient(app)
@@ -61,7 +61,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert response.json() == {
         "schemaVersion": 1,
         "telemetry": POLICY,
-        "pi": {"codemodeEnabled": True},
+        "pi": {"codemodeEnabled": True, "litellmMcpEnabled": True},
         "webSearch": public_search,
     }
     assert response.headers["cache-control"] == "no-store"
@@ -158,15 +158,15 @@ def test_private_collector_does_not_become_the_public_endpoint() -> None:
 
 def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
-    assert raw["CLI_CLIENT_CONFIG"]["PI"] == {"CODEMODE_ENABLED": True}
+    assert raw["CLI_CLIENT_CONFIG"]["PI"] == {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}
     raw.update(settings_raw())
-    raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": True}
+    raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}
     (tmp_path / "config.json").write_text(json.dumps(raw))
     monkeypatch.setattr(config_module, "BASE_DIR", tmp_path)
     get_settings.cache_clear()
     try:
         assert get_settings().cli_telemetry.model_dump(by_alias=True) == POLICY
-        assert get_settings().cli_pi.model_dump(by_alias=True) == {"codemodeEnabled": True}
+        assert get_settings().cli_pi.model_dump(by_alias=True) == {"codemodeEnabled": True, "litellmMcpEnabled": True}
         raw["CLI_CLIENT_CONFIG"]["TELEMETRY"]["ENDPOINT"] = "https://collector.example.test?token=private"
         (tmp_path / "config.json").write_text(json.dumps(raw))
         get_settings.cache_clear()
@@ -180,10 +180,23 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
 def test_pi_defaults_are_explicit_and_optional() -> None:
     for raw in [{}, {"CLI_CLIENT_CONFIG": {}}, {"CLI_CLIENT_CONFIG": {"PI": None}}]:
         assert parse_cli_pi(raw) is None
-    for enabled in [True, False]:
-        defaults = parse_cli_pi({"CLI_CLIENT_CONFIG": {"PI": {"CODEMODE_ENABLED": enabled}}})
-        assert defaults is not None
-        assert defaults.model_dump(by_alias=True) == {"codemodeEnabled": enabled}
+    for codemode_enabled in [True, False]:
+        for litellm_mcp_enabled in [True, False]:
+            defaults = parse_cli_pi(
+                {
+                    "CLI_CLIENT_CONFIG": {
+                        "PI": {
+                            "CODEMODE_ENABLED": codemode_enabled,
+                            "LITELLM_MCP_ENABLED": litellm_mcp_enabled,
+                        }
+                    }
+                }
+            )
+            assert defaults is not None
+            assert defaults.model_dump(by_alias=True) == {
+                "codemodeEnabled": codemode_enabled,
+                "litellmMcpEnabled": litellm_mcp_enabled,
+            }
 
 
 @pytest.mark.parametrize(
@@ -192,11 +205,16 @@ def test_pi_defaults_are_explicit_and_optional() -> None:
         {},
         True,
         [],
-        {"CODEMODE_ENABLED": "true"},
-        {"CODEMODE_ENABLED": 1},
-        {"CODEMODE_ENABLED": None},
-        {"CODEMODE_ENABLED": True, "INLINE_BUDGET": 3000},
-        {"CODEMODE_ENABLED": True, "SHELL_COMMAND_PREFIX": "private-secret"},
+        {"CODEMODE_ENABLED": True},
+        {"LITELLM_MCP_ENABLED": True},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": "true"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": 1},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": None},
+        {"CODEMODE_ENABLED": "true", "LITELLM_MCP_ENABLED": True},
+        {"CODEMODE_ENABLED": 1, "LITELLM_MCP_ENABLED": True},
+        {"CODEMODE_ENABLED": None, "LITELLM_MCP_ENABLED": True},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "INLINE_BUDGET": 3000},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "SHELL_COMMAND_PREFIX": "private-secret"},
     ],
 )
 def test_rejects_invalid_or_unapproved_pi_defaults(pi: object) -> None:
@@ -206,7 +224,7 @@ def test_rejects_invalid_or_unapproved_pi_defaults(pi: object) -> None:
 
 def test_settings_loader_rejects_invalid_pi_defaults_safely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
-    raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": "private-secret"}
+    raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": "private-secret"}
     (tmp_path / "config.json").write_text(json.dumps(raw))
     monkeypatch.setattr(config_module, "BASE_DIR", tmp_path)
     get_settings.cache_clear()
