@@ -1,0 +1,42 @@
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  40e7e4fc417c158b 167-172,186
+  f18ccdad78fd9583 46,62-63,65,78,80,88-92,95-101
+apps/backend/app/core/terminal_permissions.py
+  40e7e4fc417c158b 7,10,12-26,30-73,75-90,136
+  f18ccdad78fd9583 27-29
+apps/cli/src/cli/client-config.ts
+  40e7e4fc417c158b 3,36-37,46-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "8dd83327c9b524a7c80e44cb5832eccdc5238f42",
+  "prompts": {
+    "40e7e4fc417c158b": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "490760",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 85,
+      "total_deletions": 15,
+      "accepted_lines": 93,
+      "overriden_lines": 1
+    },
+    "f18ccdad78fd9583": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "490800",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 1,
+      "accepted_lines": 21,
+      "overriden_lines": 0
+    }
+  }
+}
