@@ -6,8 +6,8 @@
 
 ## Existing behavior and motivation
 
-- Backend `app/core/cli_config.py` accepts only `CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED`.
-- CLI `src/cli/client-config.ts` accepts only `pi.codemodeEnabled`.
+- Backend `app/core/cli_config.py` accepts only `CLI_CLIENT_CONFIG.PI.CODEMODE_ENABLED` and `LITELLM_MCP_ENABLED`; see [cli-client-config.md](cli-client-config.md#pi-consumption-and-precedence) for the current contract.
+- CLI `src/cli/client-config.ts` accepts only `pi.codemodeEnabled` and `pi.litellmMcpEnabled`.
 - `src/harnesses/pi/settings-defaults.ts` modifies `defaultTools`, preserving unrelated settings in an ordinary update.
 - Managed Pi uses `$AXON_HOME/pi/settings.json`, not standalone `~/.pi/agent/settings.json`.
 - Axon's package lock and Pi's native `settings.json.lock` are different. An isolated audit reproduced a Pi preference being lost when Axon renamed a stale settings snapshot over a concurrent Pi write.

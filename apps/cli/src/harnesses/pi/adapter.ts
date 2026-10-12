@@ -120,7 +120,15 @@ export function createPiAdapter(): HarnessAdapter {
           }
           if (piDefaults !== undefined) {
             try {
-              await applyPiDefaults(context.paths, piDefaults);
+              const expectedSession = encryptedSession;
+              await applyPiDefaults(context.paths, piDefaults, {
+                // Recheck the account after waiting for the shared settings lock, as on reload.
+                beforeWrite: async () => {
+                  if ((await loadEncryptedSession(context.paths)) !== expectedSession) {
+                    throw new Error("Pi defaults account changed during startup");
+                  }
+                },
+              });
             } catch {
               // Optional defaults must not overwrite unsafe settings or block Pi launch.
               console.error(`${PRODUCT_IDENTITY.command}: could not apply managed Pi defaults`);
