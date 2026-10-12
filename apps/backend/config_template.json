@@ -58,7 +58,8 @@
   },
   "CLI_CLIENT_CONFIG": {
     "PI": {
-      "CODEMODE_ENABLED": true
+      "CODEMODE_ENABLED": true,
+      "LITELLM_MCP_ENABLED": true
     },
     "ALLOWED_TELEMETRY_ORIGINS": [],
     "TELEMETRY": null,

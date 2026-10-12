@@ -8,7 +8,11 @@ import { resolveAxonPaths } from "../src/product/paths.ts";
 
 // Isolate the service origin, upstream fetch, and optional persistence mocks in a child.
 // Local requests still use real HTTP through Bun's authenticated relay.
-async function runRelayScript(script: string, setup = ""): Promise<void> {
+async function runRelayScript(
+  script: string,
+  setup = "",
+  allowPiConfigRefresh = false,
+): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "axon-request-relay-"));
   await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "initial-session");
   const childScript = `
@@ -39,7 +43,9 @@ async function runRelayScript(script: string, setup = ""): Promise<void> {
     }
     ${setup}
     const { startAuthenticatedRequestRelay } = await import("./src/cli/auth/request-relay.ts");
-    const relay = startAuthenticatedRequestRelay(paths);
+    const relay = startAuthenticatedRequestRelay(paths, {
+      allowPiConfigRefresh: ${allowPiConfigRefresh},
+    });
     function send(path, signal) {
       return actualFetch(relay.origin + path, {
         method: "POST",
@@ -342,4 +348,224 @@ test("concurrent rejections of one credential share a single verification", asyn
     }
     assert.equal(verifications, 1);
   `);
+});
+
+test("refreshes Pi defaults through the pinned config API and safely rotates the session", async () => {
+  await runRelayScript(
+    `
+    const settingsPath = paths.pi + "/settings.json";
+    const initial = { theme: "custom", defaultTools: ["read"], litellm: {
+      skills: { enabled: false }, mcp: { enabled: false, exposure: "deferred" }
+    } };
+    await Bun.write(settingsPath, JSON.stringify(initial));
+    let enabled = true;
+    let calls = 0;
+    upstream = async (request) => {
+      assert.equal(new URL(request.url).pathname, "/api/v1/cli/config");
+      assert.equal(request.method, "GET");
+      assert.equal(request.headers.get("authorization"), calls++ === 0
+        ? "Bearer initial-session" : "Bearer rotated-session");
+      return Response.json({ schemaVersion: 1, pi: {
+        codemodeEnabled: !enabled, litellmMcpEnabled: enabled
+      } }, { headers: { "x-session-refresh-token": "rotated-session" } });
+    };
+    for (enabled of [true, false]) {
+      const response = await send("/_axon/pi-defaults/refresh");
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { applied: true });
+      assert.equal(response.headers.get("x-session-refresh-token"), null);
+      const settings = await Bun.file(settingsPath).json();
+      assert.deepEqual(settings.defaultTools, ["read", enabled ? "-codemode" : "+codemode"]);
+      assert.deepEqual(settings.litellm, {
+        ...initial.litellm, mcp: { ...initial.litellm.mcp, enabled }
+      });
+      assert.equal(settings.theme, "custom");
+      assert.equal(await sessions.loadEncryptedSession(paths), "rotated-session");
+    }
+  `,
+    "",
+    true,
+  );
+});
+
+test("config outages, invalid policies, and omitted defaults preserve local settings", async () => {
+  await runRelayScript(
+    `
+    const settingsPath = paths.pi + "/settings.json";
+    const content = JSON.stringify({ defaultTools: ["read"], litellm: { mcp: { enabled: false } } });
+    await Bun.write(settingsPath, content);
+    for (const [response, status] of [
+      [new Response("private-secret", { status: 503 }), 503],
+      [Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: "true" } }), 503],
+      [new Response("<html>private-secret</html>"), 503],
+      [Response.json({ schemaVersion: 1 }), 200],
+    ]) {
+      upstream = async () => response;
+      const result = await send("/_axon/pi-defaults/refresh");
+      assert.equal(result.status, status);
+      assert.equal(await Bun.file(settingsPath).text(), content);
+      assert.ok(!(await result.text()).includes("private-secret"));
+    }
+  `,
+    "",
+    true,
+  );
+});
+
+test("refresh is capability-protected, POST-only, local-only, and disabled on offline relays", async () => {
+  await runRelayScript(`
+    assert.equal((await send("/_axon/pi-defaults/refresh")).status, 404);
+  `);
+  await runRelayScript(
+    `
+    assert.equal((await actualFetch(relay.origin + "/_axon/pi-defaults/refresh", { method: "POST" })).status, 401);
+    assert.equal((await actualFetch(relay.origin + "/_axon/pi-defaults/refresh", {
+      headers: { authorization: "Bearer " + relay.capability }
+    })).status, 404);
+    assert.equal((await send("/_axon/pi-defaults/refresh?url=http://evil.test")).status, 404);
+    assert.equal((await send("/api/v1/cli/config")).status, 404);
+  `,
+    "",
+    true,
+  );
+});
+
+test("a config response from an account changed during refresh is not applied", async () => {
+  await runRelayScript(
+    `
+    const settingsPath = paths.pi + "/settings.json";
+    const content = JSON.stringify({ defaultTools: ["read"], litellm: { mcp: { enabled: false } } });
+    await Bun.write(settingsPath, content);
+    upstream = async () => {
+      await sessions.saveEncryptedSession(paths, "different-account");
+      return Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: true } },
+        { headers: { "x-session-refresh-token": "old-account-rotation" } });
+    };
+    assert.equal((await send("/_axon/pi-defaults/refresh")).status, 409);
+    assert.equal(await sessions.loadEncryptedSession(paths), "different-account");
+    assert.equal(await Bun.file(settingsPath).text(), content);
+  `,
+    "",
+    true,
+  );
+});
+
+test("a config refresh rechecks the account after waiting for the settings lock", async () => {
+  await runRelayScript(
+    `
+    const { withFileLock } = await import("./src/launcher/file-lock.ts");
+    const settingsPath = paths.pi + "/settings.json";
+    const content = JSON.stringify({ defaultTools: ["read"], litellm: { mcp: { enabled: false } } });
+    await Bun.write(settingsPath, content);
+    const fetched = Promise.withResolvers();
+    upstream = async () => {
+      fetched.resolve();
+      return Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: true } });
+    };
+    let response;
+    await withFileLock(paths.piPackageLock, async () => {
+      response = send("/_axon/pi-defaults/refresh");
+      await fetched.promise;
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await sessions.saveEncryptedSession(paths, "different-account");
+    });
+    assert.equal((await response).status, 503);
+    assert.equal(await Bun.file(settingsPath).text(), content);
+  `,
+    "",
+    true,
+  );
+});
+
+test("refresh deadlines and unsafe settings never overwrite the current settings", async () => {
+  await runRelayScript(
+    `
+    const settingsPath = paths.pi + "/settings.json";
+    const content = JSON.stringify({ litellm: { mcp: { enabled: false } } });
+    await Bun.write(settingsPath, content);
+    upstream = async (request) => new Promise((_, reject) => {
+      request.signal.addEventListener("abort", () => reject(new Error("private-secret")), { once: true });
+    });
+    const started = Date.now();
+    assert.equal((await bounded(send("/_axon/pi-defaults/refresh"))).status, 503);
+    assert.ok(Date.now() - started < 1500);
+    assert.equal(await Bun.file(settingsPath).text(), content);
+    upstream = async () => Response.json({ schemaVersion: 1,
+      pi: { codemodeEnabled: true, litellmMcpEnabled: true }
+    });
+    await Bun.write(settingsPath, "{malformed");
+    assert.equal((await send("/_axon/pi-defaults/refresh")).status, 503);
+    assert.equal(await Bun.file(settingsPath).text(), "{malformed");
+    `,
+    "",
+    true,
+  );
+});
+
+test("invalid config still persists a safe auth rotation without applying defaults", async () => {
+  await runRelayScript(
+    `
+    const settingsPath = paths.pi + "/settings.json";
+    const content = JSON.stringify({ litellm: { mcp: { enabled: false } } });
+    await Bun.write(settingsPath, content);
+    upstream = async () => Response.json({ schemaVersion: 999 }, {
+      headers: { "x-session-refresh-token": "rotated-session" }
+    });
+    assert.equal((await send("/_axon/pi-defaults/refresh")).status, 503);
+    assert.equal(await sessions.loadEncryptedSession(paths), "rotated-session");
+    assert.equal(await Bun.file(settingsPath).text(), content);
+    `,
+    "",
+    true,
+  );
+});
+
+test("real Pi reload applies fresh backend defaults before rerunning extension factories", async () => {
+  await runRelayScript(
+    `
+    const sdk = await import("@earendil-works/pi-coding-agent");
+    const { default: managedConfig } = await import("./src/harnesses/pi/resources/extensions/managed-config.ts");
+    const settingsPath = paths.pi + "/settings.json";
+    await Bun.write(settingsPath, JSON.stringify({ litellm: { mcp: { enabled: false } } }));
+    process.env.PI_AXON_CONFIG_REFRESH_ENABLED = "true";
+    process.env.PI_AXON_AUTH_RELAY_URL = relay.origin;
+    process.env.PI_AXON_AUTH_RELAY_KEY = relay.capability;
+    const factoryValues = [];
+    const settingsManager = sdk.SettingsManager.create(paths.home, paths.pi);
+    const resourceLoader = new sdk.DefaultResourceLoader({
+      cwd: paths.home, agentDir: paths.pi, settingsManager,
+      noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, noContextFiles: true,
+      extensionFactories: [managedConfig, async () => {
+        const settings = await Bun.file(settingsPath).json();
+        factoryValues.push(settings.litellm.mcp.enabled);
+      }],
+    });
+    await resourceLoader.reload();
+    const { session: piSession } = await sdk.createAgentSession({
+      cwd: paths.home, agentDir: paths.pi, settingsManager, resourceLoader,
+      sessionManager: sdk.SessionManager.inMemory(paths.home),
+    });
+    try {
+      await piSession.bindExtensions({});
+      assert.equal(factoryValues.at(-1), false);
+      let enabled = true;
+      upstream = async () => Response.json({ schemaVersion: 1,
+        pi: { codemodeEnabled: true, litellmMcpEnabled: enabled }
+      });
+      await piSession.reload();
+      assert.equal(factoryValues.at(-1), true);
+      // A manual local edit cannot bypass the next successful managed reload.
+      const settings = await Bun.file(settingsPath).json();
+      settings.litellm.mcp.enabled = false;
+      await Bun.write(settingsPath, JSON.stringify(settings));
+      await piSession.reload();
+      assert.equal(factoryValues.at(-1), true);
+      enabled = false;
+      await piSession.reload();
+      assert.equal(factoryValues.at(-1), false);
+    } finally { piSession.dispose(); }
+  `,
+    "",
+    true,
+  );
 });

@@ -53,17 +53,23 @@ describe("protected client config", () => {
 
   test("validates optional Pi defaults without accepting arbitrary settings", () => {
     for (const codemodeEnabled of [true, false]) {
-      expect(parseClientConfig({ schemaVersion: 1, pi: { codemodeEnabled } }).pi).toEqual({
-        codemodeEnabled,
-      });
+      for (const litellmMcpEnabled of [true, false]) {
+        const pi = { codemodeEnabled, litellmMcpEnabled };
+        expect(parseClientConfig({ schemaVersion: 1, pi }).pi).toEqual(pi);
+      }
     }
     for (const pi of [
       {},
       null,
-      { codemodeEnabled: "true" },
-      { codemodeEnabled: 1 },
-      { codemodeEnabled: true, shellCommandPrefix: "unsafe" },
-      { codemodeEnabled: true, codemode: { inlineBudget: 3000 } },
+      { codemodeEnabled: true },
+      { litellmMcpEnabled: true },
+      { codemodeEnabled: true, litellmMcpEnabled: "true" },
+      { codemodeEnabled: true, litellmMcpEnabled: 1 },
+      { codemodeEnabled: true, litellmMcpEnabled: null },
+      { codemodeEnabled: "true", litellmMcpEnabled: true },
+      { codemodeEnabled: 1, litellmMcpEnabled: true },
+      { codemodeEnabled: true, litellmMcpEnabled: true, shellCommandPrefix: "unsafe" },
+      { codemodeEnabled: true, litellmMcpEnabled: true, codemode: { inlineBudget: 3000 } },
     ]) {
       expect(() => parseClientConfig({ schemaVersion: 1, pi })).toThrow();
     }

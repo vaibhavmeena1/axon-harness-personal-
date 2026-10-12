@@ -1,4 +1,7 @@
 import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" with { type: "file" };
+import managedConfigExtensionAsset from "../harnesses/pi/resources/extensions/managed-config.ts" with {
+  type: "file",
+};
 import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
@@ -34,6 +37,12 @@ const SESSION_BACKUP_RESOURCE = Object.freeze({
   id: "session-backup",
   type: "extension",
   destination: "pi/extensions/session-backup.mjs",
+}) satisfies PiResourceManifestEntry;
+
+const MANAGED_CONFIG_RESOURCE = Object.freeze({
+  id: "managed-config",
+  type: "extension",
+  destination: "pi/extensions/managed-config.ts",
 }) satisfies PiResourceManifestEntry;
 
 const AXON_CORE_RESOURCE = Object.freeze({
@@ -85,7 +94,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "12",
+  revision: "13",
   pi: {
     packages: [
       {
@@ -104,6 +113,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       },
     ],
     resources: [
+      MANAGED_CONFIG_RESOURCE,
       AXON_CORE_RESOURCE,
       MODEL_RECOMMENDER_RESOURCE,
       SESSION_BACKUP_RESOURCE,
@@ -124,6 +134,10 @@ export interface EmbeddedPiResource extends PiResourceManifestEntry {
 }
 
 export const EMBEDDED_PI_RESOURCES = Object.freeze([
+  Object.freeze({
+    ...MANAGED_CONFIG_RESOURCE,
+    sourcePath: managedConfigExtensionAsset as unknown as string,
+  }),
   Object.freeze({
     ...AXON_CORE_RESOURCE,
     // TypeScript resolves the source module while Bun's `file` loader returns its asset path.

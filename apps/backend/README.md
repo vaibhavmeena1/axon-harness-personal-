@@ -231,26 +231,42 @@ Environment fallback retains standard HTTP/protobuf or gRPC exporters and enviro
 
 #### Pi startup defaults
 
-The template enables codemode for managed Pi launches through:
+The template enables codemode and the LiteLLM MCP bridge independently for managed Pi launches:
 
 ```json
 "CLI_CLIENT_CONFIG": {
-  "PI": { "CODEMODE_ENABLED": true }
+  "PI": {
+    "CODEMODE_ENABLED": true,
+    "LITELLM_MCP_ENABLED": true
+  }
 }
 ```
 
-The config API projects this as `"pi": { "codemodeEnabled": true }`. Before launching Pi,
-`axon` merges `"+codemode"` into `$AXON_HOME/pi/settings.json` (normally
-`~/.axon/pi/settings.json`), preserving other tool choices, packages, and unrelated settings.
+When `PI` is configured, both fields must be JSON booleans. The config API projects them as
+`"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true }`. Before launching Pi,
+`axon` merges `"+codemode"` and `"litellm": { "mcp": { "enabled": true } }` into
+`$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`), preserving other tool choices,
+packages, LiteLLM MCP exposure/tool preferences, and unrelated settings. Enabling the bridge lets
+Pi discover MCP tools through the authenticated LiteLLM relay; upstream permissions still apply.
 It leaves `codemode.inlineBudget` unset, so Pi uses its default of 3000 unless the user has configured it.
 Standalone `~/.pi/agent/settings.json` is never modified.
 
 These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
-`CODEMODE_ENABLED: false` sets a disabled codemode startup default. Omit `PI` or set it to null to stop
-managing the default; this leaves the last local settings untouched. Offline, administrative,
+On `/reload`, a managed online session fetches fresh backend Pi defaults through the launcher
+relay before Pi reloads settings and provider extensions. This reapplies both Pi fields, including
+restoring the backend MCP value after a local edit. It does not refresh telemetry/search preferences
+or poll in the background. Fetch/auth/schema failures preserve the current settings and warn safely.
+Pi preserves already-active tools on reload: changing `CODEMODE_ENABLED` updates its tool-selection
+default but does not forcibly deactivate an active codemode tool. The MCP bridge is recreated using
+the freshly applied value.
+`CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_MCP_ENABLED: false`
+disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
+Omit `PI` or set it to null to stop managing both defaults; this leaves the last local settings untouched. Offline, administrative,
 unauthenticated, and failed config fetches do not change Pi settings. Defaults are persisted locally
 and reused offline. Unsafe settings or a busy settings lock are left untouched, without blocking launch.
-Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch.
+Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch
+or `/reload` in an updated managed online session. Existing sessions need one updated CLI launch
+to load the managed reload hook.
 
 ### Model recommendations through LiteLLM
 
