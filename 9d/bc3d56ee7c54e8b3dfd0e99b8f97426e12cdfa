@@ -1,0 +1,61 @@
+apps/cli/tests/terminal-permissions.test.ts
+  8868458d7f0ba35c 1-266,268-393
+apps/backend/app/routers/cli_config.py
+  8868458d7f0ba35c 11,22,32-34
+apps/cli/src/product/manifest.ts
+  8868458d7f0ba35c 15-17,63-66,71,97-98,133-135
+apps/backend/app/core/config.py
+  8868458d7f0ba35c 24,186,466-472,675,699
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  8868458d7f0ba35c 1-514
+apps/cli/src/harnesses/pi/terminal-permissions-environment.ts
+  8868458d7f0ba35c 1-12
+apps/cli/src/harnesses/pi/adapter.ts
+  8868458d7f0ba35c 8-9,28,62,89,98,117,123,166,188
+apps/backend/tests/test_cli_config.py
+  8868458d7f0ba35c 54,72
+apps/cli/tests/pi-client-config.test.ts
+  8868458d7f0ba35c 21-28,63,148,177,224,240,285,287
+apps/cli/src/harnesses/pi/telemetry/src/otel/product-instruments.ts
+  8868458d7f0ba35c 9-11
+apps/cli/tests/launcher.test.ts
+  8868458d7f0ba35c 339-340
+apps/cli/tests/pi-package-setup.test.ts
+  8868458d7f0ba35c 710
+apps/cli/tests/terminal-permissions-environment.test.ts
+  8868458d7f0ba35c 1-61
+apps/backend/tests/test_terminal_permissions.py
+  8868458d7f0ba35c 1-95
+apps/backend/config_template.json
+  8868458d7f0ba35c 92-99
+apps/cli/src/cli/client-config.ts
+  8868458d7f0ba35c 31-51,60,67
+apps/cli/src/telemetry/product-events.ts
+  8868458d7f0ba35c 21,37,44-46,73,108-123,167-178
+apps/cli/src/harnesses/pi/telemetry/src/product.ts
+  8868458d7f0ba35c 19-21
+apps/backend/app/core/terminal_permissions.py
+  8868458d7f0ba35c 1-61
+apps/cli/.env.example
+  8868458d7f0ba35c 133-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "9dbc3d56ee7c54e8b3dfd0e99b8f97426e12cdfa",
+  "prompts": {
+    "8868458d7f0ba35c": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "490337",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 1371,
+      "total_deletions": 88,
+      "accepted_lines": 1289,
+      "overriden_lines": 1
+    }
+  }
+}
