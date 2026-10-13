@@ -85,9 +85,10 @@ class AuthServiceClient:
         """Validate a session and return auth data and response headers from axon-auth."""
         try:
             response = await self._client.get(
-                "get-auth-data",
+                "v2/get-auth-data",
                 headers={"Authorization": authorization},
-                params=grace_params,
+                # In-session requests need identity and must preserve any rotated credentials.
+                params={**grace_params, "refresh_expired": "true"},
             )
             response.raise_for_status()
             auth_data = AuthDataResponse.model_validate(response.json())
@@ -127,7 +128,7 @@ class AuthServiceClient:
         """Check startup credentials without refreshing an expired session."""
         try:
             response = await self._client.post(
-                "verify-auth-token",
+                "v2/verify-auth-token",
                 headers={"Authorization": authorization},
                 params={"refresh_expired": "false"},
             )
