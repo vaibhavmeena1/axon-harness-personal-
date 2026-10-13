@@ -1,0 +1,23 @@
+apps/backend/app/clients/auth_service.py
+  5c37c4cf195fb739 88,90-91,131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "46a4c52b416de48aaee229abdd770145573da2d0",
+  "prompts": {
+    "5c37c4cf195fb739": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "491309",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
