@@ -1,0 +1,36 @@
+apps/cli/src/harnesses/pi/resources/extensions/git-ai.ts
+  s_81b4a0da16abe4::t_9511ec3926efe7 1-315
+apps/cli/src/product/manifest.ts
+  s_81b4a0da16abe4::t_44bc3a1ef38381 39-44,106,132,172-174
+  s_81b4a0da16abe4::t_b04c89f520112f 175
+apps/cli/tests/pi-package-setup.test.ts
+  s_81b4a0da16abe4::t_2e946a40b2c270 710
+apps/cli/tests/launcher.test.ts
+  s_81b4a0da16abe4::t_8e08b908c89681 340-341
+apps/cli/README.md
+  s_81b4a0da16abe4::t_047a184ce7826c 229
+  s_81b4a0da16abe4::t_daa6f12701a27f 225-228,230-246
+apps/cli/tests/git-ai.test.ts
+  s_81b4a0da16abe4::t_d808f3599bf1f5 1-469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28787940b5c1c59993d053b38db616ef3605744a",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_81b4a0da16abe4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a131c7-13f3-774f-94db-cec96a7f6034",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
