@@ -14,12 +14,17 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
  * PI_TERMINAL_APPROVAL_TIMEOUT_MS=60000
  * PI_TERMINAL_MANAGED_CONFIG is reserved for the Axon launcher's backend policy.
  */
+interface CommandPrefix {
+  readonly text: string;
+  readonly words: CommandWords;
+}
+
 interface TerminalConfig {
   readonly yoloMode: boolean;
   readonly allowYoloMode: boolean;
-  readonly autoApproveCommands: readonly string[];
-  readonly requireApprovalCommands: readonly string[];
-  readonly blockedCommands: readonly string[];
+  readonly autoApproveCommands: readonly CommandPrefix[];
+  readonly requireApprovalCommands: readonly CommandPrefix[];
+  readonly blockedCommands: readonly CommandPrefix[];
   readonly approvalTimeoutMs: number;
 }
 
@@ -42,6 +47,8 @@ type Decision = {
 type TerminalShell = "bash" | "powershell";
 type TerminalSource = "tool" | "nested_tool" | "user_bash";
 type CommandWords = readonly string[];
+
+const AUTO_SELECTED_DECISION_SAMPLE_INTERVAL = 100;
 
 // Alphabetic Bash control words; time is handled as a command wrapper below.
 const CONTROL_WORDS = new Set([
@@ -170,7 +177,7 @@ export function isSingleCommandPrefix(command: string): boolean {
   return parsed !== undefined && parsed.length === 1;
 }
 
-function commandList(value: unknown, name: string): readonly string[] {
+function commandList(value: unknown, name: string): readonly CommandPrefix[] {
   if (!Array.isArray(value) || value.length > 32) {
     throw new Error(`${name} must be a list of at most 32 commands`);
   }
@@ -183,10 +190,12 @@ function commandList(value: unknown, name: string): readonly string[] {
     ) {
       throw new Error(`${name} must contain non-empty command prefixes of at most 96 characters`);
     }
-    if (!isSingleCommandPrefix(rule)) {
+    const parsed = parseCommands(rule);
+    const words = parsed?.[0];
+    if (parsed?.length !== 1 || words === undefined) {
       throw new Error(`${name} contains unsupported shell syntax`);
     }
-    return rule.trim();
+    return { text: rule.trim(), words };
   });
 }
 
@@ -221,7 +230,7 @@ function readConfig(): TerminalConfig {
   if (Object.keys(policy).some((key) => !supportedKeys.includes(key))) {
     throw new Error("Unknown managed terminal config setting");
   }
-  const list = (key: string, environmentName: string): readonly string[] => {
+  const list = (key: string, environmentName: string): readonly CommandPrefix[] => {
     const local = process.env[environmentName];
     const configured =
       managed === undefined ? (local === undefined ? [] : JSON.parse(local)) : policy[key];
@@ -258,10 +267,8 @@ function readConfig(): TerminalConfig {
   };
 }
 
-function matchesPrefix(words: CommandWords, rule: string, restrict: boolean): boolean {
-  const prefix = parseCommands(rule)?.[0];
-  if (prefix === undefined) return false;
-  return prefix.every((word, index) => {
+function matchesPrefix(words: CommandWords, rule: CommandPrefix, restrict: boolean): boolean {
+  return rule.words.every((word, index) => {
     const actual = words[index];
     // Restrictions also catch explicit executable paths, without granting those paths implicitly.
     return actual === word || (restrict && index === 0 && actual?.split("/").at(-1) === word);
@@ -319,8 +326,23 @@ function decide(
 
 export default function terminalPermissions(pi: ExtensionAPI): void {
   let yoloOverride: boolean | undefined;
+  let autoSelectedDecisionSampleIndex = 0;
   // Serialize confirmation dialogs when codemode issues concurrent calls.
   let approvalQueue: Promise<void> = Promise.resolve();
+  let configResult: { readonly config: TerminalConfig } | { readonly error: unknown } | undefined;
+  const getConfig = (): TerminalConfig => {
+    // Environment policy is fixed for this launch; session changes do not reload it.
+    // Cache failures too so an invalid policy stays fail-closed without repeated parsing.
+    if (configResult === undefined) {
+      try {
+        configResult = { config: readConfig() };
+      } catch (error) {
+        configResult = { error };
+      }
+    }
+    if ("error" in configResult) throw configResult.error;
+    return configResult.config;
+  };
   // Standalone extensions use the shared bus, not launcher imports or another SDK.
   // Never include commands, cwd, policy lists, tool-call IDs, or exception text.
   const emit = (
@@ -356,26 +378,30 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     }
     let config: TerminalConfig;
     try {
-      config = readConfig();
+      config = getConfig();
     } catch {
       emit("decision", "blocked", { ...metadata, reason: "invalid_config" });
       return "Terminal execution blocked: invalid permission configuration";
     }
     const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-    const details = { ...metadata, yoloMode };
     const decision = decide(command, shell, config, yoloMode);
+    if (decision.action === "allow") {
+      // Keep the first auto-allowed decision, then one per 100 commands in this session.
+      // Sample before the bus to avoid per-command sanitization, spans, and logs.
+      if (autoSelectedDecisionSampleIndex === 0) {
+        emit("decision", "auto_selected", { ...metadata, yoloMode, reason: decision.reason });
+      }
+      autoSelectedDecisionSampleIndex =
+        (autoSelectedDecisionSampleIndex + 1) % AUTO_SELECTED_DECISION_SAMPLE_INTERVAL;
+      return undefined;
+    }
+    const details = { ...metadata, yoloMode };
     const reason = DECISION_REASONS[decision.reason];
-    emit(
-      "decision",
-      decision.action === "allow"
-        ? "auto_selected"
-        : decision.action === "block"
-          ? "blocked"
-          : "pending",
-      { ...details, reason: decision.reason },
-    );
+    emit("decision", decision.action === "block" ? "blocked" : "pending", {
+      ...details,
+      reason: decision.reason,
+    });
     if (decision.action === "block") return reason;
-    if (decision.action === "allow") return undefined;
     if (!ctx.hasUI) {
       emit("approval", "blocked", { ...details, reason: "approval_unavailable" });
       return `${reason}; explicit approval is unavailable in this mode`;
@@ -423,8 +449,9 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
 
   pi.on("session_start", (_event, ctx) => {
     yoloOverride = undefined;
+    autoSelectedDecisionSampleIndex = 0;
     try {
-      const config = readConfig();
+      const config = getConfig();
       updateStatus(ctx, config);
       emit("policy", "success", { yoloMode: config.yoloMode });
     } catch {
@@ -465,7 +492,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       const startedAt = Date.now();
       let config: TerminalConfig | undefined;
       try {
-        config = readConfig();
+        config = getConfig();
         if (action === "yolo off") {
           yoloOverride = false;
           emit("yolo", "success", { reason: "yolo_disabled", yoloMode: false });
@@ -485,7 +512,10 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
           const approved = await ctx.ui.confirm(
             "Enable YOLO mode?",
             "Supported terminal commands will run without approval. Required-approval and blocked commands still apply.",
-            { timeout: config.approvalTimeoutMs },
+            {
+              timeout: config.approvalTimeoutMs,
+              ...(signal === undefined ? {} : { signal }),
+            },
           );
           if (approved !== true || signal?.aborted) {
             emit("yolo", signal?.aborted ? "cancelled" : "dismissed", {
@@ -511,9 +541,9 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
         ctx.ui.notify(
           [
             `YOLO: ${yoloLabel}`,
-            `Auto-approve: ${config.autoApproveCommands.join(", ") || "none"}`,
-            `Require approval: ${config.requireApprovalCommands.join(", ") || "none"}`,
-            `Blocked: ${config.blockedCommands.join(", ") || "none"}`,
+            `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"}`,
+            `Require approval: ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
+            `Blocked: ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
             `Approval timeout: ${config.approvalTimeoutMs / 1000}s`,
             "Unmatched commands require approval unless YOLO is on.",
             "Lists use literal command prefixes; complex syntax and wrappers require review.",
