@@ -49,6 +49,7 @@ type TerminalSource = "tool" | "nested_tool" | "user_bash";
 type CommandWords = readonly string[];
 
 const AUTO_SELECTED_DECISION_SAMPLE_INTERVAL = 100;
+const MAX_QUEUED_APPROVALS = 32;
 
 // Alphabetic Bash control words; time is handled as a command wrapper below.
 const CONTROL_WORDS = new Set([
@@ -327,8 +328,21 @@ function decide(
 export default function terminalPermissions(pi: ExtensionAPI): void {
   let yoloOverride: boolean | undefined;
   let autoSelectedDecisionSampleIndex = 0;
-  // Serialize confirmation dialogs when codemode issues concurrent calls.
-  let approvalQueue: Promise<void> = Promise.resolve();
+  // Bound retained requests and serialize confirmation dialogs for concurrent codemode calls.
+  const approvalQueue: (() => Promise<void>)[] = [];
+  let approvalInProgress = false;
+  const startNextApproval = (): void => {
+    if (approvalInProgress) return;
+    const nextApproval = approvalQueue.shift();
+    if (nextApproval === undefined) return;
+    approvalInProgress = true;
+    const releaseApproval = (): void => {
+      approvalInProgress = false;
+      startNextApproval();
+    };
+    // Keep the dialog slot until confirm settles, even if its caller has already timed out.
+    void nextApproval().then(releaseApproval, releaseApproval);
+  };
   let configResult: { readonly config: TerminalConfig } | { readonly error: unknown } | undefined;
   const getConfig = (): TerminalConfig => {
     // Environment policy is fixed for this launch; session changes do not reload it.
@@ -407,44 +421,99 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       return `${reason}; explicit approval is unavailable in this mode`;
     }
     const queuedAt = Date.now();
-    const pending = approvalQueue.then(async () => {
-      if (signal?.aborted) {
-        emit("approval", "cancelled", {
+    if (signal?.aborted) {
+      emit("approval", "cancelled", { ...details, reason: "cancelled", durationMs: 0 });
+      return "Terminal execution cancelled";
+    }
+    if (approvalQueue.length >= MAX_QUEUED_APPROVALS) {
+      emit("approval", "blocked", { ...details, reason: "approval_unavailable", durationMs: 0 });
+      return "Terminal approval queue is full; command was not executed";
+    }
+    const deadline = queuedAt + config.approvalTimeoutMs;
+    return new Promise<string | undefined>((resolve) => {
+      let settled = false;
+      const finish = (
+        outcome: string,
+        approvalReason: string,
+        result: string | undefined,
+      ): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", cancel);
+        // Remove expired/cancelled waiters instead of retaining them behind the active dialog.
+        const queueIndex = approvalQueue.indexOf(startApproval);
+        if (queueIndex !== -1) approvalQueue.splice(queueIndex, 1);
+        emit("approval", outcome, {
           ...details,
-          reason: "cancelled",
+          reason: approvalReason,
           durationMs: Date.now() - queuedAt,
         });
-        return "Terminal execution cancelled";
-      }
-      emit("approval", "pending", { ...details, reason: decision.reason });
-      try {
-        const approved = await ctx.ui.confirm(
-          "Allow terminal command?",
-          `${reason}\nWorking directory: ${cwd}\nShell: ${shell}\n\n${command}`,
-          {
-            timeout: config.approvalTimeoutMs,
-            ...(signal === undefined ? {} : { signal }),
-          },
+        resolve(result);
+      };
+      const cancel = (): void => {
+        finish("cancelled", "cancelled", "Terminal execution cancelled");
+      };
+      const expire = (): void => {
+        finish(
+          "dismissed",
+          "not_approved",
+          "Terminal approval timed out; command was not executed",
         );
-        const allowed = approved === true && !signal?.aborted;
-        // Pi returns false for denial, dismissal, and timeout; do not invent a specific cause.
-        emit("approval", allowed ? "selected" : signal?.aborted ? "cancelled" : "dismissed", {
-          ...details,
-          reason: allowed ? decision.reason : signal?.aborted ? "cancelled" : "not_approved",
-          durationMs: Date.now() - queuedAt,
-        });
-        return allowed ? undefined : "Terminal command denied or approval cancelled";
-      } catch {
-        emit("approval", signal?.aborted ? "cancelled" : "failed", {
-          ...details,
-          reason: signal?.aborted ? "cancelled" : "approval_failed",
-          durationMs: Date.now() - queuedAt,
-        });
-        return "Terminal approval failed; command was not executed";
-      }
+      };
+      // This timer covers queue wait as well as dialog time and settles the caller promptly.
+      const timeout = setTimeout(expire, Math.max(0, deadline - Date.now()));
+      const startApproval = async (): Promise<void> => {
+        if (settled) return;
+        if (signal?.aborted) {
+          cancel();
+          return;
+        }
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          expire();
+          return;
+        }
+        emit("approval", "pending", { ...details, reason: decision.reason });
+        try {
+          const approved = await ctx.ui.confirm(
+            "Allow terminal command?",
+            `${reason}\nWorking directory: ${cwd}\nShell: ${shell}\n\n${command}`,
+            {
+              timeout: remainingMs,
+              ...(signal === undefined ? {} : { signal }),
+            },
+          );
+          if (settled) return;
+          if (signal?.aborted) {
+            cancel();
+          } else if (Date.now() >= deadline) {
+            // A delayed timer or late UI response must never grant permission after expiry.
+            expire();
+          } else {
+            // Pi returns false for denial, dismissal, and timeout; do not invent a specific cause.
+            finish(
+              approved === true ? "selected" : "dismissed",
+              approved === true ? decision.reason : "not_approved",
+              approved === true ? undefined : "Terminal command denied or approval cancelled",
+            );
+          }
+        } catch {
+          if (signal?.aborted) {
+            cancel();
+          } else {
+            finish(
+              "failed",
+              "approval_failed",
+              "Terminal approval failed; command was not executed",
+            );
+          }
+        }
+      };
+      signal?.addEventListener("abort", cancel, { once: true });
+      approvalQueue.push(startApproval);
+      startNextApproval();
     });
-    approvalQueue = pending.then(() => {});
-    return pending;
   };
 
   pi.on("session_start", (_event, ctx) => {
@@ -490,26 +559,40 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const action = args.trim().toLowerCase();
       const startedAt = Date.now();
-      let config: TerminalConfig | undefined;
+      let config: TerminalConfig;
       try {
         config = getConfig();
-        if (action === "yolo off") {
-          yoloOverride = false;
-          emit("yolo", "success", { reason: "yolo_disabled", yoloMode: false });
-        } else if (action === "yolo on") {
-          const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-          if (!config.allowYoloMode) {
-            emit("yolo", "blocked", { reason: "policy_disabled", yoloMode });
-            ctx.ui.notify("YOLO mode is disabled by the managed terminal policy.", "warning");
-            return;
-          }
-          if (!ctx.hasUI) {
-            emit("yolo", "blocked", { reason: "approval_unavailable", yoloMode });
-            return;
-          }
-          const signal = ctx.signal;
-          emit("yolo", "pending", { reason: "yolo_enabled", yoloMode });
-          const approved = await ctx.ui.confirm(
+      } catch {
+        emit("policy", "failed", {
+          reason: "invalid_config",
+          durationMs: Date.now() - startedAt,
+        });
+        ctx.ui.notify(
+          "Invalid terminal permission configuration; terminal execution is blocked.",
+          "error",
+        );
+        return;
+      }
+
+      if (action === "yolo off") {
+        yoloOverride = false;
+        emit("yolo", "success", { reason: "yolo_disabled", yoloMode: false });
+      } else if (action === "yolo on") {
+        const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
+        if (!config.allowYoloMode) {
+          emit("yolo", "blocked", { reason: "policy_disabled", yoloMode });
+          ctx.ui.notify("YOLO mode is disabled by the managed terminal policy.", "warning");
+          return;
+        }
+        if (!ctx.hasUI) {
+          emit("yolo", "blocked", { reason: "approval_unavailable", yoloMode });
+          return;
+        }
+        const signal = ctx.signal;
+        emit("yolo", "pending", { reason: "yolo_enabled", yoloMode });
+        let approved: boolean;
+        try {
+          approved = await ctx.ui.confirm(
             "Enable YOLO mode?",
             "Supported terminal commands will run without approval. Required-approval and blocked commands still apply.",
             {
@@ -517,51 +600,49 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
               ...(signal === undefined ? {} : { signal }),
             },
           );
-          if (approved !== true || signal?.aborted) {
-            emit("yolo", signal?.aborted ? "cancelled" : "dismissed", {
-              reason: signal?.aborted ? "cancelled" : "not_approved",
-              yoloMode,
-              durationMs: Date.now() - startedAt,
-            });
-            return;
-          }
-          yoloOverride = true;
-          emit("yolo", "success", {
-            reason: "yolo_enabled",
-            yoloMode: true,
+        } catch {
+          emit("yolo", "failed", {
+            reason: "approval_failed",
+            yoloMode,
             durationMs: Date.now() - startedAt,
           });
-        } else if (action !== "" && action !== "status") {
-          ctx.ui.notify("Usage: /terminal-permissions [status | yolo on | yolo off]", "warning");
+          ctx.ui.notify("Terminal approval failed; YOLO mode was not changed.", "error");
           return;
         }
-        updateStatus(ctx, config);
-        const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-        const yoloLabel = `${yoloMode ? "on" : "off"}${config.allowYoloMode ? "" : " (disabled by policy)"}`;
-        ctx.ui.notify(
-          [
-            `YOLO: ${yoloLabel}`,
-            `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"}`,
-            `Require approval: ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
-            `Blocked: ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
-            `Approval timeout: ${config.approvalTimeoutMs / 1000}s`,
-            "Unmatched commands require approval unless YOLO is on.",
-            "Lists use literal command prefixes; complex syntax and wrappers require review.",
-          ].join("\n"),
-          "info",
-        );
-      } catch {
-        emit(action === "yolo on" || action === "yolo off" ? "yolo" : "policy", "failed", {
-          reason: config === undefined ? "invalid_config" : "approval_failed",
+        if (approved !== true || signal?.aborted) {
+          emit("yolo", signal?.aborted ? "cancelled" : "dismissed", {
+            reason: signal?.aborted ? "cancelled" : "not_approved",
+            yoloMode,
+            durationMs: Date.now() - startedAt,
+          });
+          return;
+        }
+        yoloOverride = true;
+        emit("yolo", "success", {
+          reason: "yolo_enabled",
+          yoloMode: true,
           durationMs: Date.now() - startedAt,
         });
-        ctx.ui.notify(
-          config === undefined
-            ? "Invalid terminal permission configuration; terminal execution is blocked."
-            : "Terminal approval failed; YOLO mode was not changed.",
-          "error",
-        );
+      } else if (action !== "" && action !== "status") {
+        ctx.ui.notify("Usage: /terminal-permissions [status | yolo on | yolo off]", "warning");
+        return;
       }
+      // Rendering errors must surface rather than being reported as approval failures.
+      updateStatus(ctx, config);
+      const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
+      const yoloLabel = `${yoloMode ? "on" : "off"}${config.allowYoloMode ? "" : " (disabled by policy)"}`;
+      ctx.ui.notify(
+        [
+          `YOLO: ${yoloLabel}`,
+          `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          `Require approval: ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          `Blocked: ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          `Approval timeout: ${config.approvalTimeoutMs / 1000}s`,
+          "Unmatched commands require approval unless YOLO is on.",
+          "Lists use literal command prefixes; complex syntax and wrappers require review.",
+        ].join("\n"),
+        "info",
+      );
     },
   });
 }

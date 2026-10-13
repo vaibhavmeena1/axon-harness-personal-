@@ -129,7 +129,9 @@ describe("terminal approval defaults and command lists", () => {
     expect(harness.confirm).toHaveBeenCalledTimes(1);
     expect(harness.confirm.mock.calls[0]?.[1]).toContain("git status --short");
     expect(harness.confirm.mock.calls[0]?.[1]).toContain(harness.context.cwd);
-    expect(harness.confirm.mock.calls[0]?.[2]).toMatchObject({ timeout: 60_000 });
+    const dialogTimeout = harness.confirm.mock.calls[0]?.[2]?.timeout;
+    expect(dialogTimeout).toBeGreaterThan(0);
+    expect(dialogTimeout).toBeLessThanOrEqual(60_000);
   });
 
   test("refuses unapproved commands when no UI is available", async () => {
