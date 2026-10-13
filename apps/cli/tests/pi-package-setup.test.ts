@@ -708,6 +708,7 @@ describe("package and resource locks", () => {
       "session-backup.mjs",
       "web-search.ts",
       "compaction.ts",
+      "terminal-permissions.ts",
       "axon-dark.json",
       "axon-light.json",
     ]);

@@ -51,6 +51,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
         cli_pi=CliPiConfig.model_validate({"codemodeEnabled": True, "litellmMcpEnabled": True}),
         web_search=web_search,
+        terminal_permissions=None,
     )
     client = TestClient(app)
     denied = client.get("/api/v1/cli/config")
@@ -68,7 +69,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert response.headers["x-session-refresh-token"] == "rotated-secret"
     assert "secret" not in response.text
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        cli_telemetry=None, cli_pi=None, web_search=web_search
+        cli_telemetry=None, cli_pi=None, web_search=web_search, terminal_permissions=None
     )
     assert client.get("/api/v1/cli/config", headers={"Authorization": "Bearer second-user"}).json() == {
         "schemaVersion": 1,

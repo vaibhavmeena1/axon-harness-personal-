@@ -15,6 +15,9 @@ import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/se
   type: "file",
 };
 
+import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.ts" with {
+  type: "file",
+};
 import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
   type: "file",
 };
@@ -72,6 +75,11 @@ const WEB_SEARCH_RESOURCE = Object.freeze({
   destination: "pi/extensions/web-search.ts",
 }) satisfies PiResourceManifestEntry;
 
+const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
+  id: "terminal-permissions",
+  type: "extension",
+  destination: "pi/extensions/terminal-permissions.ts",
+  }) satisfies PiResourceManifestEntry;
 const AXON_DARK_THEME_RESOURCE = Object.freeze({
   id: "axon-dark-theme",
   type: "theme",
@@ -113,6 +121,8 @@ export const AXON_MANIFEST = parseAxonManifest({
       PI_ORG_TELEMETRY_RESOURCE,
       WEB_SEARCH_RESOURCE,
       COMPACTION_RESOURCE,
+      // Run permission checks after the other managed tool-call handlers.
+      TERMINAL_PERMISSIONS_RESOURCE,
       AXON_DARK_THEME_RESOURCE,
       AXON_LIGHT_THEME_RESOURCE,
     ],
@@ -152,6 +162,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...COMPACTION_RESOURCE,
     sourcePath: compactionExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...TERMINAL_PERMISSIONS_RESOURCE,
+    sourcePath: terminalPermissionsExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...AXON_DARK_THEME_RESOURCE,
