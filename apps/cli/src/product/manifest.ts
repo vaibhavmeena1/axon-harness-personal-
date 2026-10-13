@@ -1,8 +1,11 @@
 import axonExtensionAsset from "../harnesses/pi/resources/extensions/axon.ts" with { type: "file" };
-import managedConfigExtensionAsset from "../harnesses/pi/resources/extensions/managed-config.ts" with {
+import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
   type: "file",
 };
-import compactionExtensionAsset from "../harnesses/pi/resources/extensions/compaction.ts" with {
+import gitAiExtensionAsset from "../harnesses/pi/resources/extensions/git-ai.ts" with {
+  type: "file",
+};
+import managedConfigExtensionAsset from "../harnesses/pi/resources/extensions/managed-config.ts" with {
   type: "file",
 };
 import modelRecommenderExtensionAsset from "../harnesses/pi/resources/extensions/model-recommender.ts" with {
@@ -32,6 +35,12 @@ import {
   type PiResourceManifestEntry,
   parseAxonManifest,
 } from "../harnesses/pi/setup/packages/manifest.ts";
+
+const GIT_AI_RESOURCE = Object.freeze({
+  id: "git-ai",
+  type: "extension",
+  destination: "pi/extensions/git-ai.ts",
+}) satisfies PiResourceManifestEntry;
 
 const SESSION_BACKUP_RESOURCE = Object.freeze({
   id: "session-backup",
@@ -94,7 +103,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "13",
+  revision: "14",
   pi: {
     packages: [
       {
@@ -120,6 +129,7 @@ export const AXON_MANIFEST = parseAxonManifest({
       // Close telemetry after backup shutdown has emitted its final outcomes.
       PI_ORG_TELEMETRY_RESOURCE,
       WEB_SEARCH_RESOURCE,
+      GIT_AI_RESOURCE,
       COMPACTION_RESOURCE,
       // Run permission checks after the other managed tool-call handlers.
       TERMINAL_PERMISSIONS_RESOURCE,
@@ -158,6 +168,10 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   Object.freeze({
     ...WEB_SEARCH_RESOURCE,
     sourcePath: webSearchExtensionAsset as unknown as string,
+  }),
+  Object.freeze({
+    ...GIT_AI_RESOURCE,
+    sourcePath: gitAiExtensionAsset as unknown as string,
   }),
   Object.freeze({
     ...COMPACTION_RESOURCE,
