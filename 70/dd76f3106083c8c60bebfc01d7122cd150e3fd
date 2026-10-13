@@ -1,0 +1,25 @@
+apps/cli/tests/terminal-permissions.test.ts
+  6e31bb58b1c7122a 132-134
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  6e31bb58b1c7122a 52,331-345,425,428-447,449,452-461,463-478,483-515,562,565-576,593-594,603-606,609,612-618,620-623,626-628,630-631,640-645
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "70dd76f3106083c8c60bebfc01d7122cd150e3fd",
+  "prompts": {
+    "6e31bb58b1c7122a": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "491214",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 180,
+      "total_deletions": 97,
+      "accepted_lines": 143,
+      "overriden_lines": 0
+    }
+  }
+}
