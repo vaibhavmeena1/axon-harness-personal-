@@ -222,6 +222,28 @@ Package checks inspect `${AXON_HOME}/pi/settings.json` and installed package met
 
 See [`docs/plans/pi-package-provisioning.md`](docs/plans/pi-package-provisioning.md) for the manifest schema, lifecycle decisions, and verification plan.
 
+### Optional git-ai tracking
+
+Every non-administrative `axon pi` session loads an embedded git-ai checkpoint extension. It tracks the built-in `edit`, `write`, and `bash` tools, including nested calls made through codemode. It does **not** install git-ai, modify shell configuration, alter Git configuration, or change `PATH`.
+
+The extension discovers an existing executable at `~/.git-ai/bin/git-ai`, then on absolute `PATH` entries. Set `PI_AXON_GIT_AI_BIN` to an absolute executable path to override discovery (an invalid override does not fall back to another binary). Availability is checked once per extension load with a two-second timeout. Missing/broken git-ai produces one warning and disables tracking without blocking Pi. Checkpoints have a five-second timeout; failure disables tracking until `/reload` or a new Pi process. Warnings use Pi notifications (including structured RPC UI notifications); modes without UI use stderr, never raw protocol stdout. Ephemeral sessions without a transcript are not tracked.
+
+Optional custom file-edit tool policies use `${AXON_HOME}/pi/git-ai.override.json` (the directory selected by `PI_CODING_AGENT_DIR`), with the git-ai version-1 override schema. For example:
+
+```json
+{
+  "version": 1,
+  "tools": {
+    "custom_edit": { "kind": "mutating", "canonical": "edit", "filepath_fields": ["file_path"] },
+    "write": { "kind": "ignore" }
+  }
+}
+```
+
+The built-in Bash checkpoint path is always enabled when tracking is available. Invalid/missing override files leave defaults intact. Overrides are read once per extension load; use `/reload` after changing them.
+
+**Git integration is separate:** checkpoint hooks alone do not configure attribution preservation for later commits. Users still need git-ai's Git proxy/integration for Git operations, including commits made from another terminal or IDE. git-ai receives session paths, model IDs, tool inputs/results, and edited file contents; its own storage/network behavior is controlled by the installed git-ai, not Axon's content-free OpenTelemetry policy.
+
 ### Pi MCP defaults
 
 Before Pi starts, Axon requests the organization MCP catalog from:

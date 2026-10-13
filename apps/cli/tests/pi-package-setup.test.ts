@@ -707,6 +707,7 @@ describe("package and resource locks", () => {
       "model-recommender.ts",
       "session-backup.mjs",
       "web-search.ts",
+      "git-ai.ts",
       "compaction.ts",
       "terminal-permissions.ts",
       "axon-dark.json",
