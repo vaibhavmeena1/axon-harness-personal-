@@ -14,6 +14,10 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
  * PI_TERMINAL_APPROVAL_TIMEOUT_MS=60000
  * PI_TERMINAL_MANAGED_CONFIG is reserved for the Axon launcher's backend policy.
  */
+// Keep this bus contract in sync with axon.ts; both extensions ship standalone.
+export const TERMINAL_HEADER_CHANNEL = "axon:terminal-status";
+type TerminalHeaderState = "approval" | "yolo" | "blocked";
+
 interface CommandPrefix {
   readonly text: string;
   readonly words: CommandWords;
@@ -370,11 +374,16 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       /* Telemetry must never grant permission, prevent a denial, or fail execution. */
     }
   };
-  const updateStatus = (ctx: ExtensionContext, config: TerminalConfig) => {
-    if (ctx.hasUI) {
-      const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-      ctx.ui.setStatus("terminal-permissions", `Terminal: ${yoloMode ? "YOLO" : "approval"}`);
+  const publishStatus = (state: TerminalHeaderState): void => {
+    try {
+      pi.events.emit(TERMINAL_HEADER_CHANNEL, state);
+    } catch {
+      /* Header rendering must never affect terminal permissions. */
     }
+  };
+  const updateStatus = (config: TerminalConfig): void => {
+    const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
+    publishStatus(yoloMode ? "yolo" : "approval");
   };
   const authorize = async (
     command: unknown,
@@ -521,12 +530,12 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     autoSelectedDecisionSampleIndex = 0;
     try {
       const config = getConfig();
-      updateStatus(ctx, config);
+      updateStatus(config);
       emit("policy", "success", { yoloMode: config.yoloMode });
     } catch {
+      publishStatus("blocked");
       emit("policy", "failed", { reason: "invalid_config" });
       if (ctx.hasUI) {
-        ctx.ui.setStatus("terminal-permissions", "Terminal: blocked (invalid config)");
         ctx.ui.notify(
           "Invalid terminal permission configuration; terminal execution is blocked.",
           "error",
@@ -627,8 +636,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
         ctx.ui.notify("Usage: /terminal-permissions [status | yolo on | yolo off]", "warning");
         return;
       }
-      // Rendering errors must surface rather than being reported as approval failures.
-      updateStatus(ctx, config);
+      updateStatus(config);
       const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
       const yoloLabel = `${yoloMode ? "on" : "off"}${config.allowYoloMode ? "" : " (disabled by policy)"}`;
       ctx.ui.notify(

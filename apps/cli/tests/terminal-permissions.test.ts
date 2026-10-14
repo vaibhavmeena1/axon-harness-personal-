@@ -12,7 +12,9 @@ import type {
   UserBashEventResult,
 } from "@earendil-works/pi-coding-agent";
 
-import terminalPermissions from "../src/harnesses/pi/resources/extensions/terminal-permissions.ts";
+import terminalPermissions, {
+  TERMINAL_HEADER_CHANNEL,
+} from "../src/harnesses/pi/resources/extensions/terminal-permissions.ts";
 
 type ToolHandler = (
   event: ToolCallEvent,
@@ -53,6 +55,7 @@ function setup(hasUI = true) {
   );
   const notify = mock((_message: string, _type?: string) => {});
   const setStatus = mock((_key: string, _value?: string) => {});
+  const emit = mock((_channel: string, _data: unknown) => {});
   const context = {
     cwd: "/synthetic/project",
     hasUI,
@@ -60,6 +63,7 @@ function setup(hasUI = true) {
     ui: { confirm, notify, setStatus },
   } as unknown as ExtensionContext;
   terminalPermissions({
+    events: { emit },
     on(event: string, handler: unknown) {
       handlers.set(event, handler);
       return () => handlers.delete(event);
@@ -77,6 +81,10 @@ function setup(hasUI = true) {
     confirm,
     notify,
     setStatus,
+    headerStates: () =>
+      emit.mock.calls
+        .filter(([channel]) => channel === TERMINAL_HEADER_CHANNEL)
+        .map(([, state]) => state),
     call(commandText: string, toolName = "bash", parentToolCallId?: string) {
       return toolHandler(
         {
@@ -123,6 +131,21 @@ function managedPolicy(overrides: Record<string, unknown> = {}): void {
 }
 
 describe("terminal approval defaults and command lists", () => {
+  test("publishes approval mode for the header without adding footer status", () => {
+    const harness = setup();
+    harness.start();
+    expect(harness.headerStates()).toEqual(["approval"]);
+    expect(harness.setStatus).not.toHaveBeenCalled();
+  });
+
+  test("publishes configured YOLO mode even without a terminal UI", () => {
+    process.env["PI_TERMINAL_YOLO_MODE"] = "true";
+    const harness = setup(false);
+    harness.start();
+    expect(harness.headerStates()).toEqual(["yolo"]);
+    expect(harness.setStatus).not.toHaveBeenCalled();
+  });
+
   test("requires confirmation by default and shows the exact command and working directory", async () => {
     const harness = setup();
     expect(await harness.call("git status --short")).toBeUndefined();
@@ -264,10 +287,8 @@ describe("managed settings and session YOLO controls", () => {
     harness.start();
     harness.confirm.mockResolvedValue(false);
     expect(await harness.call("pwd")).toMatchObject({ block: true });
-    expect(harness.setStatus).toHaveBeenLastCalledWith(
-      "terminal-permissions",
-      "Terminal: approval",
-    );
+    expect(harness.headerStates()).toEqual(["yolo", "approval", "yolo", "approval"]);
+    expect(harness.setStatus).not.toHaveBeenCalled();
   });
 
   test("status includes lists and the approval timeout", async () => {
@@ -289,8 +310,20 @@ describe("managed settings and session YOLO controls", () => {
   ])("fails closed for invalid %s", async (name, value) => {
     process.env[name] = value;
     const harness = setup();
+    harness.start();
+    expect(harness.headerStates()).toEqual(["blocked"]);
+    expect(harness.setStatus).not.toHaveBeenCalled();
     expect(await harness.call("pwd")).toMatchObject({ block: true });
     expect(harness.confirm).not.toHaveBeenCalled();
+  });
+
+  test("cancelled YOLO activation does not change the header mode", async () => {
+    const harness = setup();
+    harness.start();
+    harness.confirm.mockResolvedValue(false);
+    await harness.command("yolo on");
+    expect(harness.headerStates()).toEqual(["approval"]);
+    expect(harness.setStatus).not.toHaveBeenCalled();
   });
 });
 

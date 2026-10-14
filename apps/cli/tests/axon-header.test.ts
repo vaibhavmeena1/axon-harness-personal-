@@ -52,6 +52,7 @@ function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => unknown>();
   const listeners = new Map<string, (data: unknown) => void>();
   const emitBackup = (data: unknown) => listeners.get("axon:backup-status")?.(data);
+  const emitTerminal = (data: unknown) => listeners.get("axon:terminal-status")?.(data);
   const setHeader = mock((_factory: Parameters<ExtensionContext["ui"]["setHeader"]>[0]) => {});
   axonExtension({
     events: {
@@ -73,7 +74,7 @@ function setup(mode: ExtensionContext["mode"] = "tui", cwd?: string) {
     hasUI: mode === "tui" || mode === "rpc",
     ui: { setHeader },
   } as unknown as ExtensionContext);
-  return { handlers, setHeader, emitBackup };
+  return { handlers, setHeader, emitBackup, emitTerminal };
 }
 
 const plainTheme = (fg: (color: string, text: string) => string = (_color, text) => text): Theme =>
@@ -83,9 +84,11 @@ function header(
   theme = plainTheme((_color, text) => `\u001b[36m${text}\u001b[0m`),
   backupState?: string,
   cwd?: string,
+  terminalState?: string,
 ): Header {
-  const { setHeader, emitBackup } = setup("tui", cwd);
+  const { setHeader, emitBackup, emitTerminal } = setup("tui", cwd);
   if (backupState !== undefined) emitBackup(backupState);
+  if (terminalState !== undefined) emitTerminal(terminalState);
   const factory = setHeader.mock.calls[0]?.[0];
   if (!factory) throw new Error("Axon header was not registered");
   return factory({} as Parameters<HeaderFactory>[0], theme) as Header;
@@ -94,7 +97,16 @@ function header(
 const text = (component: Header, width = 100) =>
   component.render(width).map(stripVTControlCharacters).join("\n");
 /** Zero-width color markers, so layout measures exactly as with a real theme. */
-const COLOR_CODES = ["accent", "borderAccent", "borderMuted", "success", "warning", "dim", "muted"];
+const COLOR_CODES = [
+  "accent",
+  "borderAccent",
+  "borderMuted",
+  "success",
+  "warning",
+  "dim",
+  "muted",
+  "error",
+];
 const sgr = (color: string) => `\u001b[38;5;${COLOR_CODES.indexOf(color) + 1}m`;
 const markedTheme = () => plainTheme((color, value) => `${sgr(color)}${value}\u001b[39m`);
 const marked = (color: string, value: string) => `${sgr(color)}${value}\u001b[39m`;
@@ -196,6 +208,73 @@ describe("Axon startup header", () => {
     component.dispose?.();
     emitBackup("saved");
     expect(requestRender).toHaveBeenCalledTimes(7);
+  });
+
+  test("shows live terminal permissions beside backup and refreshes on mode changes", () => {
+    const { setHeader, emitBackup, emitTerminal } = setup();
+    emitBackup("saved");
+    emitTerminal("approval");
+    const requestRender = mock(() => {});
+    const component = setHeader.mock.calls[0]?.[0]?.(
+      { requestRender } as unknown as Parameters<HeaderFactory>[0],
+      markedTheme(),
+    ) as Header;
+    const lineCount = component.render(100).length;
+    expect(stripVTControlCharacters(component.render(100)[1] ?? "")).toContain(
+      "● Backup: saved · ● Terminal: approval",
+    );
+    for (const [state, label, color] of [
+      ["yolo", "YOLO", "warning"],
+      ["approval", "approval", "success"],
+      ["blocked", "blocked (invalid config)", "error"],
+    ] as const) {
+      emitTerminal(state);
+      const row = component.render(100)[1];
+      expect(row).toContain(marked(color, label));
+      expect(stripVTControlCharacters(row ?? "")).toContain("Backup: saved");
+      expect(component.render(100)).toHaveLength(lineCount);
+    }
+    expect(requestRender).toHaveBeenCalledTimes(3);
+    component.dispose?.();
+    emitTerminal("yolo");
+    expect(requestRender).toHaveBeenCalledTimes(3);
+  });
+
+  test("stacks terminal status when both badges cannot fit beside the wordmark", () => {
+    process.env["PI_AXON_CLI_VERSION"] = `1.0.0-${"a".repeat(65)}`;
+    for (const state of ["approval", "yolo", "blocked"]) {
+      const component = header(undefined, "checking", "/srv/app", state);
+      for (const expanded of [false, true]) {
+        component.setExpanded(expanded);
+        for (const width of WIDTHS) {
+          for (const line of component.render(width))
+            expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+        }
+      }
+      for (const width of [40, 48, 58, 60, 80]) {
+        const output = text(component, width);
+        expect(output).toContain("Axon");
+        expect(output).toContain("Backup: checking…");
+        expect(output).toContain(`Terminal: ${state === "yolo" ? "YOLO" : state}`);
+      }
+    }
+  });
+
+  test("ignores untrusted terminal states and clears status on session shutdown", () => {
+    const { setHeader, emitTerminal, handlers } = setup();
+    emitTerminal("approval");
+    const requestRender = mock(() => {});
+    const component = setHeader.mock.calls[0]?.[0]?.(
+      { requestRender } as unknown as Parameters<HeaderFactory>[0],
+      plainTheme(),
+    ) as Header;
+    for (const value of ["__proto__", "private-name secret-token", null, { state: "yolo" }])
+      emitTerminal(value);
+    expect(requestRender).not.toHaveBeenCalled();
+    expect(text(component)).toContain("Terminal: approval");
+    expect(text(component)).not.toContain("secret-token");
+    handlers.get("session_shutdown")?.({}, {} as ExtensionContext);
+    expect(text(component)).not.toContain("Terminal:");
   });
 
   test("right-aligns backup status inside the card and preserves the title", () => {

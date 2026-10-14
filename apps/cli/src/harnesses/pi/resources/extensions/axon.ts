@@ -22,6 +22,14 @@ const BACKUP_LABELS = {
   ready: "on",
 } as const;
 type BackupHeaderState = keyof typeof BACKUP_LABELS;
+// Keep this bus contract in sync with terminal-permissions.ts; this extension ships standalone.
+const TERMINAL_HEADER_CHANNEL = "axon:terminal-status";
+const TERMINAL_LABELS = {
+  approval: "approval",
+  yolo: "YOLO",
+  blocked: "blocked (invalid config)",
+} as const;
+type TerminalHeaderState = keyof typeof TERMINAL_LABELS;
 type ThemeColor = Parameters<Theme["fg"]>[0];
 
 /** Below this width the header drops the card and logo for plain stacked lines. */
@@ -60,6 +68,7 @@ function truncatePathStart(path: string, width: number): string {
 function createAxonHeader(
   theme: Theme,
   backupState: () => BackupHeaderState | undefined,
+  terminalState: () => TerminalHeaderState | undefined,
   cwd?: string,
 ) {
   const rawVersion = process.env["PI_AXON_CLI_VERSION"];
@@ -96,14 +105,49 @@ function createAxonHeader(
     );
   };
 
+  const terminalBadge = (): string | undefined => {
+    const state = terminalState();
+    if (state === undefined) return undefined;
+    const color: ThemeColor =
+      state === "blocked" ? "error" : state === "yolo" ? "warning" : "success";
+    return (
+      theme.fg(color, "●") +
+      theme.fg("dim", " Terminal: ") +
+      theme.fg(color, TERMINAL_LABELS[state])
+    );
+  };
+
   /** Right-align the badge; the wordmark always wins when both cannot fit. */
-  const withBadge = (left: string, width: number, minimumLeftWidth: number): string => {
-    const badge = backupBadge();
+  const withBadge = (
+    left: string,
+    width: number,
+    minimumLeftWidth: number,
+    badge: string | undefined,
+  ): string => {
     if (badge === undefined) return truncateToWidth(left, width);
     const available = width - visibleWidth(badge) - 2;
     if (available < minimumLeftWidth) return truncateToWidth(left, width);
     const fitted = truncateToWidth(left, available, available === minimumLeftWidth ? "" : "…");
     return fitted + " ".repeat(width - visibleWidth(fitted) - visibleWidth(badge)) + badge;
+  };
+
+  /** Share the title row when possible; stack terminal status on smaller screens. */
+  const heading = (width: number): { title: string; overflow: string[] } => {
+    const title = theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version);
+    const backup = backupBadge();
+    const terminal = terminalBadge();
+    const badges = [backup, terminal].filter((badge): badge is string => badge !== undefined);
+    const combined = badges.join(separator);
+    if (width - visibleWidth(combined) - 2 >= 4) {
+      return { title: withBadge(title, width, 4, combined || undefined), overflow: [] };
+    }
+    const overflow =
+      terminal === undefined
+        ? []
+        : wrapTextWithAnsi(terminal, width).map(
+            (line) => " ".repeat(Math.max(0, width - visibleWidth(line))) + line,
+          );
+    return { title: withBadge(title, width, 4, backup), overflow };
   };
 
   /** Join shortcuts with separators, wrapping between items rather than inside them. */
@@ -155,14 +199,16 @@ function createAxonHeader(
     const border = (text: string) => theme.fg("borderMuted", text);
     const inner = width - 6;
     const textWidth = inner - LOGO_WIDTH - 2;
+    const { title, overflow } = heading(textWidth);
     const rows = [
-      withBadge(theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version), textWidth, 4),
+      title,
       theme.fg("muted", truncateToWidth(TAGLINE, textWidth)),
       directory === undefined ? "" : theme.fg("dim", truncatePathStart(directory, textWidth)),
+      ...overflow,
     ];
     const mark = logo();
     const body = rows.map((row, index) => {
-      const content = `${mark[index]}  ${row}`;
+      const content = `${mark[index] ?? " ".repeat(LOGO_WIDTH)}  ${row}`;
       return `${border("│")}  ${content}${" ".repeat(Math.max(0, inner - visibleWidth(content)))}  ${border("│")}`;
     });
     const attribution = ` Powered by Pi v${VERSION} `;
@@ -174,11 +220,15 @@ function createAxonHeader(
     return [border(`╭${"─".repeat(width - 2)}╮`), ...body, bottom];
   };
 
-  const compact = (width: number): string[] => [
-    withBadge(theme.bold(theme.fg("accent", "Axon")) + theme.fg("dim", version), width, 4),
-    theme.fg("muted", truncateToWidth("TATA 1mg", width)),
-    theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
-  ];
+  const compact = (width: number): string[] => {
+    const { title, overflow } = heading(width);
+    return [
+      title,
+      ...overflow,
+      theme.fg("muted", truncateToWidth("TATA 1mg", width)),
+      theme.fg("dim", truncateToWidth(`Powered by Pi v${VERSION}`, width)),
+    ];
+  };
 
   return {
     setExpanded(value: boolean) {
@@ -397,10 +447,16 @@ function watchSessionRecovery(ctx: ExtensionContext): () => void {
 export default function axonExtension(pi: ExtensionAPI): void {
   let stopRecovery: (() => void) | undefined;
   let backupState: BackupHeaderState | undefined;
+  let terminalState: TerminalHeaderState | undefined;
   let refreshHeader: (() => void) | undefined;
   pi.events.on(BACKUP_HEADER_CHANNEL, (data) => {
     if (typeof data !== "string" || !Object.hasOwn(BACKUP_LABELS, data)) return;
     backupState = data as BackupHeaderState;
+    refreshHeader?.();
+  });
+  pi.events.on(TERMINAL_HEADER_CHANNEL, (data) => {
+    if (typeof data !== "string" || !Object.hasOwn(TERMINAL_LABELS, data)) return;
+    terminalState = data as TerminalHeaderState;
     refreshHeader?.();
   });
   pi.on("session_start", (_event, ctx) => {
@@ -408,7 +464,12 @@ export default function axonExtension(pi: ExtensionAPI): void {
     stopRecovery = watchSessionRecovery(ctx);
     if (ctx.mode === "tui") {
       ctx.ui.setHeader((tui, theme) => {
-        const component = createAxonHeader(theme, () => backupState, ctx.cwd);
+        const component = createAxonHeader(
+          theme,
+          () => backupState,
+          () => terminalState,
+          ctx.cwd,
+        );
         const refresh = () => {
           component.invalidate();
           tui.requestRender();
@@ -426,6 +487,7 @@ export default function axonExtension(pi: ExtensionAPI): void {
   pi.on("session_shutdown", () => {
     refreshHeader = undefined;
     backupState = undefined;
+    terminalState = undefined;
     stopRecovery?.();
     stopRecovery = undefined;
   });
