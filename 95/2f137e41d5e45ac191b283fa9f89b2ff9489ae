@@ -1,0 +1,44 @@
+apps/backend/pyproject.toml
+  s_d6ab5a678a0bc5::t_f0affa902babff 2
+Dockerfile
+  s_d6ab5a678a0bc5::t_ce20cdbf53d2cc 4-6,20-21
+  s_d6ab5a678a0bc5::t_46bdf3510d0ae8 2,17-18,56,80
+apps/cli/src/harnesses/pi/telemetry/docs/product-telemetry.md
+  s_d6ab5a678a0bc5::t_4f5bae9910fda7 84
+docs/project-rename-to-loom.md
+  s_d6ab5a678a0bc5::t_8eee38e0762779 90
+package.json
+  s_d6ab5a678a0bc5::t_cab9d39c066c0d 28
+apps/backend/config_template.json
+  s_d6ab5a678a0bc5::t_632fb315526376 2,150,154
+apps/backend/README.md
+  s_d6ab5a678a0bc5::t_c14e403644195f 385,387-400,403-407
+  s_d6ab5a678a0bc5::t_789291aefab609 1,382,401-402,409
+apps/backend/tests/test_build_backend_image.py
+  s_d6ab5a678a0bc5::t_2ace5b14958ca1 85
+  s_d6ab5a678a0bc5::t_5c55dc817788a8 66,68
+  s_d6ab5a678a0bc5::t_4c6899a117b2ed 7,34,56,71,74-84,86-88
+apps/backend/uv.lock
+  s_d6ab5a678a0bc5::t_f4a8584b642c4a 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "952f137e41d5e45ac191b283fa9f89b2ff9489ae",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_d6ab5a678a0bc5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a139d5-4f21-73a4-933b-be270c8d9c6d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
