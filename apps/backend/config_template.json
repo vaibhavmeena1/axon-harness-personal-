@@ -62,7 +62,13 @@
       "LITELLM_MCP_ENABLED": true
     },
     "ALLOWED_TELEMETRY_ORIGINS": [],
-    "TELEMETRY": null,
+    "TELEMETRY": {
+      "ENABLED": false,
+      "ENDPOINT": "/api/v1/otel",
+      "PROTOCOL": "http/protobuf",
+      "TRACE_SAMPLE_RATIO": 1.0,
+      "METRIC_EXPORT_INTERVAL_MS": 10000
+    },
     "PROXY": {
       "ENABLED": false,
       "UPSTREAM_URL": "",

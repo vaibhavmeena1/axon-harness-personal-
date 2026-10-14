@@ -157,6 +157,22 @@ def test_private_collector_does_not_become_the_public_endpoint() -> None:
         parse_cli_telemetry(raw)
 
 
+def test_template_has_explicit_disabled_telemetry_defaults() -> None:
+    raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
+    # The Vault config generator recurses into configured objects, so the
+    # corresponding template must expose their keys rather than use null.
+    assert raw["CLI_CLIENT_CONFIG"]["TELEMETRY"] == {
+        "ENABLED": False,
+        "ENDPOINT": "/api/v1/otel",
+        "PROTOCOL": "http/protobuf",
+        "TRACE_SAMPLE_RATIO": 1.0,
+        "METRIC_EXPORT_INTERVAL_MS": 10000,
+    }
+    telemetry = parse_cli_telemetry(raw)
+    assert telemetry is not None
+    assert telemetry.enabled is False
+
+
 def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
     assert raw["CLI_CLIENT_CONFIG"]["PI"] == {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}

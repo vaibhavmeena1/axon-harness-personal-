@@ -188,7 +188,7 @@ through search config. Restart the backend after editing `config.json`; relaunch
 
 `GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 
-The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-based telemetry unchanged. To manage it centrally, configure an approved collector, for example:
+The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENABLED: false`, explicitly disabling CLI telemetry by default. Its object structure lets the Vault/Kubernetes configuration generator compare nested keys against enabled environment configurations without recursing into a null template value. To enable centrally managed telemetry, configure an approved collector, for example:
 
 ```json
 "CLI_CLIENT_CONFIG": {
