@@ -333,7 +333,9 @@ Both `CLI_RELEASES` and `SESSION_BACKUPS` use the same nested `S3` configuration
 }
 ```
 
-`CREDENTIALS: {}` uses the AWS default credential chain, preferably short-lived role credentials.
+`CREDENTIALS: {}` or `CREDENTIALS: {"ACCESS_KEY_ID": "", "SECRET_ACCESS_KEY": ""}` uses the AWS
+default credential chain, preferably short-lived role credentials. Paired empty strings are treated
+as unset; partial credentials, whitespace-only values, or a session token without keys are rejected.
 For a separately credentialed bucket, private JSON can supply paired `ACCESS_KEY_ID` and
 `SECRET_ACCESS_KEY`, plus an optional `SESSION_TOKEN`, inside `S3.CREDENTIALS`. `ENDPOINT_URL` is
 optional and must be an HTTPS origin without credentials, query, fragment or path. Timeout values
