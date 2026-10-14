@@ -1,0 +1,23 @@
+apps/backend/README.md
+  s_3e08b3d2f25401::t_90b9c27e857f83 423-425
+apps/backend/tests/test_dbmate_noop.py
+  s_3e08b3d2f25401::t_8e86b1f898db9b 1-35
+apps/backend/dbmate.py
+  s_3e08b3d2f25401::t_84191b164ae280 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed7490f36682a5e29d16b665d62bc8951d5abf35",
+  "prompts": {},
+  "sessions": {
+    "s_3e08b3d2f25401": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13a6e-77ec-7789-84c3-67f71937a77b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
