@@ -1,5 +1,5 @@
 {
-  "NAME": "axon-console-backend",
+  "NAME": "axon-backend",
   "HTTP_VERSION": "1.0.0",
   "HOST": "0.0.0.0",
   "PORT": 3000,
@@ -147,11 +147,11 @@
   },
   "SENTRY": {
     "DSN": "",
-    "SERVICE_NAME": "axon-console-backend"
+    "SERVICE_NAME": "axon-backend"
   },
   "OPEN_TELEMETRY": {
     "ENABLED": false,
-    "SERVICE_NAME": "axon-console-backend",
+    "SERVICE_NAME": "axon-backend",
     "ENDPOINT": "",
     "PROTOCOL": "http/protobuf",
     "HEADERS": {},

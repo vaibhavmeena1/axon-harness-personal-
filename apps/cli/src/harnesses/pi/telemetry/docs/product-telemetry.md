@@ -81,7 +81,7 @@ Enable backend-owned recommender stats separately from `CLI_CLIENT_CONFIG`:
 ```json
 "OPEN_TELEMETRY": {
   "ENABLED": true,
-  "SERVICE_NAME": "axon-console-backend",
+  "SERVICE_NAME": "axon-backend",
   "ENDPOINT": "http://opentelemetry-collector-otelcol.monitoring.svc.cluster.local:4318",
   "PROTOCOL": "http/protobuf",
   "HEADERS": {},

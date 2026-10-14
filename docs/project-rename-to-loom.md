@@ -87,7 +87,7 @@ The backend emits one existing FastAPI/Starlette `httpx` deprecation warning; te
 | Terminal command | `ddcli` | `axon` |
 | CLI package | `deputydev-cli` | `axon-cli` |
 | Frontend package/service | `deputydev-console` | `axon-console` |
-| Backend package/service/image | `deputydev-console-backend` | `axon-console-backend` |
+| Backend package/service/image | `deputydev-console-backend` | `axon-backend` |
 | Managed home | `~/.deputydev` | `~/.axon` |
 | Launcher environment prefix | `DEPUTYDEV_*` | `AXON_*` |
 | Launcher-to-Pi markers | `PI_DEPUTYDEV_*` | `PI_AXON_*` |
