@@ -1,6 +1,6 @@
 # Telemetry schema
 
-Schema version: 4 (GenAI development conventions, pinned Pi 1.1.0 lifecycle attribution).
+Schema version: 4 (GenAI development conventions, pinned Pi 1.2.0 lifecycle attribution).
 
 This schema adopts the supplied development conventions; their names are not a promise of stable upstream semantics.
 
@@ -52,6 +52,10 @@ This schema adopts the supplied development conventions; their names are not a p
 | `pi.user.wait` | INTERNAL | Active turn/run/interaction | Time blocked on extension UI |
 | `pi.session.compaction` | INTERNAL | Active interaction or root | Manual, threshold, or overflow compaction |
 | `pi.session` | INTERNAL | Root | Session summary created at session end with the session's start time; carries the totals below. Subject to trace sampling |
+
+User-prompt and extension-triggered custom-message runs both start interactions.
+`pi.prompt.length` and `pi.prompt.image_count` are recorded only for user-prompt runs;
+custom-message content is never inspected or exported.
 
 Only transcript-owned assistant messages open inference slots. Provider-only warming does not create inference spans or count usage. Known Google APIs use `generate_content`; the known chat APIs use `chat`. Unknown APIs or overlapping request hooks retain custom lifecycle attribution.
 

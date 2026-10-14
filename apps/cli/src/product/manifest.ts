@@ -88,7 +88,7 @@ const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
   id: "terminal-permissions",
   type: "extension",
   destination: "pi/extensions/terminal-permissions.ts",
-  }) satisfies PiResourceManifestEntry;
+}) satisfies PiResourceManifestEntry;
 const AXON_DARK_THEME_RESOURCE = Object.freeze({
   id: "axon-dark-theme",
   type: "theme",
