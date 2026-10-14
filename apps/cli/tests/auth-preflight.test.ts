@@ -89,7 +89,14 @@ describe("first-run preflight", () => {
   test("Pi help/auth/admin bypass preflight; print/RPC/CI/offline do not prompt", async () => {
     const invocation = { ci: false, stdinIsTty: true, stdoutIsTty: true };
     const home = paths("classification");
-    for (const args of [["--help"], ["--version"], ["auth"], ["install", "npm:test"]]) {
+    for (const args of [
+      ["--help"],
+      ["--version"],
+      ["auth"],
+      ["install", "npm:test"],
+      ["mcp", "list", "--json"],
+      ["mcp", "login", "example"],
+    ]) {
       await runPiSessionPreflight(home, args, {}, invocation);
     }
     for (const args of [["-p", "hello"], ["--mode", "rpc"], ["--offline"]]) {

@@ -14,12 +14,21 @@ interface LoadedTheme {
 }
 
 // Pi does not export its theme loader, so load it from the pinned package by path.
-const { loadThemeFromPath } = (await import(
-  join(
-    dirname(Bun.resolveSync("@earendil-works/pi-coding-agent", import.meta.dir)),
-    "modes/interactive/theme/theme.js",
-  )
-)) as { loadThemeFromPath(path: string, mode: string): LoadedTheme };
+const themeModuleDirectory = join(
+  dirname(Bun.resolveSync("@earendil-works/pi-coding-agent", import.meta.dir)),
+  "modes/interactive/theme",
+);
+const { loadThemeFromPath, setThemeJsonValidator } = (await import(
+  join(themeModuleDirectory, "theme.js")
+)) as {
+  loadThemeFromPath(path: string, mode: string): LoadedTheme;
+  setThemeJsonValidator(validator: (label: string, json: unknown) => unknown): void;
+};
+const { validateThemeJson } = (await import(join(themeModuleDirectory, "theme-schema.js"))) as {
+  validateThemeJson(label: string, json: unknown): unknown;
+};
+// Match Pi 1.2 startup: the lightweight loader alone does not enable schema validation.
+setThemeJsonValidator(validateThemeJson);
 
 function contrast(a: Rgb, b: Rgb): number {
   const luminance = ({ r, g, b: blue }: Rgb) => {
@@ -43,7 +52,9 @@ describe("Axon themes", () => {
     test(`${name} loads in Pi with readable text on a typical ${appearance} terminal`, async () => {
       const path = join(THEMES_DIRECTORY, `${name}.json`);
       // Pi only hot-reloads a theme whose file name matches its name.
-      expect(((await Bun.file(path).json()) as { name: string }).name).toBe(name);
+      const document = (await Bun.file(path).json()) as { name: string; $schema: string };
+      expect(document.name).toBe(name);
+      expect(document.$schema).toBe("https://pi.dev/schemas/theme.schema.json");
       const theme = loadThemeFromPath(path, "truecolor");
       expect(theme.appearance).toBe(appearance);
       for (const role of ["text", "muted", "dim", "accent", "success", "error", "warning"]) {
@@ -62,6 +73,18 @@ describe("Axon themes", () => {
         );
       }
     });
+  }
+});
+
+test("Pi startup theme validation rejects unsupported metadata", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "axon-invalid-theme-"));
+  try {
+    const document = await Bun.file(join(THEMES_DIRECTORY, "axon-dark.json")).json();
+    const path = join(directory, "invalid.json");
+    await Bun.write(path, JSON.stringify({ ...document, unsupportedMetadata: true }));
+    expect(() => loadThemeFromPath(path, "truecolor")).toThrow("Invalid theme");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });
 

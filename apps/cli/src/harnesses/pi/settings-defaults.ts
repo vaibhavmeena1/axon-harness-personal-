@@ -17,24 +17,10 @@ function settingsObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function isManagedRelayModel(value: unknown): boolean {
-  if (value === null || typeof value !== "object" || !("baseUrl" in value)) return false;
-  if (typeof value.baseUrl !== "string") return false;
-  try {
-    const url = new URL(value.baseUrl);
-    return (
-      url.protocol === "http:" &&
-      url.hostname === "127.0.0.1" &&
-      url.port !== "" &&
-      (url.pathname === "/litellm" || url.pathname === "/litellm/v1")
-    );
-  } catch {
-    return false;
-  }
-}
-
 /** Configure the installed provider without saving a session token or a relay capability. */
 export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
+  // Cache cleanup belongs to the adapter, which knows whether discovery will replace stale models.
+  // Keep optional cache failures separate from required provider settings initialization.
   await withFileLock(paths.piPackageLock, async () => {
     const settings = await readPiSettings(piSettingsPath(paths.pi));
     const litellm = settingsObject(settings.config["litellm"]);
@@ -45,23 +31,6 @@ export async function applyPiProviderDefaults(paths: AxonPaths): Promise<void> {
       // Keep previously applied/local preferences and all organization MCP servers.
       litellm: { ...litellm, mcp: { enabled: false, ...mcp } },
     };
-
-    const store = await readPiSettings(join(paths.pi, "models-store.json"));
-    const cachedProvider = store.config["litellm"];
-    if (
-      cachedProvider !== null &&
-      typeof cachedProvider === "object" &&
-      "models" in cachedProvider
-    ) {
-      const models = cachedProvider.models;
-      if (Array.isArray(models) && models.some(isManagedRelayModel)) {
-        // This derived catalog belongs to a previous ephemeral relay. Pi applies its
-        // stored catalog over the extension's freshly discovered startup models, then
-        // hides the old endpoints. Invalidate just this provider so the fresh seed wins.
-        const { litellm: _staleCatalog, ...otherProviders } = store.config;
-        await writePiSettings(store, otherProviders);
-      }
-    }
 
     if (JSON.stringify(settings.config) !== JSON.stringify(config)) {
       await writePiSettings(settings, config);

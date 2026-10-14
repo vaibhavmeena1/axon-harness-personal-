@@ -449,7 +449,12 @@ export function createPiOrgTelemetry(
     pi.on(
       "before_agent_start",
       guard("before_agent_start", (event) => {
-        tracker?.startInteraction(event.prompt.length, event.images?.length ?? 0);
+        if (event.messageType === "user") {
+          tracker?.startInteraction(event.prompt.length, event.images?.length ?? 0);
+        } else {
+          // Custom-message runs have no user prompt or image-count attributes.
+          tracker?.startInteraction();
+        }
       }),
     );
 

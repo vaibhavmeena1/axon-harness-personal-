@@ -1,5 +1,5 @@
 {
-  "NAME": "axon-console-backend",
+  "NAME": "axon-backend",
   "HTTP_VERSION": "1.0.0",
   "HOST": "0.0.0.0",
   "PORT": 3000,
@@ -62,7 +62,13 @@
       "LITELLM_MCP_ENABLED": true
     },
     "ALLOWED_TELEMETRY_ORIGINS": [],
-    "TELEMETRY": null,
+    "TELEMETRY": {
+      "ENABLED": false,
+      "ENDPOINT": "/api/v1/otel",
+      "PROTOCOL": "http/protobuf",
+      "TRACE_SAMPLE_RATIO": 1.0,
+      "METRIC_EXPORT_INTERVAL_MS": 10000
+    },
     "PROXY": {
       "ENABLED": false,
       "UPSTREAM_URL": "",
@@ -89,6 +95,14 @@
     "USE_URL_CONTEXT": false,
     "REQUIRE_GROUNDING": true,
     "SEARCH_CONTEXT_SIZE": null
+  },
+  "TERMINAL_PERMISSIONS": {
+    "YOLO_MODE": false,
+    "ALLOW_YOLO_MODE": true,
+    "AUTO_APPROVE_COMMANDS": [],
+    "REQUIRE_APPROVAL_COMMANDS": [],
+    "BLOCKED_COMMANDS": [],
+    "APPROVAL_TIMEOUT_SECONDS": 60
   },
   "INTERSERVICE_TIMEOUT": 10,
   "JWT_SECRET": "replace-with-a-local-secret",
@@ -133,11 +147,11 @@
   },
   "SENTRY": {
     "DSN": "",
-    "SERVICE_NAME": "axon-console-backend"
+    "SERVICE_NAME": "axon-backend"
   },
   "OPEN_TELEMETRY": {
     "ENABLED": false,
-    "SERVICE_NAME": "axon-console-backend",
+    "SERVICE_NAME": "axon-backend",
     "ENDPOINT": "",
     "PROTOCOL": "http/protobuf",
     "HEADERS": {},

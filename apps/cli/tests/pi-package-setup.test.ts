@@ -272,18 +272,27 @@ describe("Pi invocation policy", () => {
     expect(classifyPiInvocation([], { ...interactive, ci: true })).toBe("noninteractive");
   });
 
-  test("forwards Pi auth and experimental commands untouched", () => {
+  test("forwards Pi auth and MCP commands untouched", () => {
     expect(
       classifyPiInvocation(["auth", "print-api-key", "--provider", "openai"], interactive),
     ).toBe("administrative");
-    expect(classifyPiInvocation(["server"], interactive)).toBe("administrative");
-    expect(classifyPiInvocation(["client", "list"], interactive)).toBe("administrative");
+    for (const action of ["add", "remove", "list", "login", "logout"]) {
+      expect(classifyPiInvocation(["mcp", action], interactive)).toBe("administrative");
+    }
+    expect(classifyPiInvocation(["mcp", "list", "--json"], interactive)).toBe("administrative");
+  });
+
+  test("treats removed experimental commands as ordinary prompts", () => {
+    expect(classifyPiInvocation(["server"], interactive)).toBe("interactive");
+    expect(classifyPiInvocation(["client", "list"], interactive)).toBe("interactive");
+    expect(classifyPiInvocation(["-p", "server"], interactive)).toBe("noninteractive");
   });
 
   test("ignores tokens after the Pi option terminator", () => {
     expect(classifyPiInvocation(["--", "--help"], interactive)).toBe("interactive");
     expect(classifyPiInvocation(["--", "-p"], interactive)).toBe("interactive");
     expect(classifyPiInvocation(["--", "--mode", "json"], interactive)).toBe("interactive");
+    expect(classifyPiInvocation(["--", "mcp", "list"], interactive)).toBe("interactive");
     expect(classifyPiInvocation(["-p", "--", "--help"], interactive)).toBe("noninteractive");
     expect(classifyPiInvocation(["--help", "--", "x"], interactive)).toBe("administrative");
   });
@@ -707,7 +716,9 @@ describe("package and resource locks", () => {
       "model-recommender.ts",
       "session-backup.mjs",
       "web-search.ts",
+      "git-ai.ts",
       "compaction.ts",
+      "terminal-permissions.ts",
       "axon-dark.json",
       "axon-light.json",
     ]);

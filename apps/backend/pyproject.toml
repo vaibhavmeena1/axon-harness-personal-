@@ -1,5 +1,5 @@
 [project]
-name = "axon-console-backend"
+name = "axon-backend"
 version = "0.1.0"
 description = "Centralized management API for Axon CLI installations"
 authors = [{ name = "1mg Backend Team", email = "backend-team@1mg.com" }]

@@ -12,12 +12,11 @@ export interface PiInvocationEnvironment {
 // the command into a prompt, so forwarded administration must stay untouched.
 const ADMINISTRATIVE_COMMANDS = new Set([
   "auth",
-  "client",
   "config",
   "install",
   "list",
+  "mcp",
   "remove",
-  "server",
   "uninstall",
   "update",
 ]);

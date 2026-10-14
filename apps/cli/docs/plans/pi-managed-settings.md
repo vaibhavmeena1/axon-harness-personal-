@@ -60,7 +60,7 @@ Proposed public response fragment:
   "schemaVersion": 2,
   "pi": {
     "settingsSchemaVersion": 1,
-    "piVersion": "1.0.4",
+    "piVersion": "1.2.0",
     "settings": {
       "defaultTools": ["+codemode"],
       "codemode": { "mode": "on", "inlineBudget": 3000 }
@@ -91,7 +91,7 @@ Proposed public response fragment:
 
 Create a small checked-in contract package under `contracts/pi-settings/`:
 
-- A canonical JSON Schema for the public settings object.
+- A canonical JSON Schema for the public settings object, derived from the reviewed subset of Pi 1.2's published `settings.schema.json`. Vendor the source from the pinned Pi release; do not fetch the unversioned `https://pi.dev/schemas/settings.schema.json` during launch. Schema validity does not authorize remote management: retain the excluded-field inventory below.
 - Metadata describing the supported Pi version, each field's reconciliation rule, and explicitly excluded fields.
 - Shared valid/invalid fixtures used by both language implementations.
 

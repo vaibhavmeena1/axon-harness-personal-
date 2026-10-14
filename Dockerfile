@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# Wolfi (Chainguard) multi-stage build for the Engram backend.
+# Wolfi (Chainguard) multi-stage build for the Axon backend.
 #
-# scripts/build-backend-image.sh prefers the internal Python 3.12.14 image when
-# CI can pull it, falling back to the public Wolfi base. Both Python stages use
-# the same base; Python is installed only when the base does not provide it.
+# Both Python stages default to the internal Python 3.12.14 image. Public users
+# can select the public Wolfi base with --build-arg PYTHON_BASE_IMAGE=...; see
+# apps/backend/README.md#docker. Python is installed only when the base lacks it.
 #
 # WHY Wolfi over Alpine: glibc means every native dep (uvloop, httptools, asyncpg,
 # psycopg2-binary, Pillow, rapidfuzz, xxhash, psutil, pydantic-core, cryptography)
@@ -14,11 +14,11 @@
 # BUILD CONTEXT: the repository root, because this image also builds and embeds the
 # console frontend:
 #
-#   sh scripts/build-backend-image.sh \
-#     --build-arg SERVICE_NAME=... -t axon-console-backend
+#   docker build --build-arg SERVICE_NAME=axon-backend \
+#     -t axon-backend .
 #
-# Plain docker build uses the public base unless PYTHON_BASE_IMAGE is supplied.
-ARG PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest
+# Private builds require ECR authentication; there is no automatic FROM fallback.
+ARG PYTHON_BASE_IMAGE=831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8
 #
 # The console is a static Vite build with nothing to run, so serving it from this
 # service keeps one origin, one deploy, and one version for the API and the UI.
@@ -53,7 +53,7 @@ FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ARG SERVICE_NAME
+ARG SERVICE_NAME=axon-backend
 
 # The internal base already includes Python; the public Wolfi base does not.
 RUN if [ ! -x /usr/bin/python3.12 ]; then apk add --no-cache python-3.12; fi
@@ -77,7 +77,7 @@ FROM --platform=linux/amd64 ${PYTHON_BASE_IMAGE} AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ARG SERVICE_NAME
+ARG SERVICE_NAME=axon-backend
 
 RUN if [ ! -x /usr/bin/python3.12 ]; then apk add --no-cache python-3.12; fi
 

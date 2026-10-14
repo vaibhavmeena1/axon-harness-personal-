@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -30,7 +31,7 @@ def test_ci_selects_pullable_base_and_preserves_build_failure(
     )
     docker.chmod(0o755)
     result = subprocess.run(
-        ["sh", str(SCRIPT), "--build-arg", "SERVICE_NAME=backend", "--label", "description=with spaces"],
+        ["sh", str(SCRIPT), "--build-arg", "SERVICE_NAME=axon-backend", "--label", "description=with spaces"],
         cwd=tmp_path,
         env={
             **os.environ,
@@ -52,7 +53,7 @@ def test_ci_selects_pullable_base_and_preserves_build_failure(
             "--build-arg",
             f"PYTHON_BASE_IMAGE={PRIVATE_IMAGE if pull_status == 0 else PUBLIC_IMAGE}",
             "--build-arg",
-            "SERVICE_NAME=backend",
+            "SERVICE_NAME=axon-backend",
             "--label",
             "description=with spaces",
             str(ROOT),
@@ -62,10 +63,26 @@ def test_ci_selects_pullable_base_and_preserves_build_failure(
     assert ("falling back" in result.stderr) == (pull_status != 0)
 
 
-def test_python_stages_share_base_without_dbmate() -> None:
+def test_python_stages_default_to_private_base_without_dbmate() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text()
-    assert f"ARG PYTHON_BASE_IMAGE={PUBLIC_IMAGE}" in dockerfile
+    assert f"ARG PYTHON_BASE_IMAGE={PRIVATE_IMAGE}" in dockerfile
     for stage in ["builder", "runtime"]:
         assert f"FROM --platform=linux/amd64 ${{PYTHON_BASE_IMAGE}} AS {stage}" in dockerfile
+    assert dockerfile.count("ARG SERVICE_NAME=axon-backend") == 2
     assert "dbmate" not in dockerfile.lower()
     assert dockerfile.count("if [ ! -x /usr/bin/python3.12 ]") == 2
+
+
+def test_backend_service_name_is_synchronized() -> None:
+    backend = ROOT / "apps/backend"
+    template = json.loads((backend / "config_template.json").read_text())
+    assert template["NAME"] == "axon-backend"
+    assert template["SENTRY"]["SERVICE_NAME"] == "axon-backend"
+    assert template["OPEN_TELEMETRY"]["SERVICE_NAME"] == "axon-backend"
+    project = tomllib.loads((backend / "pyproject.toml").read_text())
+    assert project["project"]["name"] == "axon-backend"
+    lock = tomllib.loads((backend / "uv.lock").read_text())
+    assert [package["name"] for package in lock["package"] if package["source"] == {"virtual": "."}] == ["axon-backend"]
+    build_command = json.loads((ROOT / "package.json").read_text())["scripts"]["build:backend-image"]
+    assert "SERVICE_NAME=axon-backend" in build_command
+    assert "-t axon-backend" in build_command

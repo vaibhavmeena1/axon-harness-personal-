@@ -1,4 +1,4 @@
-# Axon Console Backend
+# Axon Backend
 
 The centralized management API for Axon CLI installations. It also serves the `apps/frontend` console as static files from the same origin.
 
@@ -188,7 +188,7 @@ through search config. Restart the backend after editing `config.json`; relaunch
 
 `GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 
-The template's `CLI_CLIENT_CONFIG.TELEMETRY: null` leaves existing environment-based telemetry unchanged. To manage it centrally, configure an approved collector, for example:
+The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENABLED: false`, explicitly disabling CLI telemetry by default. Its object structure lets the Vault/Kubernetes configuration generator compare nested keys against enabled environment configurations without recursing into a null template value. To enable centrally managed telemetry, configure an approved collector, for example:
 
 ```json
 "CLI_CLIENT_CONFIG": {
@@ -379,14 +379,34 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-console-backend -t axon-console-backend
+docker build --build-arg SERVICE_NAME=axon-backend -t axon-backend .
 ```
 
-Or `bun run build:backend-image` from the repository root. Use the same script in CI; pass Docker build flags, but no build-context argument (the script supplies the repository root).
+Both Python stages default to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
 
-The script attempts to pull `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8` for `linux/amd64`. If that pull fails (missing credentials, network access, or image), it builds with this project's existing public `cgr.dev/chainguard/wolfi-base:latest` instead. Run your CI's ECR Docker login **before** the script to enable the private base. A later build failure is not retried with another base.
+```bash
+aws ecr get-login-password --region ap-south-1 | \
+  docker login --username AWS --password-stdin 831059512818.dkr.ecr.ap-south-1.amazonaws.com
+```
 
-Both Python stages use the selected image. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. Direct `docker build` uses the public base by default; `--build-arg PYTHON_BASE_IMAGE=...` explicitly selects a base without automatic fallback.
+Direct Docker builds fail if the selected base cannot be pulled; the Dockerfile does not automatically fall back.
+
+### Public builds (no private registry access)
+
+Use the public Wolfi base explicitly; no AWS credentials are required:
+
+```bash
+docker build \
+  --build-arg PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
+  --build-arg SERVICE_NAME=axon-backend \
+  -t axon-backend .
+```
+
+Both Python stages use the selected image. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. The frontend stage remains `node:24-alpine`.
+
+### Optional private-first fallback wrapper
+
+`sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-backend -t axon-backend` (or `bun run build:backend-image`) attempts to pull the private base first and selects the public base if that pull fails. Run it after ECR login to enable private access. Pass Docker build flags without a build-context argument; the script supplies the repository root. A later build failure is not retried with another base.
 
 The Python dependencies resolve from PyPI; no Bitbucket SSH forwarding is required.
 

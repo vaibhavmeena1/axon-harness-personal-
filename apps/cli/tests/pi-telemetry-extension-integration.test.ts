@@ -111,12 +111,17 @@ describe("Pi telemetry extension integration", () => {
       extension({on: (name,handler) => {handlers.set(name,handler); return () => {};}});
       const ctx = {cwd: process.env.HOME, mode: "json", hasUI: false, sessionManager: {getSessionId: () => "native-node", getSessionFile: () => undefined}};
       await handlers.get("session_start")({reason:"startup"},ctx);
-      await handlers.get("before_agent_start")({prompt:"test"},ctx);
-      await handlers.get("agent_start")({},ctx);
-      await handlers.get("turn_start")({turnIndex:0},ctx);
-      await handlers.get("turn_end")({message:{role:"assistant",stopReason:"stop"},toolResults:[]},ctx);
-      await handlers.get("agent_end")({messages:[]},ctx);
-      await handlers.get("agent_settled")({},ctx);
+      for (const event of [
+        {messageType:"user",prompt:"private-user-content",systemPrompt:""},
+        {messageType:"custom",message:{role:"custom",customType:"task",content:"private-custom-content",display:false,timestamp:Date.now()},systemPrompt:""},
+      ]) {
+        await handlers.get("before_agent_start")(event,ctx);
+        await handlers.get("agent_start")({},ctx);
+        await handlers.get("turn_start")({turnIndex:0},ctx);
+        await handlers.get("turn_end")({message:{role:"assistant",stopReason:"stop"},toolResults:[]},ctx);
+        await handlers.get("agent_end")({messages:[]},ctx);
+        await handlers.get("agent_settled")({},ctx);
+      }
       await handlers.get("session_shutdown")({reason:"quit"},ctx);
     `;
     try {
@@ -147,6 +152,9 @@ describe("Pi telemetry extension integration", () => {
         expect(request.auth).toBe("Bearer native-session");
         expect(request.body.includes(Buffer.from("native-session"))).toBe(false);
         expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
+        expect(request.body.includes(Buffer.from("private-user-content"))).toBe(false);
+        expect(request.body.includes(Buffer.from("private-custom-content"))).toBe(false);
+        expect(request.body.includes(Buffer.from("pi.telemetry.dropped"))).toBe(false);
       }
     } finally {
       await close(server);

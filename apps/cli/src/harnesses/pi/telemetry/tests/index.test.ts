@@ -156,7 +156,11 @@ test("wires pi lifecycle events into an attributed span tree", async () => {
   assert.equal(created[0]?.[3].quiet, false);
 
   await fake.emit("input", { text: "hello world", source: "interactive" }, ctx);
-  await fake.emit("before_agent_start", { prompt: "hello world", systemPrompt: "" }, ctx);
+  await fake.emit(
+    "before_agent_start",
+    { messageType: "user", prompt: "hello world", systemPrompt: "" },
+    ctx,
+  );
   await fake.emit("agent_start", {}, ctx);
   await fake.emit("turn_start", { turnIndex: 0, timestamp: Date.now() }, ctx);
   await fake.emit("before_provider_request", { payload: { model: "gpt-5" } }, ctx);
@@ -241,6 +245,8 @@ test("wires pi lifecycle events into an attributed span tree", async () => {
   const tool = byName.get(SPAN_TOOL);
   const wait = byName.get(SPAN_USER_WAIT);
   assert.ok(interaction && run && turn && llm && tool && wait, "missing spans");
+  assert.equal(interaction.attributes["pi.prompt.length"], "hello world".length);
+  assert.equal(interaction.attributes["pi.prompt.image_count"], 0);
   assert.equal(run.parentSpanContext?.spanId, interaction.spanContext().spanId);
   assert.equal(turn.parentSpanContext?.spanId, run.spanContext().spanId);
   assert.equal(llm.parentSpanContext?.spanId, turn.spanContext().spanId);
@@ -302,10 +308,72 @@ test("wires pi lifecycle events into an attributed span tree", async () => {
   );
 });
 
+test("custom-message runs start interactions without prompt attributes or content", async () => {
+  const { fake, fixture } = harness();
+  const privateContent = "private extension-triggered content";
+  await fake.emit("session_start", { reason: "startup" });
+  await fake.emit("before_agent_start", {
+    messageType: "custom",
+    message: {
+      role: "custom",
+      customType: "extension-task",
+      content: privateContent,
+      display: false,
+      timestamp: Date.now(),
+    },
+    systemPrompt: "",
+  });
+  await fake.emit("agent_start", {});
+  await fake.emit("agent_end", { messages: [] });
+  await fake.emit("agent_settled", {});
+  await fake.emit("session_shutdown", { reason: "quit" });
+
+  const interactions = fixture.spans().filter((span) => span.name === SPAN_INTERACTION);
+  assert.equal(interactions.length, 1);
+  const interaction = interactions[0];
+  assert.ok(interaction);
+  assert.equal(interaction.attributes["pi.prompt.length"], undefined);
+  assert.equal(interaction.attributes["pi.prompt.image_count"], undefined);
+  const run = fixture.spans().find((span) => span.name === SPAN_AGENT_RUN);
+  assert.equal(run?.parentSpanContext?.spanId, interaction.spanContext().spanId);
+  assert.ok(!fixture.metrics.some((metric) => metric.name === "pi.telemetry.dropped"));
+  assert.ok(
+    !JSON.stringify({
+      spans: fixture.spans().map((span) => span.attributes),
+      logs: fixture.logs,
+      metrics: fixture.metrics,
+    }).includes(privateContent),
+  );
+});
+
+test("user-message runs retain prompt length and image count without exporting content", async () => {
+  const { fake, fixture } = harness();
+  const privatePrompt = "private user prompt";
+  await fake.emit("session_start", { reason: "startup" });
+  await fake.emit("before_agent_start", {
+    messageType: "user",
+    prompt: privatePrompt,
+    images: [{ type: "image", data: "private-image", mimeType: "image/png" }],
+    systemPrompt: "",
+  });
+  await fake.emit("agent_start", {});
+  await fake.emit("agent_end", { messages: [] });
+  await fake.emit("agent_settled", {});
+  await fake.emit("session_shutdown", { reason: "quit" });
+
+  const interaction = fixture.spans().find((span) => span.name === SPAN_INTERACTION);
+  assert.ok(interaction);
+  assert.equal(interaction.attributes["pi.prompt.length"], privatePrompt.length);
+  assert.equal(interaction.attributes["pi.prompt.image_count"], 1);
+  assert.ok(!JSON.stringify(interaction.attributes).includes(privatePrompt));
+  assert.ok(!JSON.stringify(interaction.attributes).includes("private-image"));
+  assert.ok(!fixture.metrics.some((metric) => metric.name === "pi.telemetry.dropped"));
+});
+
 test("closes open spans on session_shutdown mid-turn", async () => {
   const { fake, fixture } = harness();
   await fake.emit("session_start", { reason: "startup" });
-  await fake.emit("before_agent_start", { prompt: "go", systemPrompt: "" });
+  await fake.emit("before_agent_start", { messageType: "user", prompt: "go", systemPrompt: "" });
   await fake.emit("agent_start", {});
   await fake.emit("turn_start", { turnIndex: 0, timestamp: Date.now() });
   await fake.emit("before_provider_request", { payload: {} });
@@ -351,7 +419,7 @@ test("records the parent session for subagent children and marks tui mode quiet"
 test("stays inert without managed configuration", async () => {
   const { fake, fixture, created } = harness({ resolveConfig: () => undefined });
   await fake.emit("session_start", { reason: "startup" });
-  await fake.emit("before_agent_start", { prompt: "go", systemPrompt: "" });
+  await fake.emit("before_agent_start", { messageType: "user", prompt: "go", systemPrompt: "" });
   await fake.emit("session_shutdown", { reason: "quit" });
   assert.equal(created.length, 0);
   assert.equal(fixture.spans().length, 0);
@@ -365,7 +433,11 @@ test("swallows runtime creation and handler failures", async () => {
     },
   });
   await failing.fake.emit("session_start", { reason: "startup" });
-  await failing.fake.emit("before_agent_start", { prompt: "go", systemPrompt: "" });
+  await failing.fake.emit("before_agent_start", {
+    messageType: "user",
+    prompt: "go",
+    systemPrompt: "",
+  });
   assert.equal(failing.fixture.spans().length, 0);
 
   const { fake, fixture } = harness();

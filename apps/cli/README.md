@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.1.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.2.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -42,7 +42,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.1.0 release on first use, independently of any user-installed Pi.
+The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.2.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -153,7 +153,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.1.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.2.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
@@ -194,6 +194,18 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
+### Remote clipboard copying
+
+For a remote multiplexer attachment or remote IDE session where Pi cannot detect SSH,
+opt in to copying text to the client terminal clipboard with OSC 52:
+
+```bash
+PI_CLIPBOARD_OSC52=1 axon pi
+```
+
+Axon forwards this variable unchanged. It is not enabled by default and requires a
+client terminal that supports OSC 52. Pi still attempts the local clipboard write.
+
 ### Pi resources and required packages
 
 Axon-owned extensions, skills, prompts, and themes are embedded in the CLI, materialized under `${AXON_HOME}/runtime/<version>-<hash>/pi`, and checksum-verified. Ordinary Pi sessions receive explicit resource arguments that reference that immutable directory, so a concurrently running launcher of another Axon version can never swap resources underneath a session. The `runtime/current` symlink is maintained for inspection only. The core extension provides `/axon-status`. In interactive sessions it also replaces Pi's startup header with an Axon connected-node logo, TATA 1mg branding, the launcher version, and a “Powered by Pi” attribution. Live backup status is right-aligned beside the wordmark without adding header lines, with theme-aware activity, success, and warning colors. Shortcut hints follow the active keybindings and wrap as complete groups instead of being clipped; the tool-expansion shortcut (normally Ctrl+O) expands the help, and `/hotkeys` lists all shortcuts. Narrow terminals use a compact text header, and long version labels yield space to backup status without hiding the Axon wordmark. Pi's `quietStartup: true` still hides the header, and RPC/JSON/print modes are unchanged. Resource source has an independent Pi extension typecheck.
@@ -221,6 +233,28 @@ Package checks inspect `${AXON_HOME}/pi/settings.json` and installed package met
 > **Security:** Pi packages run with full user permissions. Extensions, skills, dependency install scripts, and update commands can execute code. Treat every required package and manifest change as release-grade code.
 
 See [`docs/plans/pi-package-provisioning.md`](docs/plans/pi-package-provisioning.md) for the manifest schema, lifecycle decisions, and verification plan.
+
+### Optional git-ai tracking
+
+Every non-administrative `axon pi` session loads an embedded git-ai checkpoint extension. It tracks the built-in `edit`, `write`, and `bash` tools, including nested calls made through codemode. It does **not** install git-ai, modify shell configuration, alter Git configuration, or change `PATH`.
+
+The extension discovers an existing executable at `~/.git-ai/bin/git-ai`, then on absolute `PATH` entries. Set `PI_AXON_GIT_AI_BIN` to an absolute executable path to override discovery (an invalid override does not fall back to another binary). Availability is checked once per extension load with a two-second timeout. Missing/broken git-ai produces one warning and disables tracking without blocking Pi. Checkpoints have a five-second timeout; failure disables tracking until `/reload` or a new Pi process. Warnings use Pi notifications (including structured RPC UI notifications); modes without UI use stderr, never raw protocol stdout. Ephemeral sessions without a transcript are not tracked.
+
+Optional custom file-edit tool policies use `${AXON_HOME}/pi/git-ai.override.json` (the directory selected by `PI_CODING_AGENT_DIR`), with the git-ai version-1 override schema. For example:
+
+```json
+{
+  "version": 1,
+  "tools": {
+    "custom_edit": { "kind": "mutating", "canonical": "edit", "filepath_fields": ["file_path"] },
+    "write": { "kind": "ignore" }
+  }
+}
+```
+
+The built-in Bash checkpoint path is always enabled when tracking is available. Invalid/missing override files leave defaults intact. Overrides are read once per extension load; use `/reload` after changing them.
+
+**Git integration is separate:** checkpoint hooks alone do not configure attribution preservation for later commits. Users still need git-ai's Git proxy/integration for Git operations, including commits made from another terminal or IDE. git-ai receives session paths, model IDs, tool inputs/results, and edited file contents; its own storage/network behavior is controlled by the installed git-ai, not Axon's content-free OpenTelemetry policy.
 
 ### Pi MCP defaults
 
