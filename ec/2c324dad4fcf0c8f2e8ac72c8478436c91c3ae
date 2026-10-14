@@ -1,0 +1,34 @@
+apps/backend/pyproject.toml
+  s_605291a218c1e2::t_21689f64d5543a 3
+apps/backend/tests/test_s3_config.py
+  s_605291a218c1e2::t_0a7dc28362e16b 66-80,131-136
+apps/backend/app/main.py
+  s_605291a218c1e2::t_b8076c2d214ffe 20
+apps/backend/README.md
+  s_605291a218c1e2::t_3d21c9eb629844 336-338
+apps/backend/app/core/s3.py
+  s_605291a218c1e2::t_a7398b47b5c011 57-59
+apps/backend/uv.lock
+  s_605291a218c1e2::t_d89af9a804a5ed 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ec2c324dad4fcf0c8f2e8ac72c8478436c91c3ae",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_605291a218c1e2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13a4d-07c9-711a-82b8-e39948ae2c0b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
