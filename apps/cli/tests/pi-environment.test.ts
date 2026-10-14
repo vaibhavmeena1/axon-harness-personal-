@@ -5,6 +5,15 @@ import { resolveAxonPaths } from "../src/product/paths.ts";
 
 const paths = resolveAxonPaths({ AXON_HOME: "/managed/axon" });
 
+describe("Pi remote clipboard", () => {
+  test("forwards an explicit OSC 52 opt-in without enabling it by default", () => {
+    const inheritedEnvironment = { PI_CLIPBOARD_OSC52: "1" };
+    expect(createPiEnvironment(inheritedEnvironment, paths)["PI_CLIPBOARD_OSC52"]).toBe("1");
+    expect(inheritedEnvironment).toEqual({ PI_CLIPBOARD_OSC52: "1" });
+    expect(createPiEnvironment({}, paths)["PI_CLIPBOARD_OSC52"]).toBeUndefined();
+  });
+});
+
 describe("Pi provider display name", () => {
   test.each([{}, { LITELLM_DISPLAY_NAME: undefined }])(
     "supplies a product-derived default when the display name is unset: %j",

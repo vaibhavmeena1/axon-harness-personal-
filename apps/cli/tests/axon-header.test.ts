@@ -10,7 +10,7 @@ import {
   setKeybindings,
   visibleWidth,
 } from "@earendil-works/pi-tui";
-
+import { PI_INSTALL_VERSION } from "../src/harnesses/pi/installation.ts";
 import axonExtension from "../src/harnesses/pi/resources/extensions/axon.ts";
 
 type HeaderFactory = NonNullable<Parameters<ExtensionContext["ui"]["setHeader"]>[0]>;
@@ -111,7 +111,7 @@ describe("Axon startup header", () => {
     expect(lines[2]).toContain("├─●  TATA 1mg · Your coding workspace");
     expect(lines[3]).toContain("╰─●");
     expect(lines[4]).toStartWith(" ╰─");
-    expect(lines[4]).toEndWith(" Powered by Pi v1.1.0 ──╯");
+    expect(lines[4]).toEndWith(` Powered by Pi v${PI_INSTALL_VERSION} ──╯`);
     const output = text(header());
     expect(output).toContain("escape interrupt");
     expect(output).toContain("ctrl+l models");
@@ -132,7 +132,7 @@ describe("Axon startup header", () => {
     const output = text(header());
     expect(output).toContain("Axon");
     expect(output).not.toContain("Axon v");
-    expect(output).toContain("Powered by Pi v1.1.0");
+    expect(output).toContain(`Powered by Pi v${PI_INSTALL_VERSION}`);
   });
 
   test("does not render terminal controls or multiline values from version metadata", () => {
