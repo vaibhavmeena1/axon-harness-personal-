@@ -63,6 +63,21 @@ def test_default_chain_and_independent_feature_defaults() -> None:
     assert backups.require_create_only_policy is True
 
 
+@pytest.mark.parametrize(
+    "credentials",
+    [{}, {"ACCESS_KEY_ID": "", "SECRET_ACCESS_KEY": ""}],
+)
+def test_empty_credentials_use_default_chain(credentials: dict) -> None:
+    s3 = {**valid_s3(), "CREDENTIALS": credentials}
+    storage = parse_s3_storage(s3, "config.CLI_RELEASES.S3")
+    backups = parse_session_storage({"SESSION_BACKUPS": {"ENABLED": True, "S3": s3}})
+    assert backups is not None
+    for client in (storage.client, backups.s3.client):
+        assert client.access_key_id is None
+        assert client.secret_access_key is None
+        assert client.session_token is None
+
+
 def test_explicit_connection_options_and_credentials() -> None:
     settings = parse_s3_storage(
         {
@@ -113,7 +128,12 @@ def test_valid_retry_options(value: int | None) -> None:
         {"ACCESS_KEY_ID": "secret-id"},
         {"SECRET_ACCESS_KEY": "secret-key"},
         {"SESSION_TOKEN": "secret-token"},
-        {"ACCESS_KEY_ID": "", "SECRET_ACCESS_KEY": ""},
+        {"ACCESS_KEY_ID": "", "SECRET_ACCESS_KEY": "secret-key"},
+        {"ACCESS_KEY_ID": "secret-id", "SECRET_ACCESS_KEY": ""},
+        {"ACCESS_KEY_ID": "", "SECRET_ACCESS_KEY": "", "SESSION_TOKEN": "secret-token"},
+        {"ACCESS_KEY_ID": " ", "SECRET_ACCESS_KEY": " "},
+        {"ACCESS_KEY_ID": ""},
+        {"SECRET_ACCESS_KEY": ""},
         {"ACCESS_KEY_ID": True, "SECRET_ACCESS_KEY": "secret-key"},
         {"ACCESS_KEY_ID": "secret-id", "SECRET_ACCESS_KEY": " "},
         {"MISSPELLED_KEY": "secret-value"},

@@ -54,6 +54,9 @@ def _credentials(value: Any, path: str) -> tuple[str | None, str | None, str | N
     if not isinstance(value, dict) or value.keys() - {"ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN"}:
         raise ValueError(f"{path}.CREDENTIALS must contain only supported credential fields")
     key, secret, token = value.get("ACCESS_KEY_ID"), value.get("SECRET_ACCESS_KEY"), value.get("SESSION_TOKEN")
+    # Paired empty placeholders select the default credential chain (e.g. IAM roles).
+    if key == "" and secret == "":
+        key = secret = None
     if (
         bool(key) != bool(secret)
         or (token is not None and not key)
