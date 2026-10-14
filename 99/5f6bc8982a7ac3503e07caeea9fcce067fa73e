@@ -1,0 +1,68 @@
+apps/cli/package.json
+  s_04237d23a04766::t_b425e2a8e13b5b 43-44
+apps/cli/pi-version.json
+  s_04237d23a04766::t_b9fe3911bfd2ee 2
+apps/cli/tests/auth-preflight.test.ts
+  s_04237d23a04766::t_38963c7fb689f6 92-99
+apps/cli/tests/axon-theme.test.ts
+  s_04237d23a04766::t_010e5f92318ba3 17-31,55-57,79-87
+  s_04237d23a04766::t_0f623262290436 88-90
+apps/cli/src/harnesses/pi/resources/themes/axon-dark.json
+  s_04237d23a04766::t_54824988c51aa4 2
+apps/cli/tests/pi-environment.test.ts
+  s_04237d23a04766::t_2308863380285c 8-16
+apps/cli/README.md
+  s_04237d23a04766::t_024d95b9f1a134 156
+  s_04237d23a04766::t_809c2ae7aa07a7 23,45,197-207
+  s_04237d23a04766::t_6b1b483a561620 208
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_04237d23a04766::t_6d3cec4865dd19 3,56-58
+  s_04237d23a04766::t_66169b25e1415d 59
+apps/cli/src/harnesses/pi/resources/themes/axon-light.json
+  s_04237d23a04766::t_a6196b2e433c86 2
+apps/cli/docs/plans/pi-managed-settings.md
+  s_04237d23a04766::t_bdbd93703c817b 63,94
+apps/cli/src/product/manifest.ts
+  s_04237d23a04766::t_3f04a9032bef81 91
+docs/session-backup-and-restore.md
+  s_04237d23a04766::t_433c0ab8b0243a 12
+apps/cli/tests/pi-telemetry-extension-integration.test.ts
+  s_04237d23a04766::t_1022de77fa8658 114-124,155-157
+apps/cli/src/harnesses/pi/telemetry/docs/limitations.md
+  s_04237d23a04766::t_49128e381641e8 15
+apps/cli/tests/axon-header.test.ts
+  s_04237d23a04766::t_c616f00434fffc 114,135
+  s_04237d23a04766::t_c738ed1f76f3de 13
+apps/cli/tests/pi-package-setup.test.ts
+  s_04237d23a04766::t_6767b25d2aa320 283-288
+  s_04237d23a04766::t_5bfe2f63a9f528 275,279-282,295
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_04237d23a04766::t_40a0d31e86e31e 60
+apps/cli/src/harnesses/pi/telemetry/src/index.ts
+  s_04237d23a04766::t_ae923996bc0299 452-457
+apps/cli/src/harnesses/pi/telemetry/tests/index.test.ts
+  s_04237d23a04766::t_2c71dffb5f5c27 159-163,248-249,311-372
+  s_04237d23a04766::t_16067e4b964943 376,422,436-440
+apps/cli/src/harnesses/pi/setup/packages/invocation.ts
+  s_04237d23a04766::t_202ecaf4a3fbf8 18
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_04237d23a04766::t_c1f4b8cba767e1 245,251,269
+bun.lock
+  s_04237d23a04766::t_0488cc45a4d960 27-28,116,118,120,122,124,126,128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "995f6bc8982a7ac3503e07caeea9fcce067fa73e",
+  "prompts": {},
+  "sessions": {
+    "s_04237d23a04766": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1343d-404f-7244-aeb4-f3541940486e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
