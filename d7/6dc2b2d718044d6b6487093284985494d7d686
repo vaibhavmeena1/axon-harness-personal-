@@ -1,0 +1,28 @@
+apps/backend/tests/test_cli_config.py
+  s_d6ab5a678a0bc5::t_d85ab97a9ca19d 160-175
+apps/backend/README.md
+  s_d6ab5a678a0bc5::t_92131ce2469aa0 191
+apps/backend/config_template.json
+  s_d6ab5a678a0bc5::t_1c61d78a320b09 65-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d76dc2b2d718044d6b6487093284985494d7d686",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_d6ab5a678a0bc5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a139d5-4f21-73a4-933b-be270c8d9c6d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
