@@ -18,7 +18,8 @@ import sessionBackupExtensionAsset from "../harnesses/pi/resources/extensions/se
   type: "file",
 };
 
-import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.ts" with {
+// Keep the embedded asset distinct from the TypeScript module imported as code.
+import terminalPermissionsExtensionAsset from "../harnesses/pi/resources/extensions/terminal-permissions.mjs" with {
   type: "file",
 };
 import webSearchExtensionAsset from "../harnesses/pi/resources/extensions/web-search.ts" with {
@@ -87,7 +88,7 @@ const WEB_SEARCH_RESOURCE = Object.freeze({
 const TERMINAL_PERMISSIONS_RESOURCE = Object.freeze({
   id: "terminal-permissions",
   type: "extension",
-  destination: "pi/extensions/terminal-permissions.ts",
+  destination: "pi/extensions/terminal-permissions.mjs",
 }) satisfies PiResourceManifestEntry;
 const AXON_DARK_THEME_RESOURCE = Object.freeze({
   id: "axon-dark-theme",
@@ -103,7 +104,7 @@ const AXON_LIGHT_THEME_RESOURCE = Object.freeze({
 
 export const AXON_MANIFEST = parseAxonManifest({
   schemaVersion: 1,
-  revision: "14",
+  revision: "15",
   pi: {
     packages: [
       {
@@ -179,7 +180,7 @@ export const EMBEDDED_PI_RESOURCES = Object.freeze([
   }),
   Object.freeze({
     ...TERMINAL_PERMISSIONS_RESOURCE,
-    sourcePath: terminalPermissionsExtensionAsset as unknown as string,
+    sourcePath: terminalPermissionsExtensionAsset,
   }),
   Object.freeze({
     ...AXON_DARK_THEME_RESOURCE,

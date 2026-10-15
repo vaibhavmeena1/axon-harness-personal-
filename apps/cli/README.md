@@ -293,12 +293,14 @@ Bun must be available in your shell. The repository pins Bun `1.4.1`. Dependenci
 ```bash
 bun install --frozen-lockfile   # at the repository root
 cd apps/cli
-bun run check                   # telemetry bundle check and typecheck
+bun run check                   # generated extension bundle checks and typecheck
 bun test
 bun run dev -- --version
 bun run build
 ./dist/axon --version
 ```
+
+Terminal permissions ship as a generated standalone `.mjs` asset so the launcher can import the TypeScript command validator without colliding with Bun's file loader. After editing `src/harnesses/pi/resources/extensions/terminal-permissions.ts`, run `bun run terminal:build` and commit the generated bundle. Development/release builds and `bun run check` reject stale bundles with `terminal:check`.
 
 Formatting and lint run from the repository root with `biome ci .`, which the root `bun run check` includes.
 

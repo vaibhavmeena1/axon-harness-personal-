@@ -341,7 +341,7 @@ describe("launcher dispatch", () => {
       "--extension",
       join(axonHome, "runtime", activeRuntime, "pi", "extensions", "compaction.ts"),
       "--extension",
-      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "terminal-permissions.ts"),
+      join(axonHome, "runtime", activeRuntime, "pi", "extensions", "terminal-permissions.mjs"),
       "--theme",
       join(axonHome, "runtime", activeRuntime, "pi", "themes", "axon-dark.json"),
       "--theme",
