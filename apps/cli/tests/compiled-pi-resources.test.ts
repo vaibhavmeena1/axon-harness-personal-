@@ -28,7 +28,7 @@ test.each(["unminified", "minified"] as const)(
     const minify = mode === "minified";
     const root = await mkdtemp(join(tmpdir(), "axon-compiled-resources-"));
     const projectRoot = resolve(import.meta.dir, "..");
-    const paths = resolveAxonPaths({ AXON_HOME: join(root, "home") });
+    const paths = resolveAxonPaths({ AXON_HOME: join(root, "home"), HOME: root });
     const policy = {
       yoloMode: false,
       allowYoloMode: true,

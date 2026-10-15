@@ -24,7 +24,7 @@ test.each(["", "/axon"])(
   "launcher product events export authenticated protobuf below base path %j without mutating ambient env",
   async (basePath) => {
     const home = await mkdtemp(join(tmpdir(), "axon-products-"));
-    const paths = resolveAxonPaths({ AXON_HOME: home });
+    const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
     const received: {
       path: string;
       auth: string | null;
@@ -48,6 +48,8 @@ test.each(["", "/axon"])(
       },
     });
     const oldEndpoint = process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
+    const oldHome = process.env["HOME"];
+    process.env["HOME"] = home;
     try {
       await saveEncryptedSession(paths, "product-test-session");
       takeProductEvents();
@@ -79,6 +81,13 @@ test.each(["", "/axon"])(
             request.auth === "Bearer product-test-session" &&
             request.contentType === "application/x-protobuf",
         ),
+        JSON.stringify(
+          received.map(({ path, auth, contentType }) => ({
+            path,
+            authMatches: auth === "Bearer product-test-session",
+            contentType,
+          })),
+        ),
       );
       assert.ok(
         received.some((request) => request.body.includes(Buffer.from("axon.update.events"))),
@@ -89,6 +98,8 @@ test.each(["", "/axon"])(
       assert.equal(process.env["OTEL_EXPORTER_OTLP_ENDPOINT"], oldEndpoint);
     } finally {
       await flushProductTelemetry(paths, true);
+      if (oldHome === undefined) delete process.env["HOME"];
+      else process.env["HOME"] = oldHome;
       server.stop(true);
       await rm(home, { recursive: true, force: true });
     }
@@ -97,7 +108,7 @@ test.each(["", "/axon"])(
 
 test("concurrent close waits for initialization, shares shutdown and detaches the event observer", async () => {
   const home = await mkdtemp(join(tmpdir(), "axon-product-close-"));
-  const paths = resolveAxonPaths({ AXON_HOME: home });
+  const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
   const received: string[] = [];
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -108,6 +119,8 @@ test("concurrent close waits for initialization, shares shutdown and detaches th
       return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
     },
   });
+  const oldHome = process.env["HOME"];
+  process.env["HOME"] = home;
   try {
     await saveEncryptedSession(paths, "close-test-session");
     takeProductEvents();
@@ -123,6 +136,8 @@ test("concurrent close waits for initialization, shares shutdown and detaches th
     assert.equal(takeProductEvents().length, 1);
   } finally {
     await flushProductTelemetry(paths, true);
+    if (oldHome === undefined) delete process.env["HOME"];
+    else process.env["HOME"] = oldHome;
     server.stop(true);
     await rm(home, { recursive: true, force: true });
   }
@@ -130,7 +145,7 @@ test("concurrent close waits for initialization, shares shutdown and detaches th
 
 test("a short-lived CLI process exports product metrics, traces and logs before exit", async () => {
   const home = await mkdtemp(join(tmpdir(), "axon-product-exit-"));
-  const paths = resolveAxonPaths({ AXON_HOME: home });
+  const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
   const received = new Map<string, Buffer[]>();
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -164,7 +179,7 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
        emitProductEvent({ category: "backup", stage: "upload", outcome: "success", durationMs: 30, bytes: 2048 });
        await flushProductTelemetry(paths);`,
       ],
-      { stdin: "ignore", stdout: "pipe", stderr: "pipe" },
+      { env: { ...process.env, HOME: home }, stdin: "ignore", stdout: "pipe", stderr: "pipe" },
     );
     const [status, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     assert.equal(status, 0, stderr);

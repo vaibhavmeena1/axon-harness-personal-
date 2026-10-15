@@ -111,7 +111,7 @@ export const AXON_MANIFEST = parseAxonManifest({
         id: "rpiv-ask-user-question",
         source: "npm:@juicesharp/rpiv-ask-user-question",
         required: true,
-        versionPolicy: { kind: "exact", version: "2.12.0" },
+        versionPolicy: { kind: "exact", version: "2.13.8" },
         install: { action: "pi.install" },
       },
       {

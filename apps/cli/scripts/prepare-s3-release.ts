@@ -1,4 +1,4 @@
-import { copyFile, mkdir, stat } from "node:fs/promises";
+import { copyFile, mkdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
@@ -63,12 +63,16 @@ export async function prepareS3Release(): Promise<void> {
   if ((await run(executable, "--version")) !== version)
     throw new Error("release binary version mismatch");
   await copyFile(`${executable}.map`, join(output, `${EXECUTABLE}.map`));
+  // Bun's file-backed spawn output can retain trailing bytes from an older,
+  // larger archive. Remove it first so every preparation starts with a new file.
+  await rm(archive, { force: true });
   const gzip = Bun.spawn(["gzip", "-9", "-n", "-c", executable], {
     stdin: "ignore",
     stdout: Bun.file(archive),
     stderr: "inherit",
   });
   if ((await gzip.exited) !== 0) throw new Error("failed to compress the release binary");
+  await run("gzip", "-t", archive);
   const compressed = await digest(archive);
   const binary = await digest(executable);
   const s3Key = `${prefix}${version}/${ARCHIVE}`;

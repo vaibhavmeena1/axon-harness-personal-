@@ -27,7 +27,7 @@ let policyEnabled: boolean;
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "dd-backup-recovery-"));
-  paths = resolveAxonPaths({ AXON_HOME: root });
+  paths = resolveAxonPaths({ AXON_HOME: root, HOME: root });
   await saveEncryptedSession(paths, "synthetic-token");
   calls = [];
   policyEnabled = true;
@@ -301,6 +301,8 @@ describe("backup diagnostics", () => {
     await writeFile(item.path, "{broken");
     const oldOrigin = process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
     const oldHome = process.env["PI_AXON_BACKUP_HOME"];
+    const oldUserHome = process.env["HOME"];
+    process.env["HOME"] = root;
     process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = origin;
     process.env["PI_AXON_BACKUP_HOME"] = root;
     const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
@@ -331,6 +333,8 @@ describe("backup diagnostics", () => {
       expect(calls.every((path) => path === "/api/v1/sessions/status")).toBe(true); // Policy checks only; no uploads.
     } finally {
       fetcher.mockRestore();
+      if (oldUserHome === undefined) delete process.env["HOME"];
+      else process.env["HOME"] = oldUserHome;
       if (oldOrigin === undefined) delete process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"];
       else process.env["PI_AXON_BACKUP_SERVICE_ORIGIN"] = oldOrigin;
       if (oldHome === undefined) delete process.env["PI_AXON_BACKUP_HOME"];
@@ -355,6 +359,7 @@ describe("backup diagnostics", () => {
     const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
       env: {
         ...process.env,
+        HOME: root,
         PI_AXON_BACKUP_SERVICE_ORIGIN: origin,
         PI_AXON_BACKUP_HOME: root,
       },

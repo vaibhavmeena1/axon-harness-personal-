@@ -107,7 +107,7 @@ validate_sha256() {
 }
 
 sha256_file() {
-  shasum -a 256 "$1" | awk '{ print $1 }'
+  shasum -a 256 < "$1" | awk '{ print $1 }'
 }
 
 get_expected_hash() {
@@ -116,6 +116,85 @@ get_expected_hash() {
   hash=$(awk -v name="$asset_name" '$2 == name && NF == 2 { print $1 }' "$checksum_file")
   validate_sha256 "$hash" || die "checksums.txt has no unique valid SHA-256 for $asset_name"
   printf '%s\n' "$hash"
+}
+
+# Quote literal paths for shell startup files, including spaces, quotes and '$'.
+quote_path() {
+  printf '%s' "$1" | awk -v shell="$2" '
+    BEGIN { printf "%c", 39 }
+    {
+      if (NR > 1) printf "\n"
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1)
+        if (c == sprintf("%c", 39)) {
+          if (shell == "fish") printf "\\%c", 39
+          else printf "%c\\%c%c", 39, 39, 39
+        } else if (c == "\\" && shell == "fish") printf "\\\\"
+        else printf "%s", c
+      }
+    }
+    END { printf "%c", 39 }
+  '
+}
+
+append_path_config() {
+  config_file=$1
+  config_parent=${config_file%/*}
+  if ! mkdir -p "$config_parent"; then
+    warn "could not create shell configuration directory: $config_parent"
+    return
+  fi
+  if [ -f "$config_file" ] && grep -Fqx -- "$PATH_ENTRY" "$config_file"; then
+    return
+  fi
+  if printf '\n# Axon CLI\n%s\n' "$PATH_ENTRY" >> "$config_file"; then
+    say "Configured Axon PATH in $config_file"
+  else
+    warn "could not update $config_file; add the printed PATH command manually"
+  fi
+}
+
+configure_shell_path() {
+  # This script runs under sh; SHELL identifies the user's shell instead.
+  LOGIN_SHELL=${SHELL:-}
+  LOGIN_SHELL=${LOGIN_SHELL##*/}
+  QUOTED_BIN=$(quote_path "$BIN_DIR" "$LOGIN_SHELL")
+  case "$LOGIN_SHELL" in
+    fish)
+      PATH_COMMAND="set -gx PATH $QUOTED_BIN \$PATH"
+      PATH_ENTRY="if not contains -- $QUOTED_BIN \$PATH; $PATH_COMMAND; end"
+      append_path_config "${XDG_CONFIG_HOME:-$HOME/.config}/fish/config.fish"
+      ;;
+    zsh)
+      PATH_COMMAND="export PATH=$QUOTED_BIN:\"\$PATH\""
+      PATH_ENTRY="case \":\$PATH:\" in *:$QUOTED_BIN:*) ;; *) $PATH_COMMAND ;; esac"
+      append_path_config "${ZDOTDIR:-$HOME}/.zshrc"
+      ;;
+    bash)
+      PATH_COMMAND="export PATH=$QUOTED_BIN:\"\$PATH\""
+      PATH_ENTRY="case \":\$PATH:\" in *:$QUOTED_BIN:*) ;; *) $PATH_COMMAND ;; esac"
+      append_path_config "$HOME/.bashrc"
+      # Bash login shells read only the first existing file in this list.
+      if [ -f "$HOME/.bash_profile" ]; then
+        append_path_config "$HOME/.bash_profile"
+      elif [ -f "$HOME/.bash_login" ]; then
+        append_path_config "$HOME/.bash_login"
+      elif [ -f "$HOME/.profile" ]; then
+        append_path_config "$HOME/.profile"
+      else
+        append_path_config "$HOME/.bash_profile"
+      fi
+      ;;
+    sh|dash|ksh|'')
+      PATH_COMMAND="export PATH=$QUOTED_BIN:\"\$PATH\""
+      PATH_ENTRY="case \":\$PATH:\" in *:$QUOTED_BIN:*) ;; *) $PATH_COMMAND ;; esac"
+      append_path_config "$HOME/.profile"
+      ;;
+    *)
+      warn "automatic PATH configuration is not supported for $LOGIN_SHELL; add $BIN_DIR to your shell's PATH"
+      PATH_COMMAND=
+      ;;
+  esac
 }
 
 OS_NAME=$(uname -s)
@@ -223,15 +302,19 @@ case ":${PATH:-}:" in
   *) PATH_HAS_MANAGED_BIN=0 ;;
 esac
 
+configure_shell_path
+
 RESOLVED_COMMAND=$(command -v "$PROGRAM" 2>/dev/null || true)
 if [ -n "$RESOLVED_COMMAND" ] && [ "$RESOLVED_COMMAND" != "$BINARY" ]; then
   warn "$PROGRAM currently resolves to $RESOLVED_COMMAND instead of $BINARY"
 fi
 
 if [ "$PATH_HAS_MANAGED_BIN" -eq 0 ]; then
-  warn "$BIN_DIR is not on PATH"
-  say "Add it for this shell with:"
-  printf '  export PATH="%s:$PATH"\n' "$BIN_DIR"
+  say "Restart your terminal to use axon."
+  if [ -n "$PATH_COMMAND" ]; then
+    say "Or enable it in your current shell now:"
+    printf '  %s\n' "$PATH_COMMAND"
+  fi
 fi
 
 if command -v pi >/dev/null 2>&1; then

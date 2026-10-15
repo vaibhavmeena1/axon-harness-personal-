@@ -9,7 +9,7 @@ import { resolveAxonPaths } from "../src/product/paths.ts";
 // A child process isolates BUILD_INFO's service origin and the extension's environment.
 test("search uses the authenticated relay, persists rotation, and retains citations/session/cost", async () => {
   const home = await mkdtemp(join(tmpdir(), "axon-search-relay-"));
-  const paths = resolveAxonPaths({ AXON_HOME: home });
+  const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
   await mkdir(paths.home, { recursive: true });
   await saveEncryptedSession(paths, "initial-session");
   const seen: {
@@ -81,6 +81,7 @@ test("search uses the authenticated relay, persists rotation, and retains citati
           Object.entries(process.env).filter(([name]) => !name.startsWith("PI_WEB_SEARCH_")),
         ),
         AXON_HOME: home,
+        HOME: home,
         AXON_SERVICE_ORIGIN: server.url.origin,
         PI_WEB_SEARCH_ENABLED: "true",
         PI_WEB_SEARCH_MODEL: "gemini-3.8-flash",

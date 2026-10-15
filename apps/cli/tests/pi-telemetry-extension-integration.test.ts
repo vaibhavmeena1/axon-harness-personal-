@@ -90,7 +90,7 @@ describe("Pi telemetry extension integration", () => {
   test("standalone bundle exports authenticated telemetry under native Node", async () => {
     const home = await mkdtemp(join(tmpdir(), "axon-native-otel-"));
     temporaryDirectories.push(home);
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "native-session");
+    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home, HOME: home }), "native-session");
     const seen: Array<{ path: string; auth: string | undefined; body: Buffer }> = [];
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];

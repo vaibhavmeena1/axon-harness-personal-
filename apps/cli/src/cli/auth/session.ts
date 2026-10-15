@@ -1,21 +1,22 @@
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
 import { withFileLock } from "../../launcher/file-lock.ts";
+import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 
 const AUTH_TOKEN_KEY = "extension_auth_token";
-export const SESSION_FILE_NAME = "264325ba-cbd0-47d5-9269-ac4bd19067c2.json";
+export const SESSION_FILE_NAME = PRODUCT_IDENTITY.sharedAuthFileName;
 const MAX_SESSION_FILE_BYTES = 1024 * 1024;
 
 function sessionPath(paths: AxonPaths): string {
-  return join(paths.home, SESSION_FILE_NAME);
+  return paths.sharedAuthFile;
 }
 
 async function assertRegularDirectory(directory: string): Promise<void> {
   const directoryStatus = await lstat(directory);
   if (!directoryStatus.isDirectory() || directoryStatus.isSymbolicLink()) {
-    throw new Error("Managed session directory is not a regular directory");
+    throw new Error("Shared authentication directory is not a regular directory");
   }
 }
 
@@ -62,7 +63,7 @@ async function readSessionFile(
   }
 }
 
-/** Read the shared Axon token without exposing it in CLI output or Pi history. */
+/** Read DeputyDev's live extension token without exposing it in CLI output or Pi history. */
 export async function loadEncryptedSession(paths: AxonPaths): Promise<string | undefined> {
   const destination = sessionPath(paths);
   try {
@@ -92,11 +93,11 @@ async function persistEncryptedSession(
 ): Promise<boolean> {
   if (!isEncryptedSession(encryptedSession)) throw new Error("Invalid encrypted session");
   const destination = sessionPath(paths);
-  await mkdir(paths.home, { recursive: true, mode: 0o700 });
-  await assertRegularDirectory(paths.home);
+  await mkdir(paths.sharedAuthDirectory, { recursive: true, mode: 0o700 });
+  await assertRegularDirectory(paths.sharedAuthDirectory);
 
   return withFileLock(
-    join(paths.locks, "session.lock"),
+    paths.sharedAuthLock,
     async () => {
       // A selected browser login can repair corrupt JSON, but never unsafe filesystem entries.
       const existingData = await readSessionFile(destination, expectedSession === undefined);

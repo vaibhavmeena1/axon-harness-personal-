@@ -1,11 +1,10 @@
 import { rm, stat } from "node:fs/promises";
-import { dirname, join, parse, resolve } from "node:path";
+import { dirname, parse, resolve } from "node:path";
 
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
-import { SESSION_FILE_NAME } from "../auth/session.ts";
 
 export interface UninstallOptions {
   readonly removeRuntimes?: boolean;
@@ -58,5 +57,5 @@ export async function runUninstall(paths: AxonPaths, options: UninstallOptions):
   }
 
   // The session file may also be used by the VS Code extension; uninstall never removes it.
-  console.log(`preserved shared authentication file: ${join(paths.home, SESSION_FILE_NAME)}`);
+  console.log(`preserved shared authentication file: ${paths.sharedAuthFile}`);
 }

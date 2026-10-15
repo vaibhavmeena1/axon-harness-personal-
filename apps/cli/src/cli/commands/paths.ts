@@ -3,6 +3,8 @@ import type { AxonPaths } from "../../product/paths.ts";
 export function printPaths(paths: AxonPaths): void {
   const entries = [
     ["home", paths.home],
+    ["shared authentication file", paths.sharedAuthFile],
+    ["shared authentication lock", paths.sharedAuthLock],
     ["managed binary", paths.managedBinary],
     ["previous binary", paths.previousBinary],
     ["runtime", paths.runtime],

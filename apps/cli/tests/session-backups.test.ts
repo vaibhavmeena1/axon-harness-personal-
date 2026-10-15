@@ -150,7 +150,7 @@ function remote(): RemoteSession {
 }
 
 async function source() {
-  const paths = resolveAxonPaths({ AXON_HOME: directory });
+  const paths = resolveAxonPaths({ AXON_HOME: directory, HOME: directory });
   await privateDirectory(paths.pi);
   await privateDirectory(paths.piSessions);
   const file = join(paths.piSessions, "synthetic.jsonl");
@@ -545,6 +545,7 @@ test("native backup bundle captures after final environment filtering using the 
       {
         ...process.env,
         AXON_HOME: directory,
+        HOME: directory,
         PI_AXON_BACKUP_SERVICE_ORIGIN: "https://untrusted.example.test",
         PI_AXON_BACKUP_HOME: "/wrong/backup-home",
       },
@@ -617,6 +618,8 @@ test("CLI lists readable titles, local backup times and sizes across pages", asy
   named.snapshot.display_name = named.display_name;
   const unnamed = remote();
   const previousHome = process.env["AXON_HOME"];
+  const previousUserHome = process.env["HOME"];
+  process.env["HOME"] = directory;
   process.env["AXON_HOME"] = directory;
   const output = spyOn(console, "log").mockImplementation(() => {});
   const cursor = { before: timestamp, before_id: named.id };
@@ -650,6 +653,8 @@ test("CLI lists readable titles, local backup times and sizes across pages", asy
   } finally {
     fetcher.mockRestore();
     output.mockRestore();
+    if (previousUserHome === undefined) delete process.env["HOME"];
+    else process.env["HOME"] = previousUserHome;
     if (previousHome === undefined) delete process.env["AXON_HOME"];
     else process.env["AXON_HOME"] = previousHome;
   }

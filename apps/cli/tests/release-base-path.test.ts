@@ -42,8 +42,15 @@ test("release compilation, preparation and publication preserve the production b
         if (argv[0] === "codesign") return spawn([process.execPath, "--eval", ""], options);
         return spawn(argv, options);
       };
+      // Re-preparing over a larger artifact must not retain its trailing bytes.
+      mkdirSync("release", { recursive: true });
+      writeFileSync("release/axon-darwin-arm64.gz", Buffer.alloc(1024 * 1024, 0xff));
       const { prepareS3Release } = await import(${JSON.stringify(prepare)});
       await prepareS3Release();
+      const gzipCheck = spawn(["gzip", "-t", "release/axon-darwin-arm64.gz"], {
+        stdout: "pipe", stderr: "pipe",
+      });
+      assert.equal(await gzipCheck.exited, 0, "prepared archive must have no trailing garbage");
       assert.equal(compiledBase, 'BUILD_SERVICE_ORIGIN="https://deputydev.ai/axon"');
       const config = await Bun.file("release/cli-release-config.json").json();
       const entry = config["0.2.0"];

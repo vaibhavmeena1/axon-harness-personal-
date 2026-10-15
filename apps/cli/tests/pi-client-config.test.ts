@@ -30,7 +30,7 @@ const terminalPolicy = {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "axon-pi-config-"));
-  const paths = resolveAxonPaths({ AXON_HOME: root });
+  const paths = resolveAxonPaths({ AXON_HOME: root, HOME: root });
   await saveEncryptedSession(paths, "initial-token");
   const packages = normalizeManifestPackages(AXON_MANIFEST);
   for (const entry of packages) {
@@ -205,7 +205,7 @@ describe("real Pi adapter client config integration", () => {
     expect(environment["PI_MODEL_RECOMMENDER_URL"]).toBe(
       `${relayOrigin}/api/v1/model-recommendations`,
     );
-    const paths = resolveAxonPaths({ AXON_HOME: root });
+    const paths = resolveAxonPaths({ AXON_HOME: root, HOME: root });
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
@@ -302,7 +302,7 @@ describe("real Pi adapter client config integration", () => {
       const environment = await launchSpec();
       expect(await Bun.file(settingsPath).text()).toBe(settings);
       expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
-      expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: root }))).toBe(
+      expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: root, HOME: root }))).toBe(
         "different-account-token",
       );
     } finally {
