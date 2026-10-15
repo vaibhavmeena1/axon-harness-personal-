@@ -1,0 +1,24 @@
+biome.json
+  s_1180b816c856e4::t_f8a2eb0fb0429e 40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69c07ba1de62ad75df309a74d3620841b4095307",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_1180b816c856e4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13fbb-2de1-74fc-8885-ffde97128a17",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
