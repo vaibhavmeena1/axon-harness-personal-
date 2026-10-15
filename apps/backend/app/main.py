@@ -6,7 +6,7 @@ from app.authentication import SessionRefreshResponseMiddleware
 from app.core.config import get_settings
 from app.core.logging import configure_application_logging
 from app.listeners import lifespan
-from app.proxies import mount_litellm_proxy
+from app.proxies import mount_litellm_proxy, mount_litellm_ui_proxy
 from app.routers import ROUTERS
 from app.web import mount_frontend
 
@@ -23,6 +23,8 @@ app.add_middleware(SessionRefreshResponseMiddleware)
 for router in ROUTERS:
     app.include_router(router)
 mount_litellm_proxy(app)
+if settings.litellm.ui_enabled:
+    mount_litellm_ui_proxy(app)
 
 # Must run after the API routes: the console is mounted at "/" as a catch-all,
 # and Starlette matches routes in registration order.

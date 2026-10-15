@@ -88,6 +88,7 @@ class LiteLLMSettings:
     keepalive_expiry_seconds: int
     api_key: str = field(default="", repr=False)
     identity_sync_enabled: bool = False
+    ui_enabled: bool = False
     identity_sync_timeout_seconds: int = 10
     identity_sync_cache_seconds: int = 60
     identity_sync_cache_max_entries: int = 1000
@@ -500,6 +501,7 @@ def get_settings() -> Settings:
         team_id=litellm_team_id,
         team_role=litellm_team_role,
         identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
+        ui_enabled=_boolean(litellm_config, "UI_ENABLED", "config.LITELLM", default=False),
         identity_sync_timeout_seconds=_integer(
             litellm_config, "IDENTITY_SYNC_TIMEOUT_SECONDS", "config.LITELLM", default=10
         ),

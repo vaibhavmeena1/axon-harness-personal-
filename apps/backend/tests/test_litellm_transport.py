@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 import pytest
@@ -141,3 +142,35 @@ def test_streaming_redirects_are_not_followed(settings: LiteLLMSettings) -> None
         "write": None,
         "pool": settings.pool_timeout_seconds,
     }
+
+
+def test_shared_streaming_pool_does_not_store_browser_cookies(
+    settings: LiteLLMSettings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[httpx.Request] = []
+    original_client = httpx.AsyncClient
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, headers={"set-cookie": "token=browser-secret; Path=/; HttpOnly"})
+
+    def client_factory(**kwargs: Any) -> httpx.AsyncClient:
+        return original_client(transport=httpx.MockTransport(upstream), **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", client_factory)
+
+    async def run() -> None:
+        transport = LiteLLMTransport(settings)
+        try:
+            first = await transport.send_stream("POST", b"/login", headers=[])
+            assert first.headers["set-cookie"] == "token=browser-secret; Path=/; HttpOnly"
+            assert not transport._client.cookies
+            await first.aclose()
+            second = await transport.send_stream("GET", b"/v1/models", headers=[])
+            await second.aclose()
+            assert not transport._client.cookies
+        finally:
+            await transport.aclose()
+
+    asyncio.run(run())
+    assert all("cookie" not in request.headers for request in seen)
