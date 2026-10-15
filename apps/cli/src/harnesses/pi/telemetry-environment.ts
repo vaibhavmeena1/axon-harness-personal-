@@ -29,9 +29,11 @@ export function createTelemetryOverrides(
   offline = false,
   managed?: ManagedTelemetryOptions,
 ): EnvironmentOverrides {
-  if (offline || isTelemetryDisabled(environment))
-    return { ...CLEAR_MANAGED, PI_ORG_OTEL_ENABLED: "false" };
-  if (!telemetry) return { ...CLEAR_MANAGED };
+  if (offline) return { ...CLEAR_MANAGED, PI_ORG_OTEL_ENABLED: "false" };
+  if (!telemetry)
+    return isTelemetryDisabled(environment)
+      ? { ...CLEAR_MANAGED, PI_ORG_OTEL_ENABLED: "false" }
+      : { ...CLEAR_MANAGED };
   if (!telemetry.enabled || !managed || !isAbsolute(managed.home))
     return { ...CLEAR_MANAGED, PI_ORG_OTEL_ENABLED: "false" };
 

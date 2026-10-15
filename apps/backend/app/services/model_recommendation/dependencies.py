@@ -9,6 +9,7 @@ from app.clients.auth_service import AuthData, AuthenticatedUser, AuthServiceErr
 from app.clients.litellm.decisions import LiteLLMDecisionClient
 from app.clients.litellm.dependencies import get_litellm_decision_client, get_litellm_identity_client
 from app.clients.litellm.identity import LiteLLMIdentityClient
+from app.core.config import Settings, get_settings
 from app.services.model_recommendation.service import ModelRecommendationService
 
 
@@ -28,6 +29,7 @@ def get_model_recommendation_user(
 def get_model_recommendation_service(
     decision_client: Annotated[LiteLLMDecisionClient, Depends(get_litellm_decision_client)],
     identity_client: Annotated[LiteLLMIdentityClient, Depends(get_litellm_identity_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ModelRecommendationService:
-    """Build a lightweight service around the app-owned LiteLLM clients."""
-    return ModelRecommendationService(decision_client, identity_client)
+    """Build a lightweight service around the app-owned LiteLLM clients and classifier config."""
+    return ModelRecommendationService(decision_client, identity_client, settings.model_recommender)

@@ -283,15 +283,26 @@ describe("install.sh shell PATH configuration", () => {
       const managedHome = join(fixture.root, "axon's $HOME `test` \\ \" [*] directory");
       const result = await runInstaller(fixture, { SHELL: shell, AXON_HOME: managedHome });
       expect(result.exitCode).toBe(0);
-      const config = shell.endsWith("fish") ? ".config/fish/config.fish"
-        : shell.endsWith("zsh") ? ".zshrc" : shell.endsWith("bash") ? ".bashrc" : ".profile";
+      const config = shell.endsWith("fish")
+        ? ".config/fish/config.fish"
+        : shell.endsWith("zsh")
+          ? ".zshrc"
+          : shell.endsWith("bash")
+            ? ".bashrc"
+            : ".profile";
       const configPath = join(fixture.home, config);
       const command = shell.endsWith("fish")
         ? 'source "$CONFIG"; source "$CONFIG"; command -v axon; count (string match -e -- "$BIN" $PATH)'
         : '. "$CONFIG"; . "$CONFIG"; command -v axon; printf "%s\\n" "$PATH"';
       const subprocess = Bun.spawn([shell, "-c", command], {
-        env: { HOME: fixture.home, PATH: "/usr/bin:/bin", CONFIG: configPath, BIN: join(managedHome, "bin") },
-        stdout: "pipe", stderr: "pipe",
+        env: {
+          HOME: fixture.home,
+          PATH: "/usr/bin:/bin",
+          CONFIG: configPath,
+          BIN: join(managedHome, "bin"),
+        },
+        stdout: "pipe",
+        stderr: "pipe",
       });
       const output = await new Response(subprocess.stdout).text();
       const stderr = await new Response(subprocess.stderr).text();
@@ -299,7 +310,13 @@ describe("install.sh shell PATH configuration", () => {
       expect(await subprocess.exited).toBe(0);
       expect(output.split("\n")[0]).toBe(join(managedHome, "bin", "axon"));
       if (shell.endsWith("fish")) expect(output.split("\n")[1]).toBe("1");
-      else expect(output.split("\n")[1]?.split(":").filter((entry) => entry === join(managedHome, "bin"))).toHaveLength(1);
+      else
+        expect(
+          output
+            .split("\n")[1]
+            ?.split(":")
+            .filter((entry) => entry === join(managedHome, "bin")),
+        ).toHaveLength(1);
     },
   );
 

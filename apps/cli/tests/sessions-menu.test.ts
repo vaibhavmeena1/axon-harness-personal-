@@ -9,6 +9,7 @@ import type { SessionOperation, SessionOptions } from "../src/cli/commands/sessi
 import { runSessionMenu, type SessionMenuUI } from "../src/cli/commands/sessions-menu.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 import type { RemoteSession } from "../src/sessions/contracts.ts";
+import { formatLocalBackupTime } from "../src/sessions/display.ts";
 
 let directory: string;
 beforeEach(async () => {
@@ -98,6 +99,15 @@ function harness(answers: readonly (string | boolean | symbol)[], sessions = [re
     note: (message, title) => {
       events.push(`note:${title}:${message}`);
     },
+    spinner: (() => ({
+      start() {},
+      stop() {},
+      cancel() {},
+      error() {},
+      message() {},
+      clear() {},
+      isCancelled: false,
+    })) as SessionMenuUI["spinner"],
   };
   const services = {
     list: async () => {
@@ -108,8 +118,8 @@ function harness(answers: readonly (string | boolean | symbol)[], sessions = [re
       events.push(`run:${operation}`);
       commands.push({ operation, id, options });
       if (operation === "restore" || operation === "delete") {
-        if (!options.confirm) throw new Error("Missing shared confirmation");
-        const accepted = await options.confirm({
+        if (!options.ui) throw new Error("Missing shared confirmation");
+        const accepted = await options.ui.confirm({
           message: `${operation} latest backup?`,
           initialValue: false,
         });
@@ -153,7 +163,6 @@ describe("interactive session management", () => {
     expect(menu.commands[0]?.options.yes).toBeUndefined();
     expect(menu.mutations).toEqual(["restore"]);
     expect(menu.checkout?.defaultValue).toBe(directory);
-    expect(menu.events.some((event) => event.includes(sessionId))).toBe(true);
     expect(menu.events.at(-1)).toBe("outro:Done.");
   });
 
@@ -210,7 +219,7 @@ describe("interactive session management", () => {
     await run(menu);
     expect(menu.picker).toBeUndefined();
     expect(menu.commands).toEqual([]);
-    expect(menu.events.some((event) => event.includes("No backed-up sessions yet"))).toBe(true);
+    expect(menu.events.some((event) => event.includes("No backups yet"))).toBe(true);
   });
 
   test("the picker can return to the main menu without starting an operation", async () => {
@@ -235,7 +244,8 @@ describe("interactive session management", () => {
     expect(options[0]?.label).toEndWith("…");
     expect(options[0]?.hint).toContain(sessionId.slice(0, 8));
     expect(options[1]?.hint).toContain(secondId.slice(0, 8));
-    expect(options[0]?.hint).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(options[0]?.hint).toContain(formatLocalBackupTime(remote().last_backup_at));
+    expect(options[0]?.hint).not.toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
     const first = options[0];
     const second = options[1];
     const back = options[2];

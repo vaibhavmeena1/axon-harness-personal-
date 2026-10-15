@@ -116,6 +116,22 @@ describe("managed Pi startup defaults", () => {
     }
   });
 
+  test("writes the default model only when managed and otherwise keeps the user's choice", async () => {
+    const saved = { defaultProvider: "litellm", defaultModel: "anthropic/claude-local-pick" };
+    await writeSettings({ ...saved, theme: "custom" });
+    await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false });
+    expect(await Bun.file(settingsPath).json()).toMatchObject(saved);
+
+    const managed = { defaultProvider: "litellm", defaultModel: "openai/gpt-6.1-sol" };
+    await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false, ...managed });
+    expect(await Bun.file(settingsPath).json()).toEqual({
+      ...managed,
+      theme: "custom",
+      defaultTools: ["+codemode"],
+      litellm: { mcp: { enabled: false } },
+    });
+  });
+
   test("provider fallback defaults off but preserves the last managed MCP preference", async () => {
     await applyPiProviderDefaults(paths);
     expect((await Bun.file(settingsPath).json()).litellm.mcp.enabled).toBe(false);

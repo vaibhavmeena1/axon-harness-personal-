@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+
 import { normalizeDisplayName, type RemoteSession } from "./contracts.ts";
 
 function dateFormatter(timeZone?: string): Intl.DateTimeFormat {
@@ -26,6 +28,15 @@ function backupTime(timestamp: string | null, formatter: Intl.DateTimeFormat): s
 export function formatBackupTime(timestamp: string | null, timeZone?: string): string {
   const formatter = dateFormatter(timeZone);
   return `${backupTime(timestamp, formatter)} (${formatter.resolvedOptions().timeZone})`;
+}
+
+export function formatHomePath(path: string, home = homedir()): string {
+  return path === home || path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
+
+/** Interactive rows are already in the viewer's zone, so skip the repeated suffix. */
+export function formatLocalBackupTime(timestamp: string | null): string {
+  return backupTime(timestamp, dateFormatter());
 }
 
 export function formatSnapshotSize(bytes: number | undefined): string {

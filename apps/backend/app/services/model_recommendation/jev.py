@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-JEV_MODEL = "typesafe/jev-1.13"
-
 _COMPLEXITY_LEVELS = [
     "A routine, localized task with an obvious implementation and little investigation",
     "A bounded task with several clear steps or a small amount of debugging",
@@ -70,10 +68,10 @@ class JevTaskAssessment:
         return normalized_score * self.complexity_confidence + 0.5 * (1 - self.complexity_confidence)
 
 
-def build_jev_request(prompt: str) -> dict[str, Any]:
-    """Build one speculative-fan-out request over the minimal task state."""
+def build_jev_request(prompt: str, *, model: str) -> dict[str, Any]:
+    """Build one speculative-fan-out request using the configured classifier alias."""
     return {
-        "model": JEV_MODEL,
+        "model": model,
         "state": {"task": prompt},
         "questions": _QUESTIONS,
     }

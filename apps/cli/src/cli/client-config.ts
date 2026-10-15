@@ -56,27 +56,119 @@ const terminalPermissionsSchema = z.strictObject({
   blockedCommands: z.array(commandPrefixSchema).max(32),
   approvalTimeoutMs: z.number().int().min(1_000).max(300_000),
 });
-const piSchema = z.strictObject({
-  codemodeEnabled: z.boolean(),
-  litellmMcpEnabled: z.boolean(),
+// Partial launch preferences have no operational defaults. Null means no override.
+function optionalOverride<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === null ? undefined : value), schema.optional());
+}
+function hasNoControlCharacters(value: string): boolean {
+  return Array.from(value).every((character) => {
+    const code = character.charCodeAt(0);
+    return code >= 32 && (code < 127 || code > 159);
+  });
+}
+// An empty or null default leaves the user's saved Pi model untouched.
+const piDefaultText = z.preprocess(
+  (value) => (value === null || value === "" ? undefined : value),
+  z
+    .string()
+    .refine(
+      (value) =>
+        value === value.trim() && Array.from(value).length <= 256 && hasNoControlCharacters(value),
+      "Expected trimmed text without control characters",
+    )
+    .optional(),
+);
+const piSchema = z
+  .strictObject({
+    codemodeEnabled: z.boolean(),
+    litellmMcpEnabled: z.boolean(),
+    defaultProvider: piDefaultText,
+    defaultModel: piDefaultText,
+  })
+  // Pi only uses a saved default when both are set.
+  .refine(
+    (pi) => (pi.defaultProvider === undefined) === (pi.defaultModel === undefined),
+    "defaultProvider and defaultModel must be set together",
+  );
+const positiveInteger = z.number().int().min(1).max(2_147_483_647);
+const countdown = z.number().int().min(1).max(300_000);
+const compactionSchema = z.strictObject({
+  enabled: optionalOverride(z.boolean()),
+  model: optionalOverride(
+    z.string().refine((value) => {
+      const slash = value.indexOf("/");
+      return (
+        value === value.trim() &&
+        Array.from(value).length <= 256 &&
+        slash > 0 &&
+        value.slice(0, slash).trim().length > 0 &&
+        value.slice(slash + 1).trim().length > 0 &&
+        hasNoControlCharacters(value)
+      );
+    }, "Expected a trimmed provider/model-id without control characters"),
+  ),
+  thresholdTokens: optionalOverride(positiveInteger),
+  maxOutputTokens: optionalOverride(positiveInteger),
+  timeoutMs: optionalOverride(positiveInteger),
 });
-const configSchema = z.object({
-  schemaVersion: z.literal(1),
-  pi: piSchema.optional(),
-  telemetry: telemetrySchema.optional(),
-  webSearch: webSearchSchema.optional(),
-  terminalPermissions: terminalPermissionsSchema.optional(),
+const modelRecommenderSchema = z.strictObject({
+  enabled: optionalOverride(z.boolean()),
+  timeoutMs: optionalOverride(countdown),
+  autoSelectMs: optionalOverride(countdown),
 });
+const litellmClientSchema = z.strictObject({
+  discoveryTimeoutMs: optionalOverride(z.number().int().min(0).max(300_000)),
+  defaultContextWindow: optionalOverride(positiveInteger),
+});
+const featureSchemas = {
+  pi: piSchema,
+  telemetry: telemetrySchema,
+  webSearch: webSearchSchema,
+  terminalPermissions: terminalPermissionsSchema,
+  compaction: compactionSchema.nullish(),
+  modelRecommender: modelRecommenderSchema.nullish(),
+  litellmClient: litellmClientSchema.nullish(),
+};
+const envelopeSchema = z.object({ schemaVersion: z.literal(1) });
 
-export type ClientConfig = z.infer<typeof configSchema>;
+export type ClientConfig = { schemaVersion: 1 } & {
+  [K in keyof typeof featureSchemas]?: NonNullable<z.infer<(typeof featureSchemas)[K]>>;
+};
+export type CompactionConfig = z.infer<typeof compactionSchema>;
+export type ModelRecommenderConfig = z.infer<typeof modelRecommenderSchema>;
+export type LiteLLMClientConfig = z.infer<typeof litellmClientSchema>;
 export type PiConfig = z.infer<typeof piSchema>;
 export type TelemetryConfig = z.infer<typeof telemetrySchema>;
 export type WebSearchConfig = z.infer<typeof webSearchSchema>;
 export type TerminalPermissionsConfig = z.infer<typeof terminalPermissionsSchema>;
 
-export function parseClientConfig(value: unknown): ClientConfig {
+export type ClientConfigSection = keyof typeof featureSchemas;
+
+/** Receives only the section name: never validation inputs, unknown keys, or secret values. */
+export type InvalidSectionHandler = (section: ClientConfigSection) => void;
+
+export function parseClientConfig(
+  value: unknown,
+  onInvalidSection?: InvalidSectionHandler,
+): ClientConfig {
   // Config can select policy, never a destination to which our session is sent.
-  return configSchema.parse(value);
+  const config: ClientConfig = envelopeSchema.parse(value);
+  for (const [name, schema] of Object.entries(featureSchemas)) {
+    const raw = Reflect.get(value as object, name);
+    if (raw === undefined) continue;
+    const result = schema.safeParse(raw);
+    if (!result.success) {
+      // The caller decides whether to report: the terminal may belong to a running TUI.
+      onInvalidSection?.(name as ClientConfigSection);
+      continue;
+    }
+    if (result.data == null) continue;
+    const supplied = Object.fromEntries(
+      Object.entries(result.data).filter(([, entry]) => entry !== undefined),
+    );
+    if (Object.keys(supplied).length > 0) Object.assign(config, { [name]: supplied });
+  }
+  return config;
 }
 
 async function boundedJson(response: Response): Promise<unknown> {
@@ -118,6 +210,7 @@ export interface ClientConfigFetchOptions {
   readonly serviceOrigin?: string;
   readonly fetcher?: (...args: Parameters<typeof fetch>) => ReturnType<typeof fetch>;
   readonly timeoutMs?: number;
+  readonly onInvalidSection?: InvalidSectionHandler;
 }
 
 /** No cache, redirects, or body/header logging. Only successful responses may rotate auth. */
@@ -160,7 +253,7 @@ export async function fetchClientConfig(
     // Settings are optional, but an auth-service-issued rotation must not be
     // lost merely because a successful response has invalid/late config JSON.
     try {
-      const config = parseClientConfig(await boundedJson(response));
+      const config = parseClientConfig(await boundedJson(response), options.onInvalidSection);
       emitProductEvent({
         category: "config",
         stage: "fetch",

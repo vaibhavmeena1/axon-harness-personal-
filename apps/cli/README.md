@@ -106,11 +106,11 @@ Login and refresh write that shared token while preserving other JSON keys. Requ
 
 Normal Pi sessions and `setup`, `doctor`, `paths`, and `harnesses` first check for a safely readable saved Axon session. If absent, interactive online invocations offer browser login before doing any command work, then resume the original command after saving the credential. Non-TTY/CI/scripted or offline Pi invocations without a session fail with guidance to run `axon auth login` while online. Help/version, auth, update, uninstall, and Pi administrative commands remain exempt. A saved session avoids repeat onboarding; API routes still validate it server-side.
 
-Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Valid telemetry and search preferences override their managed environment settings; unavailable or absent config preserves environment preferences, never changing authenticated search routing. Local kill switches still win. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
+Online non-administrative Pi launches (including scripted modes) fetch `/api/v1/cli/config` using that session, capped at 700 ms and 16 KiB, even when telemetry/search are locally disabled. Accepted backend telemetry/search and partial compaction/recommender/provider preferences override inherited environment values. Managed telemetry has no supported local opt-out; unavailable or absent policies retain documented environment fallback, never changing authenticated search routing. Offline and administrative launches skip the request. There is no config disk cache and no public bootstrap/config endpoint. See [client configuration](docs/plans/cli-client-config.md) and [backend configuration](../backend/README.md#cli-client-configuration).
 
 ### Session backups
 
-Run `axon sessions` in a terminal for a guided menu: browse/search backed-up sessions, restore into an existing checkout, delete a remote backup, inspect status, or retry pending backups. The picker shows titles and local-time backup details and searches by title, date, or full ID. Checkout defaults to the current directory and is validated before restore; relative paths and `~/` are supported. Restore and deletion still require explicit confirmation (default **No**). Cancel any prompt to exit without starting that operation, or use **Back to menu** / **Done** to navigate. Restore prints the launch command rather than launching Pi automatically.
+Run `axon sessions` in a terminal for a guided menu: browse/search backed-up sessions, restore into an existing checkout, delete a remote backup, inspect status, or retry pending backups. The picker shows titles and local-time backup details and searches by title, date, or full ID. Checkout defaults to the current directory and is validated before restore; relative paths and `~/` are supported. Restore and deletion still require explicit confirmation (default **No**). Cancel any prompt to exit without starting that operation, or use **← Back** / **Exit** to navigate. Restore shows a spinner while it downloads and verifies the backup, then prints a `cd … && axon pi --session …` command rather than launching Pi automatically.
 
 Existing `sessions list/status/retry/restore/delete` subcommands remain available for scripts. Bare `sessions` requires a TTY and offers browser login if no saved session exists.
 
@@ -135,8 +135,9 @@ native LiteLLM identity. The extension sees only the local capability,
 never the real session or an upstream LiteLLM key. Raw calls explicitly carry Pi's canonical session
 ID and search metadata and report tokens plus `x-litellm-response-cost` as tool usage.
 
-`PI_WEB_SEARCH_ENABLED=false` disables the tool; offline launches also disable it. Local numeric limits
-may lower backend limits. A local model preference is accepted when listed in `allowedModels`.
+Backend search enablement and all five numeric settings win exactly over local values, including local
+disablement or smaller limits. Offline disables the tool. Without accepted policy, local environment
+preferences apply. A local model preference is accepted when listed in `allowedModels`.
 Backend generation/grounding preferences win when fetched, and absent/null thinking and search-context
 levels clear inherited overrides. These are client preferences, not an authorization boundary;
 LiteLLM enforces actual model access, rate limits, and budgets. The backend template defaults search to
@@ -198,6 +199,47 @@ A `litellm.providers.litellm.displayName` value in Pi settings takes precedence 
 
 Before an authenticated online Pi launch, Axon removes cached `litellm` models whose base URLs point to an obsolete Axon loopback relay. Otherwise Pi can restore the previous launch's random-port URLs over fresh discovery, causing “No models available.” Cleanup uses Pi's native model-store lock and an atomic write; other providers, unrelated LiteLLM endpoints, and current-relay models are preserved. Offline, administrative, and discovery-disabled launches leave the cache untouched. A busy or unsafe cache never blocks launch; use `/litellm-refresh` if models remain unavailable.
 
+### Backend-managed launch preferences
+
+The authenticated config response can include partial `compaction`, `modelRecommender`, and
+`litellmClient` objects. Each explicitly supplied backend field wins over inherited environment
+values, including false and discovery timeout zero. Missing/null fields retain local values, then
+existing extension/provider defaults. Removing a field restores that fallback on the next launch.
+
+| Backend section / operator field | Child environment |
+| --- | --- |
+| `COMPACTION.ENABLED` | `PI_COMPACTION_ENABLED` |
+| `COMPACTION.MODEL` | `PI_COMPACTION_MODEL` |
+| `COMPACTION.THRESHOLD_TOKENS` | `PI_COMPACTION_THRESHOLD_TOKENS` |
+| `COMPACTION.MAX_OUTPUT_TOKENS` | `PI_COMPACTION_MAX_OUTPUT_TOKENS` |
+| `COMPACTION.TIMEOUT_MS` | `PI_COMPACTION_TIMEOUT_MS` |
+| `MODEL_RECOMMENDER.ENABLED` | `PI_MODEL_RECOMMENDER_DISABLED` (inverted) |
+| `MODEL_RECOMMENDER.TIMEOUT_MS` | `PI_MODEL_RECOMMENDER_TIMEOUT_MS` |
+| `MODEL_RECOMMENDER.AUTO_SELECT_MS` | `PI_MODEL_RECOMMENDER_AUTO_SELECT_MS` |
+| `LITELLM_CLIENT.DISCOVERY_TIMEOUT_MS` | `LITELLM_DISCOVERY_TIMEOUT_MS` |
+| `LITELLM_CLIENT.DEFAULT_CONTEXT_WINDOW` | `LITELLM_DEFAULT_CONTEXT_WINDOW` |
+
+These preferences apply only on the **next authenticated online non-administrative launch**, including
+scripted modes. They do not mutate the launcher environment, persist to settings, poll, or refresh on
+`/reload`; Pi's separate persisted two-toggle defaults/reload flow is unchanged. An invalid optional
+section is ignored as a unit without discarding other valid sections. Offline/admin launches and
+unavailable config keep local fallback; offline still suppresses managed search/telemetry/discovery.
+
+Compaction enablement controls extension overrides, **not native automatic compaction**. Pi settings
+still control automatic compaction and retention. Configured summaries retain model-registry/auth
+checks, idle-only custom thresholds, native overflow recovery, and failure cancellation without
+silently switching summary models. Positive limits are not a guarantee of a sensible combination.
+Recommender countdowns must be positive; backend recommendation eligibility/204 still takes priority.
+Provider discovery timeout zero disables discovery (and affected integrations such as MCP). Context
+window fallback only fills missing metadata; known per-model context/output limits are preserved.
+With `pi-provider-litellm@4.2.0`, offline cache enrichment recognizes its built-in/current fallback
+sentinels, but cannot reliably rewrite an older custom fallback without online discovery. Prefer
+correct `/model/info` metadata over a global fallback.
+
+See [operator configuration](../backend/README.md#launch-only-compaction-recommender-and-provider-preferences)
+and the [contract](docs/plans/backend-compaction-config.md). Deploy the updated CLI before relying on
+backend-authoritative search/telemetry precedence; older clients retain their former local overrides.
+
 ### Remote clipboard copying
 
 For a remote multiplexer attachment or remote IDE session where Pi cannot detect SSH,
@@ -216,7 +258,7 @@ Axon-owned extensions, skills, prompts, and themes are embedded in the CLI, mate
 
 Every non-administrative `axon pi` session also loads the embedded `pi-org-telemetry` extension. Its OpenTelemetry dependencies are bundled into one standalone ESM resource at Axon build time, so `--extension <immutable-path>` does **not** run `npm install`, execute dependency lifecycle scripts, contact a package registry, or download dependencies. A new Axon release materializes a new content-addressed bundle once; healthy launches verify and reuse it.
 
-The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded, and `PI_ORG_OTEL_ENABLED=false` is the emergency kill switch. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, optional name, and user-team membership after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
+The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded. Accepted backend enablement wins over local `PI_ORG_OTEL_ENABLED`, samplers, and exporter preferences for both Pi and launcher product events, through shutdown; there is no managed local opt-out. Explicit offline disables export, and local disablement still applies without an accepted policy. This is separate from upstream Pi's `PI_TELEMETRY`. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, optional name, and user-team membership after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
 The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.2.0` and `@juicesharp/rpiv-ask-user-question` to `2.13.8`. Package entries support:
 

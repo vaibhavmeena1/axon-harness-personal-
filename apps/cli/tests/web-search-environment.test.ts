@@ -43,9 +43,9 @@ describe("standalone search client config", () => {
     { timeoutMs: 300001 },
   ]) {
     test(`rejects private, unsafe or invalid config ${JSON.stringify(patch)}`, () => {
-      expect(() =>
-        parseClientConfig({ schemaVersion: 1, webSearch: { ...preferences, ...patch } }),
-      ).toThrow();
+      expect(
+        parseClientConfig({ schemaVersion: 1, webSearch: { ...preferences, ...patch } }).webSearch,
+      ).toBeUndefined();
     });
   }
 });
@@ -100,7 +100,7 @@ describe("managed search environment", () => {
     expect(defaults["PI_WEB_SEARCH_THINKING_LEVEL"]).toBeUndefined();
     expect(defaults["PI_WEB_SEARCH_SEARCH_CONTEXT_SIZE"]).toBeUndefined();
   });
-  test("allows a configured model preference and clamps local limits", () => {
+  test("allows an authorized local model, but managed numeric values are exact", () => {
     const overrides = createWebSearchOverrides(
       {
         PI_WEB_SEARCH_MODEL: "other-search-model",
@@ -114,9 +114,9 @@ describe("managed search environment", () => {
     );
     expect(overrides).toMatchObject({
       PI_WEB_SEARCH_MODEL: "other-search-model",
-      PI_WEB_SEARCH_TIMEOUT_MS: "10000",
+      PI_WEB_SEARCH_TIMEOUT_MS: "60000",
       PI_WEB_SEARCH_MAX_OUTPUT_TOKENS: "8192",
-      PI_WEB_SEARCH_MAX_SOURCES: "2",
+      PI_WEB_SEARCH_MAX_SOURCES: "20",
       PI_WEB_SEARCH_MAX_QUERY_CHARACTERS: "20000",
       PI_WEB_SEARCH_MAX_RESULT_CHARACTERS: "30000",
     });
@@ -126,17 +126,35 @@ describe("managed search environment", () => {
       ],
     ).toBe(preferences.model);
   });
-  test("disablement and offline mode win; missing config preserves preferences but never routing", () => {
+  test("all five managed numbers win against smaller, larger and malformed local values", () => {
+    const managed = {
+      PI_WEB_SEARCH_TIMEOUT_MS: "60000",
+      PI_WEB_SEARCH_MAX_QUERY_CHARACTERS: "20000",
+      PI_WEB_SEARCH_MAX_RESULT_CHARACTERS: "30000",
+      PI_WEB_SEARCH_MAX_OUTPUT_TOKENS: "8192",
+      PI_WEB_SEARCH_MAX_SOURCES: "20",
+    };
+    for (const local of ["1", "1000000", "invalid", "0", "-1", "NaN"]) {
+      const environment = Object.fromEntries(Object.keys(managed).map((key) => [key, local]));
+      expect(createWebSearchOverrides(environment, relay, preferences)).toMatchObject(managed);
+    }
+  });
+  test("backend enablement wins; offline disables; missing policy preserves preferences, not routing", () => {
     expect(
       createWebSearchOverrides({}, relay, { ...preferences, enabled: false })[
         "PI_WEB_SEARCH_ENABLED"
       ],
     ).toBe("false");
-    expect(
-      createWebSearchOverrides({ PI_WEB_SEARCH_ENABLED: "false" }, relay, preferences)[
-        "PI_WEB_SEARCH_ENABLED"
-      ],
-    ).toBe("false");
+    for (const value of ["false", "0", "no", "off", " FALSE "]) {
+      expect(
+        createWebSearchOverrides({ PI_WEB_SEARCH_ENABLED: value }, relay, preferences)[
+          "PI_WEB_SEARCH_ENABLED"
+        ],
+      ).toBe("true");
+      expect(
+        createWebSearchOverrides({ PI_WEB_SEARCH_ENABLED: value }, relay)["PI_WEB_SEARCH_ENABLED"],
+      ).toBe("false");
+    }
     expect(createWebSearchOverrides({}, relay, preferences, true)["PI_WEB_SEARCH_ENABLED"]).toBe(
       "false",
     );

@@ -1,0 +1,3186 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Metrics populated from OTLP",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": [
+    "pi",
+    "opentelemetry",
+    "organization"
+  ],
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Axon Harness Org Telemetry (Metrics Only)",
+  "uid": "axon-harness-org-telemetry-metrics",
+  "description": "Axon Pi usage, adoption, cost and reliability. Select All users for the organization view or pick emails for a personal view. Metrics-only variant; Tempo trace panels omitted.",
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Active users",
+      "description": "Distinct verified emails that ran an Axon Pi session in the selected range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "New users",
+      "description": "Users active in the range with no session in the 30 days before it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range])) unless count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[30d] offset $__range))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "Sessions",
+      "description": "Pi sessions started (startup, new, resume, fork). Counts short-lived processes too.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "Interactions",
+      "description": "Submitted prompts that ran the agent.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 5
+    },
+    {
+      "type": "stat",
+      "title": "Estimated cost",
+      "description": "Pi's cost estimate from provider usage, not billing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 6
+    },
+    {
+      "type": "stat",
+      "title": "Total tokens",
+      "description": "Inclusive input (uncached + cache read + cache write) plus output. Reasoning is already inside output.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\"))) or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 7
+    },
+    {
+      "type": "stat",
+      "title": "Agent hours",
+      "description": "Wall-clock time the agent spent working on interactions (similar to Claude Code's CLI active time).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))) / 3600 or vector(0)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      },
+      "id": 8
+    },
+    {
+      "type": "stat",
+      "title": "Cost / active user",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))) / (count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]))))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 5
+      },
+      "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "Cost / session",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))) / (sum ((increase(pi_session_started_total{user_email=~\"$user\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 5
+      },
+      "id": 10
+    },
+    {
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "description": "Share of input tokens served from the provider prompt cache.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]))) / (sum (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\")))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      },
+      "id": 11
+    },
+    {
+      "type": "stat",
+      "title": "LLM error rate",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((sum ((increase(pi_llm_errors_total{user_email=~\"$user\"}[$__range]) and (pi_llm_errors_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_errors_total{user_email=~\"$user\"}[$__range]))) or vector(0)) / (sum ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 5
+      },
+      "id": 12
+    },
+    {
+      "type": "stat",
+      "title": "Tool error rate",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((sum ((increase(pi_tool_errors_total{user_email=~\"$user\"}[$__range]) and (pi_tool_errors_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tool_errors_total{user_email=~\"$user\"}[$__range]))) or vector(0)) / (sum ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 5
+      },
+      "id": 13
+    },
+    {
+      "type": "row",
+      "title": "Adoption",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": [],
+      "id": 14
+    },
+    {
+      "type": "timeseries",
+      "title": "Active users (DAU / WAU / MAU)",
+      "description": "Distinct users with any Pi session sample in each window. Widen the time range to at least 7 days for weekly/monthly trends.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[1d])))",
+          "legendFormat": "Daily",
+          "interval": "1d"
+        },
+        {
+          "refId": "B",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[7d])))",
+          "legendFormat": "Weekly (rolling 7d)",
+          "interval": "1d"
+        },
+        {
+          "refId": "C",
+          "expr": "count(count by (user_email) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[30d])))",
+          "legendFormat": "Monthly (rolling 30d)",
+          "interval": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 15
+    },
+    {
+      "type": "timeseries",
+      "title": "Sessions and interactions",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]))",
+          "legendFormat": "Sessions"
+        },
+        {
+          "refId": "B",
+          "expr": "sum ((increase(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]) and (pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__interval)) or max_over_time(pi_interaction_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval]))",
+          "legendFormat": "Interactions"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 16
+    },
+    {
+      "type": "timeseries",
+      "title": "Active users by terminal",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (terminal_type) (count by (user_email, terminal_type) (count_over_time(pi_session_started_total{user_email=~\"$user\"}[$__interval])))",
+          "legendFormat": "{{terminal_type}}",
+          "interval": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 25,
+            "lineWidth": 2,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1d",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 17
+    },
+    {
+      "type": "barchart",
+      "title": "CLI version adoption",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (axon_cli_version) (max by (user_email, axon_cli_version) (max_over_time(axon_release_events_total{user_email=~\"$user\",component=\"cli\",stage=\"launch\"}[$__range])) > 0)",
+          "legendFormat": "{{axon_cli_version}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "description": "Users whose first initialized Pi session in the range ran each Axon CLI version.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 18
+    },
+    {
+      "type": "row",
+      "title": "Leaderboards",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "panels": [],
+      "id": 19
+    },
+    {
+      "type": "table",
+      "title": "User leaderboard",
+      "description": "Per-user totals for the selected range, sorted by estimated cost. Click a column header to re-sort.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (user_email) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (user_email) ((increase(pi_session_started_total{user_email=~\"$user\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (user_email) ((increase(pi_interaction_count_total{user_email=~\"$user\"}[$__range]) and (pi_interaction_count_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_interaction_count_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (user_email) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (user_email) ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "expr": "sum by (user_email) ((increase(pi_interaction_duration_seconds_sum{user_email=~\"$user\"}[$__range]) and (pi_interaction_duration_seconds_sum{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_interaction_duration_seconds_sum{user_email=~\"$user\"}[$__range])) / 3600",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user_email": "User",
+              "Value #A": "Cost",
+              "Value #B": "Sessions",
+              "Value #C": "Interactions",
+              "Value #D": "Input tokens",
+              "Value #E": "Output tokens",
+              "Value #F": "Tool calls",
+              "Value #G": "Agent hours"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Cost",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessions"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Interactions"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Input tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tool calls"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Agent hours"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 20
+    },
+    {
+      "type": "bargauge",
+      "title": "Top users by tokens",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (user_email) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\") or label_replace((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_output_total\", \"\", \"\")))",
+          "legendFormat": "{{user_email}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 37
+      },
+      "id": 21
+    },
+    {
+      "type": "bargauge",
+      "title": "Top repositories by cost",
+      "description": "Attributed when each session ends, so running sessions appear after they close.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_session_cost_USD_sum{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range])))",
+          "legendFormat": "{{pi_repo_slug}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 37
+      },
+      "id": 22
+    },
+    {
+      "type": "bargauge",
+      "title": "Top models by cost",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "{{gen_ai_request_model}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 37
+      },
+      "id": 23
+    },
+    {
+      "type": "row",
+      "title": "Cost & tokens",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 55
+      },
+      "panels": [],
+      "id": 25
+    },
+    {
+      "type": "timeseries",
+      "title": "Cost over time by model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__interval]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 56
+      },
+      "id": 26
+    },
+    {
+      "type": "piechart",
+      "title": "Cost by usage source",
+      "description": "assistant = main loop, tool = subagents/tool-side LLM work, compaction, branch_summary.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_usage_source) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "{{pi_usage_source}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 56
+      },
+      "id": 27
+    },
+    {
+      "type": "timeseries",
+      "title": "Token usage by type",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Input (uncached)"
+        },
+        {
+          "refId": "B",
+          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Cache read"
+        },
+        {
+          "refId": "C",
+          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Cache write"
+        },
+        {
+          "refId": "D",
+          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__interval]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Output (incl. reasoning)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 65
+      },
+      "id": 28
+    },
+    {
+      "type": "piechart",
+      "title": "Token mix",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum ((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "Input (uncached)",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "sum ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "Cache read",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "sum ((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "Cache write",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "sum ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "Output",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 65
+      },
+      "id": 29
+    },
+    {
+      "type": "table",
+      "title": "Usage by model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range])) / sum by (gen_ai_request_model) (label_replace((increase(pi_tokens_input_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_input_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_input_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_input_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_read_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_read_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_read_total\", \"\", \"\") or label_replace((increase(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_cache_write_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_cache_write_total{user_email=~\"$user\"}[$__range]), \"metric_source\", \"pi_tokens_cache_write_total\", \"\", \"\"))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_cost_USD_total{user_email=~\"$user\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\"}[$__range])) / sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "expr": "count by (gen_ai_request_model) (count by (gen_ai_request_model, user_email) (count_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "gen_ai_request_model": "Model",
+              "Value #A": "Cost",
+              "Value #B": "Requests",
+              "Value #C": "Input tokens",
+              "Value #D": "Output tokens",
+              "Value #E": "Cache hit",
+              "Value #F": "Cost / request",
+              "Value #G": "Users"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Cost",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 25
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Input tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output tokens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cache hit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost / request"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Users"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "lcd"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 74
+      },
+      "id": 30
+    },
+    {
+      "type": "row",
+      "title": "Models & reasoning effort",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 83
+      },
+      "panels": [],
+      "id": 31
+    },
+    {
+      "type": "piechart",
+      "title": "Requests by model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "{{gen_ai_request_model}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 84
+      },
+      "id": 32
+    },
+    {
+      "type": "piechart",
+      "title": "Requests by reasoning effort",
+      "description": "Pi thinking level requested for each inference call.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__range]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "{{pi_thinking_level}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 84
+      },
+      "id": 33
+    },
+    {
+      "type": "bargauge",
+      "title": "Cost by reasoning effort",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"}[$__range]) and (pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"} offset $__range)) or max_over_time(pi_cost_USD_total{user_email=~\"$user\",pi_usage_source=\"assistant\"}[$__range]))",
+          "legendFormat": "{{pi_thinking_level}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 84
+      },
+      "id": 34
+    },
+    {
+      "type": "timeseries",
+      "title": "Reasoning effort mix over time",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_thinking_level) ((increase(pi_llm_requests_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_requests_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_llm_requests_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "{{pi_thinking_level}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 93
+      },
+      "id": 35
+    },
+    {
+      "type": "bargauge",
+      "title": "Reasoning share of output by model",
+      "description": "Reasoning tokens as a fraction of output tokens (reasoning is a subset of output).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (gen_ai_request_model) ((increase(pi_tokens_reasoning_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_reasoning_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_reasoning_total{user_email=~\"$user\"}[$__range])) / sum by (gen_ai_request_model) ((increase(pi_tokens_output_total{user_email=~\"$user\"}[$__range]) and (pi_tokens_output_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tokens_output_total{user_email=~\"$user\"}[$__range]))",
+          "legendFormat": "{{gen_ai_request_model}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 93
+      },
+      "id": 36
+    },
+    {
+      "type": "timeseries",
+      "title": "LLM latency p95 by model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_bucket{user_email=~\"$user\"}[$__rate_interval])))",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 101
+      },
+      "id": 37
+    },
+    {
+      "type": "timeseries",
+      "title": "Context utilization p95 (by model)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_context_utilization_percent_bucket{user_email=~\"$user\"}[5m])) by (le, gen_ai_request_model))",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 101
+      },
+      "id": 38
+    },
+    {
+      "type": "row",
+      "title": "Sessions & terminals",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 109
+      },
+      "panels": [],
+      "id": 39
+    },
+    {
+      "type": "piechart",
+      "title": "Sessions by terminal",
+      "description": "Bounded terminal.type classification (editor, emulator, multiplexer, ssh, or none for scripted use).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (terminal_type) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
+          "legendFormat": "{{terminal_type}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 110
+      },
+      "id": 40
+    },
+    {
+      "type": "piechart",
+      "title": "Sessions by mode",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (pi_mode) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]))",
+          "legendFormat": "{{pi_mode}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 110
+      },
+      "id": 41
+    },
+    {
+      "type": "bargauge",
+      "title": "Sessions by repository",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (pi_repo_slug) ((increase(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range]) and (pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"} offset $__range)) or max_over_time(pi_session_started_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range])))",
+          "legendFormat": "{{pi_repo_slug}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 110
+      },
+      "id": 42
+    },
+    {
+      "type": "timeseries",
+      "title": "Session cost distribution",
+      "description": "Estimated cost per finished session.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (increase(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.9, sum by (le) (increase(pi_session_cost_USD_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p90"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 119
+      },
+      "id": 43
+    },
+    {
+      "type": "timeseries",
+      "title": "Session duration",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.9, sum by (le) (increase(pi_session_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p90"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 119
+      },
+      "id": 44
+    },
+    {
+      "type": "timeseries",
+      "title": "Interactions per session",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (increase(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.9, sum by (le) (increase(pi_session_interactions_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__interval])))",
+          "legendFormat": "p90"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 119
+      },
+      "id": 45
+    },
+    {
+      "type": "barchart",
+      "title": "User interventions (model, thinking, steer, follow-up...)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_user_intervention_count_total{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[$__range])) by (kind)",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 127
+      },
+      "id": 46
+    },
+    {
+      "type": "row",
+      "title": "Reliability",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 135
+      },
+      "panels": [],
+      "id": 48
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (error_type) ((increase(pi_llm_errors_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_errors_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_llm_errors_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "LLM {{error_type}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (gen_ai_tool_name) ((increase(pi_tool_errors_total{user_email=~\"$user\"}[$__interval]) and (pi_tool_errors_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_tool_errors_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Tool {{gen_ai_tool_name}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum ((increase(pi_llm_truncated_total{user_email=~\"$user\"}[$__interval]) and (pi_llm_truncated_total{user_email=~\"$user\"} offset $__interval)) or max_over_time(pi_llm_truncated_total{user_email=~\"$user\"}[$__interval]))",
+          "legendFormat": "Truncated responses"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "drawStyle": "bars"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "15m",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 136
+      },
+      "id": 49
+    },
+    {
+      "type": "bargauge",
+      "title": "Top tools by calls",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (gen_ai_tool_name) ((increase(pi_tool_calls_total{user_email=~\"$user\"}[$__range]) and (pi_tool_calls_total{user_email=~\"$user\"} offset $__range)) or max_over_time(pi_tool_calls_total{user_email=~\"$user\"}[$__range])))",
+          "legendFormat": "{{gen_ai_tool_name}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 136
+      },
+      "id": 50
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 duration",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_interaction_duration_seconds_bucket{user_email=~\"$user\",pi_repo_slug=~\"$repo\"}[5m])) by (le))",
+          "legendFormat": "Interaction"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_llm_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
+          "legendFormat": "LLM"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.95, sum(rate(pi_tool_duration_seconds_bucket{user_email=~\"$user\"}[5m])) by (le))",
+          "legendFormat": "Tool"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 144
+      },
+      "id": 51
+    },
+    {
+      "type": "timeseries",
+      "title": "Telemetry health",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(pi_telemetry_export_errors_total{user_email=~\"$user\"}[5m])) by (otel_signal) or vector(0)",
+          "legendFormat": "export errors {{otel_signal}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(increase(pi_telemetry_dropped_total{user_email=~\"$user\"}[5m])) by (otel_signal, reason) or vector(0)",
+          "legendFormat": "dropped {{otel_signal}} {{reason}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(increase(pi_llm_truncated_total{user_email=~\"$user\"}[5m])) or vector(0)",
+          "legendFormat": "truncated responses"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 144
+      },
+      "id": 52
+    },
+    {
+      "type": "row",
+      "title": "Product: model recommender",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 152
+      },
+      "panels": [
+        {
+          "type": "barchart",
+          "title": "Model recommender funnel",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, outcome) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "{{stage}} · {{outcome}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 153
+          },
+          "id": 56
+        },
+        {
+          "type": "barchart",
+          "title": "Model recommender selections",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (model, selected_rank, outcome) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"decision\"}[$__range]))",
+              "legendFormat": "{{model}} · rank {{selected_rank}} · {{outcome}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 153
+          },
+          "id": 57
+        },
+        {
+          "type": "timeseries",
+          "title": "Model recommender request p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, component) (rate(axon_recommender_duration_seconds_bucket{user_email=~\"$user\",stage=\"request\"}[$__rate_interval])))",
+              "legendFormat": "{{component}} request"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 161
+          },
+          "id": 58
+        },
+        {
+          "type": "timeseries",
+          "title": "Task assessment distributions",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(axon_recommender_complexity_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+              "legendFormat": "Complexity p50 (0–3)"
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(axon_recommender_confidence_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+              "legendFormat": "Confidence p50 (0–1)"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 161
+          },
+          "id": 59
+        },
+        {
+          "type": "timeseries",
+          "title": "Recommender skips and failures",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, reason) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",outcome=~\"failed|skipped|cancelled\"}[$__range]))",
+              "legendFormat": "{{stage}} · {{reason}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 169
+          },
+          "id": 60
+        },
+        {
+          "type": "barchart",
+          "title": "Recommended model overrides",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (model) (increase(axon_recommender_events_total{user_email=~\"$user\",component=\"cli\",stage=\"override\"}[$__range]))",
+              "legendFormat": "{{model}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 169
+          },
+          "id": 61
+        }
+      ],
+      "id": 53
+    },
+    {
+      "type": "row",
+      "title": "Product: backup & restore",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 185
+      },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Backup outcomes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, outcome) (increase(axon_backup_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "{{stage}} · {{outcome}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 186
+          },
+          "id": 63
+        },
+        {
+          "type": "timeseries",
+          "title": "Restore outcomes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, outcome) (increase(axon_restore_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "{{stage}} · {{outcome}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 186
+          },
+          "id": 64
+        },
+        {
+          "type": "timeseries",
+          "title": "Backup and restore latency p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_backup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+              "legendFormat": "Backup {{stage}}"
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_restore_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+              "legendFormat": "Restore {{stage}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 194
+          },
+          "id": 65
+        },
+        {
+          "type": "timeseries",
+          "title": "Transferred archive size p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(axon_backup_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"upload\",outcome=\"success\"}[$__rate_interval])))",
+              "legendFormat": "Uploaded archive"
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(axon_restore_transfer_bytes_bucket{user_email=~\"$user\",component=\"cli\",stage=\"download\",outcome=\"success\"}[$__rate_interval])))",
+              "legendFormat": "Downloaded archive"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 194
+          },
+          "id": 66
+        }
+      ],
+      "id": 54
+    },
+    {
+      "type": "row",
+      "title": "Product: CLI health",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 202
+      },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Startup latency p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(axon_startup_duration_seconds_bucket{user_email=~\"$user\",component=\"cli\"}[$__rate_interval])))",
+              "legendFormat": "{{stage}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 203
+          },
+          "id": 67
+        },
+        {
+          "type": "timeseries",
+          "title": "Auth and config outcomes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, outcome) (increase(axon_auth_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "Auth {{stage}} · {{outcome}}"
+            },
+            {
+              "refId": "B",
+              "expr": "sum by (outcome, reason) (increase(axon_config_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "Config {{outcome}} · {{reason}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 203
+          },
+          "id": 68
+        },
+        {
+          "type": "timeseries",
+          "title": "Update outcomes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (stage, outcome, reason) (increase(axon_update_events_total{user_email=~\"$user\",component=\"cli\"}[$__range]))",
+              "legendFormat": "{{stage}} · {{outcome}} · {{reason}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 211
+          },
+          "id": 69
+        }
+      ],
+      "id": 55
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "user",
+        "label": "User email",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
+        "definition": "label_values({__name__=~\"pi_interaction_count_total|axon_.*_events_total\",user_email!=\"\"}, user_email)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1
+      },
+      {
+        "name": "repo",
+        "label": "Repository",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
+        "definition": "label_values(pi_interaction_count_total{user_email=~\"$user\"}, pi_repo_slug)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1
+      },
+      {
+        "name": "min_session_cost",
+        "label": "Min session cost (USD)",
+        "type": "textbox",
+        "query": "0.5",
+        "current": {
+          "text": "0.5",
+          "value": "0.5"
+        },
+        "hide": 0
+      }
+    ]
+  }
+}

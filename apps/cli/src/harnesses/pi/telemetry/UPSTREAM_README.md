@@ -90,7 +90,7 @@ Raw email and repository names are personal or confidential data. Restrict colle
 | `OTEL_TRACES_SAMPLER_ARG` | Ratio for ratio-based sampling |
 | `OTEL_METRIC_EXPORT_INTERVAL` | Metric interval in milliseconds, bounded to 1s–5m |
 | `OTEL_BSP_SCHEDULE_DELAY`, `OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BSP_MAX_QUEUE_SIZE`, `OTEL_BSP_MAX_EXPORT_BATCH_SIZE` | Batch processor tuning for spans and logs, bounded; `OTEL_BLRP_*` overrides the log processor separately |
-| `PI_ORG_OTEL_ENABLED` | Set to `false`, `0`, or `no` for a managed kill switch |
+| `PI_ORG_OTEL_ENABLED` | Upstream-only disable behavior; Axon accepted backend enablement overrides this locally (see [deployment](docs/deployment.md)) |
 | `PI_ORG_OTEL_DIAGNOSTICS` | Set to `false`, `0`, or `no` to suppress rate-limited stderr exporter diagnostics (never written in TUI mode) |
 
 The extension does not read user/project telemetry settings. Configuration remains under organization control.

@@ -12,9 +12,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.cli_config import (
+    CliCompactionConfig,
+    CliLiteLLMClientConfig,
+    CliModelRecommenderConfig,
     CliPiConfig,
     CliTelemetryConfig,
     OtelProxySettings,
+    parse_cli_compaction,
+    parse_cli_litellm_client,
+    parse_cli_model_recommender,
     parse_cli_pi,
     parse_cli_telemetry,
     parse_otel_proxy,
@@ -105,6 +111,13 @@ class LiteLLMSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelRecommenderSettings:
+    """Backend-owned classifier model alias registered in LiteLLM."""
+
+    classifier_model: str = "typesafe/jev-1.14"
+
+
+@dataclass(frozen=True, slots=True)
 class AuthServiceSettings:
     """Private auth-service origin and operator-controlled browser login page."""
 
@@ -162,8 +175,12 @@ class Settings:
     otel_proxy: OtelProxySettings | None
     session_backups: SessionStorageSettings | None = None
     web_search: WebSearchSettings = field(default_factory=WebSearchSettings)
+    model_recommender: ModelRecommenderSettings = field(default_factory=ModelRecommenderSettings)
     backend_telemetry: BackendTelemetrySettings | None = None
     cli_pi: CliPiConfig | None = None
+    cli_compaction: CliCompactionConfig | None = None
+    cli_model_recommender: CliModelRecommenderConfig | None = None
+    cli_litellm_client: CliLiteLLMClientConfig | None = None
     terminal_permissions: TerminalPermissionsSettings | None = None
 
 
@@ -172,6 +189,19 @@ def _cli_pi_settings(raw_config: dict[str, Any]) -> CliPiConfig | None:
         return parse_cli_pi(raw_config)
     except (ValueError, TypeError):
         raise ConfigurationError("config.CLI_CLIENT_CONFIG.PI contains invalid Pi defaults") from None
+
+
+def _cli_launch_preferences(
+    raw_config: dict[str, Any],
+) -> tuple[CliCompactionConfig | None, CliModelRecommenderConfig | None, CliLiteLLMClientConfig | None]:
+    try:
+        return (
+            parse_cli_compaction(raw_config),
+            parse_cli_model_recommender(raw_config),
+            parse_cli_litellm_client(raw_config),
+        )
+    except (ValueError, TypeError):
+        raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid launch preferences") from None
 
 
 def _backend_telemetry_settings(raw_config: dict[str, Any]) -> BackendTelemetrySettings | None:
@@ -428,6 +458,17 @@ def _web_search(raw: dict[str, Any]) -> WebSearchSettings:
         raise ConfigurationError("config.WEB_SEARCH contains invalid search settings") from None
 
 
+def _model_recommender(raw: dict[str, Any]) -> ModelRecommenderSettings:
+    section = raw.get("MODEL_RECOMMENDER", {})
+    if not isinstance(section, dict):
+        raise ConfigurationError("config.MODEL_RECOMMENDER must be an object")
+    if "CLASSIFIER_MODEL" not in section:
+        return ModelRecommenderSettings()
+    return ModelRecommenderSettings(
+        classifier_model=_string(section, "CLASSIFIER_MODEL", "config.MODEL_RECOMMENDER"),
+    )
+
+
 def _terminal_permissions(raw: dict[str, Any]) -> TerminalPermissionsSettings | None:
     try:
         return parse_terminal_permissions(raw)
@@ -601,6 +642,7 @@ def get_settings() -> Settings:
         raise ConfigurationError("config.CLI_CLIENT_CONFIG contains invalid telemetry settings") from None
 
     cli_pi = _cli_pi_settings(raw_config)
+    cli_compaction, cli_model_recommender, cli_litellm_client = _cli_launch_preferences(raw_config)
     session_backups = _session_backups(raw_config)
     web_search = _web_search(raw_config)
     terminal_permissions = _terminal_permissions(raw_config)
@@ -623,9 +665,13 @@ def get_settings() -> Settings:
         auth_service=auth_service,
         cli_telemetry=cli_telemetry,
         cli_pi=cli_pi,
+        cli_compaction=cli_compaction,
+        cli_model_recommender=cli_model_recommender,
+        cli_litellm_client=cli_litellm_client,
         otel_proxy=otel_proxy,
         session_backups=session_backups,
         web_search=web_search,
+        model_recommender=_model_recommender(raw_config),
         terminal_permissions=terminal_permissions,
         backend_telemetry=backend_telemetry,
     )

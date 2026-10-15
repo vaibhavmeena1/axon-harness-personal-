@@ -1,4 +1,5 @@
-import { confirm, isCancel, spinner } from "@clack/prompts";
+import { resolve } from "node:path";
+import * as prompts from "@clack/prompts";
 import { z } from "zod";
 import { BUILD_INFO } from "../../build-info.ts";
 import { currentPiInvocationEnvironment } from "../../harnesses/pi/setup/packages/invocation.ts";
@@ -9,17 +10,24 @@ import { resolveAxonPaths } from "../../product/paths.ts";
 import { BackupApi, BackupApiError } from "../../sessions/api.ts";
 import { SessionBackups } from "../../sessions/backup.ts";
 import { assertPiAdapter, listSchema, type RemoteSession } from "../../sessions/contracts.ts";
-import { formatBackupTime, formatSessionList, formatSnapshotSize } from "../../sessions/display.ts";
+import {
+  formatBackupTime,
+  formatHomePath,
+  formatSessionList,
+  formatSessionTitle,
+  formatSnapshotSize,
+} from "../../sessions/display.ts";
 import { restoreSession } from "../../sessions/restore.ts";
 import { ensureAxonSession } from "../auth/preflight.ts";
 import { runSessionMenu } from "./sessions-menu.ts";
 
 export type SessionOperation = "list" | "restore" | "status" | "delete" | "retry";
+/** Prompts the guided menu shares; without them, commands print plain lines for scripts. */
+export type SessionCommandUI = Pick<typeof prompts, "confirm" | "note" | "spinner">;
 export interface SessionOptions {
   cwd?: string;
   yes?: boolean;
-  /** Share the menu's prompt/cancellation handling without skipping confirmation. */
-  confirm?: typeof confirm;
+  ui?: SessionCommandUI;
 }
 
 function sessionFailure(error: unknown): LauncherError {
@@ -68,14 +76,14 @@ export async function runSessionsInteractive(): Promise<void> {
   try {
     await runSessionMenu({
       list: async () => {
-        const loading = spinner();
-        loading.start("Loading your backed-up sessions");
+        const loading = prompts.spinner();
+        loading.start("Loading backups");
         try {
           const sessions = await listRemoteSessions(api);
-          loading.stop(`${sessions.length} backed-up session${sessions.length === 1 ? "" : "s"}`);
+          loading.stop(`${sessions.length} backup${sessions.length === 1 ? "" : "s"} found`);
           return sessions;
         } catch (error) {
-          loading.error("Could not load session backups");
+          loading.error("Could not load backups");
           throw error;
         }
       },
@@ -86,27 +94,36 @@ export async function runSessionsInteractive(): Promise<void> {
   }
 }
 
+function resumeCommands(checkout: string, sessionFile: string): [string, string] {
+  return [`cd ${JSON.stringify(checkout)}`, `axon pi --session ${JSON.stringify(sessionFile)}`];
+}
+
 export async function runSessions(
   operation: SessionOperation,
   id?: string,
   options: SessionOptions = {},
 ): Promise<void> {
+  const { ui } = options;
+  const print = (message: string, title: string) =>
+    ui ? ui.note(message, title) : console.log(message);
+  const confirm = ui?.confirm ?? prompts.confirm;
   const paths = resolveAxonPaths();
   const api = new BackupApi(paths, BUILD_INFO.serviceOrigin);
   const backups = new SessionBackups(paths, api);
   try {
     if (operation === "retry") {
       const skipped = await backups.retry();
-      console.log(
-        "Compatible snapshots re-enabled for retry at the next lifecycle boundary; remote conflicts still require a fork" +
+      print(
+        "Compatible snapshots will retry at the next backup boundary; remote conflicts still require a fork." +
           (skipped
-            ? `; ${skipped} local streams could not be repaired and remain paused (files retained)`
+            ? `\n${skipped} local stream${skipped === 1 ? "" : "s"} could not be repaired and stay paused (files kept).`
             : ""),
+        "Retry",
       );
       return;
     }
     if (operation === "status") {
-      console.log(await backups.status());
+      print(await backups.status(), "Backup status");
       return;
     }
     if (operation === "list") {
@@ -120,45 +137,61 @@ export async function runSessions(
     if (operation === "delete") {
       if (!options.yes) {
         if (!process.stdin.isTTY) throw new Error("Deletion requires confirmation or --yes");
-        const accepted = await (options.confirm ?? confirm)({
-          message: "Delete this remote backup? Existing signed URLs expire within five minutes.",
+        const accepted = await confirm({
+          message:
+            "Delete this backup? Local sessions are kept; issued download links expire within 5 minutes.",
           initialValue: false,
         });
-        if (isCancel(accepted) || !accepted) return;
+        if (accepted !== true) return;
       }
       await api.request(`${SERVICE_ENDPOINTS.sessions.base}/${sessionId}`, "DELETE");
-      console.log("Remote session hidden; object cleanup is asynchronous");
+      print("Backup deleted; storage cleanup finishes in the background.", "Deleted");
       return;
     }
     if (!options.cwd) throw new Error("Restore requires --cwd pointing to an existing checkout");
-    const restored = await restoreSession(api, sessionId, options.cwd, {
-      inspect: async (session) => {
-        const resume = assertPiAdapter(session);
-        console.log(
-          `Session: ${session.display_name ?? "(no title)"}; latest backup: ${formatBackupTime(session.last_backup_at)}; ${formatSnapshotSize(session.snapshot?.raw_size_bytes)}`,
-        );
-        if (!resume.leaf_known)
-          console.log(
-            "Warning: selected leaf unknown; Pi will use its normal last-entry selection",
-          );
-        console.log(
-          "Restore creates a new conversation fork. Checkout files, credentials, external attachments and configuration are not restored; old tool calls are not replayed.",
-        );
-        if (options.yes) return true;
-        if (!process.stdin.isTTY || !process.stdout.isTTY)
-          throw new Error("Use --yes for an explicit non-interactive restore");
-        const accepted = await (options.confirm ?? confirm)({
-          message: "Download and restore this latest backup into a new local session?",
-          initialValue: false,
-        });
-        return !isCancel(accepted) && accepted;
-      },
-    });
-    if (restored)
+    const checkout = resolve(options.cwd);
+    const progress = ui?.spinner();
+    let restored: string | undefined;
+    try {
+      restored = await restoreSession(api, sessionId, checkout, {
+        inspect: async (session) => {
+          print(restoreSummary(session, checkout), "Restore");
+          if (options.yes) return true;
+          if (!process.stdin.isTTY || !process.stdout.isTTY)
+            throw new Error("Use --yes for an explicit non-interactive restore");
+          const accepted = await confirm({ message: "Restore this session?", initialValue: false });
+          if (accepted === true) progress?.start("Downloading and verifying backup");
+          return accepted === true;
+        },
+      });
+    } catch (error) {
+      progress?.error("Restore failed");
+      throw error;
+    }
+    if (!restored) return;
+    progress?.stop("Restored as a new local session");
+    const resume = resumeCommands(checkout, restored);
+    if (ui) ui.note(resume.join("\n"), "Resume it with");
+    else
       console.log(
-        `Restored new local session: ${restored}\nLaunch from your chosen checkout: axon pi --session ${JSON.stringify(restored)}`,
+        `Restored as a new local session: ${restored}\nResume it with: ${resume.join(" && ")}`,
       );
   } catch (error) {
     throw sessionFailure(error);
   }
+}
+
+function restoreSummary(session: RemoteSession, checkout: string): string {
+  const resume = assertPiAdapter(session);
+  return [
+    formatSessionTitle(session),
+    `Last backup  ${formatBackupTime(session.last_backup_at)} · ${formatSnapshotSize(session.snapshot?.raw_size_bytes)}`,
+    `Checkout     ${formatHomePath(checkout)}`,
+    "",
+    "Only the conversation is restored, as a new session.",
+    "Files, credentials, attachments and config are not; tool calls are not re-run.",
+    ...(resume.leaf_known
+      ? []
+      : ["", "The active branch is unknown, so Pi will resume from the latest entry."]),
+  ].join("\n");
 }

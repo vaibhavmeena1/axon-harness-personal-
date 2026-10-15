@@ -15,6 +15,7 @@ from opentelemetry.trace import StatusCode
 
 from app.clients.auth_service import AuthData
 from app.clients.litellm.identity import LiteLLMIdentityClient
+from app.core.config import ModelRecommenderSettings
 from app.services.model_recommendation.catalog import get_model_catalog, model_policy_version
 from app.services.model_recommendation.schemas import (
     AvailableModel,
@@ -90,7 +91,7 @@ def test_recommender_assessment_ranking_metrics_and_traces_are_content_free(inva
 
     async def run() -> ModelRecommendationResponse:
         with telemetry.operation("request", identity, **{"axon.recommendation.id": str(request.request_id)}):
-            return await ModelRecommendationService(Decisions(), identity_client).recommend(
+            return await ModelRecommendationService(Decisions(), identity_client, ModelRecommenderSettings()).recommend(
                 request, telemetry, identity, user=verified_user()
             )
 

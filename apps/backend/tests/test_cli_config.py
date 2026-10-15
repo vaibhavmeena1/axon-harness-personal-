@@ -11,7 +11,15 @@ from fastapi.testclient import TestClient
 from app import authentication
 from app.clients.auth_service import AuthDataResponse, AuthServiceError
 from app.core import config as config_module
-from app.core.cli_config import CliPiConfig, CliTelemetryConfig, parse_cli_pi, parse_cli_telemetry
+from app.core.cli_config import (
+    CliPiConfig,
+    CliTelemetryConfig,
+    parse_cli_compaction,
+    parse_cli_litellm_client,
+    parse_cli_model_recommender,
+    parse_cli_pi,
+    parse_cli_telemetry,
+)
 from app.core.config import ConfigurationError, get_settings
 from app.core.web_search import WebSearchSettings
 from app.routers.cli_config import router
@@ -49,7 +57,21 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     public_search = web_search.cli_config().model_dump(by_alias=True, mode="json", exclude_none=True)
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         cli_telemetry=CliTelemetryConfig.model_validate(POLICY),
-        cli_pi=CliPiConfig.model_validate({"codemodeEnabled": True, "litellmMcpEnabled": True}),
+        cli_pi=CliPiConfig.model_validate(
+            {
+                "codemodeEnabled": True,
+                "litellmMcpEnabled": True,
+                "defaultProvider": "litellm",
+                "defaultModel": "openai/gpt-6.1-sol",
+            }
+        ),
+        cli_compaction=parse_cli_compaction({"CLI_CLIENT_CONFIG": {"COMPACTION": {"ENABLED": False}}}),
+        cli_model_recommender=parse_cli_model_recommender(
+            {"CLI_CLIENT_CONFIG": {"MODEL_RECOMMENDER": {"AUTO_SELECT_MS": 10000}}}
+        ),
+        cli_litellm_client=parse_cli_litellm_client(
+            {"CLI_CLIENT_CONFIG": {"LITELLM_CLIENT": {"DISCOVERY_TIMEOUT_MS": 0}}}
+        ),
         web_search=web_search,
         terminal_permissions=None,
     )
@@ -62,14 +84,29 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
     assert response.json() == {
         "schemaVersion": 1,
         "telemetry": POLICY,
-        "pi": {"codemodeEnabled": True, "litellmMcpEnabled": True},
+        "pi": {
+            "codemodeEnabled": True,
+            "litellmMcpEnabled": True,
+            "defaultProvider": "litellm",
+            "defaultModel": "openai/gpt-6.1-sol",
+        },
         "webSearch": public_search,
+        "compaction": {"enabled": False},
+        "modelRecommender": {"autoSelectMs": 10000},
+        "litellmClient": {"discoveryTimeoutMs": 0},
     }
+    assert len(response.content) < 16 * 1024
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-session-refresh-token"] == "rotated-secret"
     assert "secret" not in response.text
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        cli_telemetry=None, cli_pi=None, web_search=web_search, terminal_permissions=None
+        cli_telemetry=None,
+        cli_pi=None,
+        cli_compaction=None,
+        cli_model_recommender=None,
+        cli_litellm_client=None,
+        web_search=web_search,
+        terminal_permissions=None,
     )
     assert client.get("/api/v1/cli/config", headers={"Authorization": "Bearer second-user"}).json() == {
         "schemaVersion": 1,
@@ -175,7 +212,12 @@ def test_template_has_explicit_disabled_telemetry_defaults() -> None:
 
 def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     raw = json.loads((Path(__file__).resolve().parents[1] / "config_template.json").read_text())
-    assert raw["CLI_CLIENT_CONFIG"]["PI"] == {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}
+    assert raw["CLI_CLIENT_CONFIG"]["PI"] == {
+        "CODEMODE_ENABLED": True,
+        "LITELLM_MCP_ENABLED": True,
+        "DEFAULT_PROVIDER": "",
+        "DEFAULT_MODEL": "",
+    }
     raw.update(settings_raw())
     raw["CLI_CLIENT_CONFIG"]["PI"] = {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True}
     (tmp_path / "config.json").write_text(json.dumps(raw))
@@ -183,7 +225,10 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
     get_settings.cache_clear()
     try:
         assert get_settings().cli_telemetry.model_dump(by_alias=True) == POLICY
-        assert get_settings().cli_pi.model_dump(by_alias=True) == {"codemodeEnabled": True, "litellmMcpEnabled": True}
+        assert get_settings().cli_pi.model_dump(by_alias=True, exclude_none=True) == {
+            "codemodeEnabled": True,
+            "litellmMcpEnabled": True,
+        }
         raw["CLI_CLIENT_CONFIG"]["TELEMETRY"]["ENDPOINT"] = "https://collector.example.test?token=private"
         (tmp_path / "config.json").write_text(json.dumps(raw))
         get_settings.cache_clear()
@@ -210,10 +255,33 @@ def test_pi_defaults_are_explicit_and_optional() -> None:
                 }
             )
             assert defaults is not None
-            assert defaults.model_dump(by_alias=True) == {
+            assert defaults.model_dump(by_alias=True, exclude_none=True) == {
                 "codemodeEnabled": codemode_enabled,
                 "litellmMcpEnabled": litellm_mcp_enabled,
             }
+
+
+def test_pi_default_model_is_managed_only_when_set() -> None:
+    base = {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": False}
+    for unset in [None, ""]:
+        defaults = parse_cli_pi(
+            {"CLI_CLIENT_CONFIG": {"PI": {**base, "DEFAULT_PROVIDER": unset, "DEFAULT_MODEL": unset}}}
+        )
+        assert defaults is not None
+        assert defaults.model_dump(by_alias=True, exclude_none=True) == {
+            "codemodeEnabled": True,
+            "litellmMcpEnabled": False,
+        }
+    defaults = parse_cli_pi(
+        {"CLI_CLIENT_CONFIG": {"PI": {**base, "DEFAULT_PROVIDER": "litellm", "DEFAULT_MODEL": "openai/gpt-6.1-sol"}}}
+    )
+    assert defaults is not None
+    assert defaults.model_dump(by_alias=True, exclude_none=True) == {
+        "codemodeEnabled": True,
+        "litellmMcpEnabled": False,
+        "defaultProvider": "litellm",
+        "defaultModel": "openai/gpt-6.1-sol",
+    }
 
 
 @pytest.mark.parametrize(
@@ -232,6 +300,13 @@ def test_pi_defaults_are_explicit_and_optional() -> None:
         {"CODEMODE_ENABLED": None, "LITELLM_MCP_ENABLED": True},
         {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "INLINE_BUDGET": 3000},
         {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "SHELL_COMMAND_PREFIX": "private-secret"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": "litellm"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_MODEL": "openai/gpt-6.1-sol"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": "", "DEFAULT_MODEL": "x/y"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": " litellm", "DEFAULT_MODEL": "x/y"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": "litellm", "DEFAULT_MODEL": "x\ny"},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": "litellm", "DEFAULT_MODEL": 1},
+        {"CODEMODE_ENABLED": True, "LITELLM_MCP_ENABLED": True, "DEFAULT_PROVIDER": "a" * 257, "DEFAULT_MODEL": "x/y"},
     ],
 )
 def test_rejects_invalid_or_unapproved_pi_defaults(pi: object) -> None:

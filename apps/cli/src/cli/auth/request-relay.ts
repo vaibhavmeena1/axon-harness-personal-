@@ -312,7 +312,12 @@ async function refreshPiDefaults(
   let expectedSession = await session.load(request.signal);
   if (expectedSession === undefined)
     return relayError(401, "Authentication required to refresh Pi defaults.");
+  // Pi owns the terminal during reload, so invalid sections are recorded, never printed.
+  let piInvalid = false;
   const result = await fetchClientConfig(expectedSession, {
+    onInvalidSection: (section) => {
+      if (section === "pi") piInvalid = true;
+    },
     fetcher: (input, init) =>
       fetch(input, {
         ...init,
@@ -332,7 +337,8 @@ async function refreshPiDefaults(
     }
   };
   await beforeWrite();
-  if (!result.config)
+  // An invalid pi section is a failed refresh, not "the backend has no Pi defaults".
+  if (!result.config || piInvalid)
     return relayError(503, "Could not refresh Pi defaults; current settings were preserved.");
   if (result.config.pi) await applyPiDefaults(paths, result.config.pi, { beforeWrite });
   return Response.json(

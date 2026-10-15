@@ -6,8 +6,8 @@ import { join } from "node:path";
 import {
   loadEncryptedSession,
   refreshEncryptedSession,
-  saveEncryptedSession,
   SESSION_FILE_NAME,
+  saveEncryptedSession,
 } from "../src/cli/auth/session.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 

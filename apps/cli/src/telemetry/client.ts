@@ -3,7 +3,6 @@ import { loadEncryptedSession, refreshEncryptedSession } from "../cli/auth/sessi
 import { fetchClientConfig, type TelemetryConfig } from "../cli/client-config.ts";
 import { isPiOffline } from "../harnesses/pi/setup/packages/invocation.ts";
 import type { TelemetryRuntime } from "../harnesses/pi/telemetry/src/telemetry-types.ts";
-import { isTelemetryDisabled } from "../harnesses/pi/telemetry-environment.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import type { AxonPaths } from "../product/paths.ts";
 import { hasProductEvents, subscribeProductEvents, takeProductEvents } from "./product-events.ts";
@@ -13,38 +12,59 @@ let stop: (() => void) | undefined;
 let initialization: Promise<void> | undefined;
 let closing: Promise<void> | undefined;
 
+/** In-memory invocation state, never inferred from inherited managed env markers. */
+export interface ProductTelemetryDecision {
+  readonly offline: boolean;
+  readonly policy?: TelemetryConfig | undefined;
+}
+let decision: ProductTelemetryDecision | undefined;
+
+/** Called at the command boundary, after the preceding invocation has flushed. */
+export function beginProductTelemetryInvocation(): void {
+  decision = undefined;
+}
+
 /** Lazy managed-only telemetry: no SDK, config request or socket until policy allows export. */
 export async function initializeProductTelemetry(
   paths: AxonPaths,
   policy?: TelemetryConfig,
-  options: { serviceOrigin?: string } = {},
+  options: {
+    serviceOrigin?: string;
+    decision?: ProductTelemetryDecision;
+  } = {},
 ): Promise<void> {
   if (closing) await closing;
-  if (isTelemetryDisabled(process.env) || isPiOffline(process.env, [])) {
-    takeProductEvents();
-    return;
+  if (!initialization) {
+    // Explicit startup resolution includes 'fetched, no accepted policy'. Reuse it
+    // at shutdown instead of making another request or re-reading local opt-outs.
+    if (options.decision) decision = options.decision;
+    else if (policy) decision = { offline: isPiOffline(process.env, []), policy };
   }
   initialization ??= (async () => {
     try {
-      let telemetry = policy;
-      if (!telemetry) {
-        let session = await loadEncryptedSession(paths);
-        if (!session) return;
-        const result = await fetchClientConfig(session);
-        if (
-          result.sessionRefreshToken &&
-          (await refreshEncryptedSession(
-            paths,
-            session,
-            result.sessionRefreshToken,
-            AbortSignal.timeout(700),
-          ))
-        )
-          session = result.sessionRefreshToken;
-        if ((await loadEncryptedSession(paths)) !== session) return;
-        telemetry = result.config?.telemetry;
+      if (!decision) {
+        decision = { offline: isPiOffline(process.env, []) };
+        if (!decision.offline) {
+          let session = await loadEncryptedSession(paths);
+          if (session) {
+            const result = await fetchClientConfig(session, options);
+            if (
+              result.sessionRefreshToken &&
+              (await refreshEncryptedSession(
+                paths,
+                session,
+                result.sessionRefreshToken,
+                AbortSignal.timeout(700),
+              ))
+            )
+              session = result.sessionRefreshToken;
+            if ((await loadEncryptedSession(paths)) === session)
+              decision = { offline: false, policy: result.config?.telemetry };
+          }
+        }
       }
-      if (!telemetry?.enabled) return;
+      const telemetry = decision?.policy;
+      if (!decision || decision.offline || !telemetry?.enabled) return;
       const [{ resolveConfig }, { createOtelRuntime }, { recordProductEvent }] = await Promise.all([
         import("../harnesses/pi/telemetry/src/config.ts"),
         import("../harnesses/pi/telemetry/src/otel/runtime.ts"),
@@ -101,7 +121,7 @@ export function closeProductTelemetry(): Promise<void> {
 }
 
 export async function flushProductTelemetry(paths: AxonPaths, offline = false): Promise<void> {
-  if (offline || isTelemetryDisabled(process.env)) {
+  if (offline || decision?.offline) {
     takeProductEvents();
     await closeProductTelemetry();
     return;

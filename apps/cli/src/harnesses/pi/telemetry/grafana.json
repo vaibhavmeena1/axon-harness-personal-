@@ -30,8 +30,8 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "Pi Organization Telemetry",
-  "uid": "pi-org-telemetry",
+  "title": "Axon Harness Org Telemetry",
+  "uid": "axon-harness-org-telemetry",
   "description": "Axon Pi usage, adoption, cost and reliability. Select All users for the organization view or pick emails for a personal view.",
   "panels": [
     {

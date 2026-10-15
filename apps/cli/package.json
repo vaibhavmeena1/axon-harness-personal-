@@ -62,6 +62,7 @@
     "@opentelemetry/semantic-conventions": "1.43.0",
     "@types/bun": "^1.4.0",
     "@types/proper-lockfile": "4.1.4",
+    "pi-provider-litellm": "4.2.0",
     "typescript": "^7.0.2"
   }
 }

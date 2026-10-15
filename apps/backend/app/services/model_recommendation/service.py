@@ -3,6 +3,7 @@
 from app.clients.auth_service import AuthenticatedUser
 from app.clients.litellm.decisions import LiteLLMDecisionClient, LiteLLMDecisionError
 from app.clients.litellm.identity import LiteLLMIdentityClient
+from app.core.config import ModelRecommenderSettings
 from app.services.model_recommendation.catalog import model_policy_version
 from app.services.model_recommendation.jev import (
     JevAssessmentError,
@@ -25,9 +26,15 @@ class ModelRecommendationError(RuntimeError):
 class ModelRecommendationService:
     """Assess a user task with Jev and rank the models available to Pi."""
 
-    def __init__(self, decision_client: LiteLLMDecisionClient, identity_client: LiteLLMIdentityClient) -> None:
+    def __init__(
+        self,
+        decision_client: LiteLLMDecisionClient,
+        identity_client: LiteLLMIdentityClient,
+        settings: ModelRecommenderSettings,
+    ) -> None:
         self._decision_client = decision_client
         self._identity_client = identity_client
+        self._settings = settings
 
     async def recommend(
         self,
@@ -47,7 +54,7 @@ class ModelRecommendationService:
                 # here: it returns the admin key when identity sync is disabled.
                 api_key = await self._identity_client.ensure_identity(user)
                 jev_response = await self._decision_client.create_decision(
-                    build_jev_request(request.prompt), api_key=api_key
+                    build_jev_request(request.prompt, model=self._settings.classifier_model), api_key=api_key
                 )
                 assessment = parse_jev_assessment(jev_response)
             with telemetry.operation("ranking", identity):

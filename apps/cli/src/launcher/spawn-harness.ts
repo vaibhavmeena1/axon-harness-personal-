@@ -71,10 +71,7 @@ export async function spawnHarness(specification: LaunchSpec): Promise<never> {
     for (const [signal, handler] of forwardingHandlers) {
       process.off(signal, handler);
     }
-    await flushProductTelemetry(
-      resolveAxonPaths(),
-      specification.environment["PI_ORG_OTEL_ENABLED"] === "false",
-    );
+    await flushProductTelemetry(resolveAxonPaths(), specification.offline ?? false);
     specification.dispose?.();
   }
 

@@ -306,7 +306,7 @@ through search config. Restart the backend after editing `config.json`; relaunch
 
 ### CLI client configuration
 
-`GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, and Pi defaults, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
+`GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, terminal permissions, Pi defaults, and partial compaction/recommender/provider preferences, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 
 The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENABLED: false`, explicitly disabling CLI telemetry by default. Its object structure lets the Vault/Kubernetes configuration generator compare nested keys against enabled environment configurations without recursing into a null template value. To enable centrally managed telemetry, configure an approved collector, for example:
 
@@ -336,7 +336,7 @@ The template includes a complete `CLI_CLIENT_CONFIG.TELEMETRY` object with `ENAB
 
 This is deployment-wide CLI policy, separate from backend `OPEN_TELEMETRY`. Managed telemetry requires an enabled `PROXY` and `AUTH_SERVICE`. Its public endpoint is always `/api/v1/otel` on the CLI’s compiled service origin, and its protocol is always `http/protobuf`; remote config cannot select an external destination for a Axon credential. Trace ratios are 0–1; metric intervals are 1,000–300,000 ms. Use `{ "ENABLED": false }` to disable CLI export, or null to restore environment fallback. `PROXY.ENABLED: false` also disables server ingestion. **Restart the backend** after changing settings.
 
-Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved Axon session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
+Authenticated online Pi launches (interactive or scripted) fetch config best-effort with a 700 ms deadline and no response cache, even when telemetry and web search are locally disabled. Accepted telemetry enablement is backend-authoritative for the Pi extension and launcher product events, including startup buffering and shutdown flushing: there is no supported local opt-out via `PI_ORG_OTEL_ENABLED`, samplers, or exporters. Backend false also wins. Explicit offline disables export and skips config; help/administrative fetch exemptions are unchanged. Without accepted policy, Pi retains environment fallback and launcher exports remain managed-only. This is separate from upstream Pi's `PI_TELEMETRY`. Managed policy clears inherited exporter headers/TLS identity overrides and per-signal destinations. The embedded extension reads the shared saved Axon session for each batch, sends it only to the pinned backend proxy, and persists safe refresh headers with compare-and-swap so stale exports cannot overwrite a new login. No credentials or user profile are distributed in config JSON. Config/export failures never prevent Pi launch.
 
 Clients that disconnect during a telemetry upload are treated as cancellations, not server errors:
 the incomplete batch is not forwarded, concurrency capacity is released, and an INFO line records
@@ -357,12 +357,14 @@ The template enables codemode and the LiteLLM MCP bridge independently for manag
 "CLI_CLIENT_CONFIG": {
   "PI": {
     "CODEMODE_ENABLED": true,
-    "LITELLM_MCP_ENABLED": true
+    "LITELLM_MCP_ENABLED": true,
+    "DEFAULT_PROVIDER": "",
+    "DEFAULT_MODEL": ""
   }
 }
 ```
 
-When `PI` is configured, both fields must be JSON booleans. The config API projects them as
+When `PI` is configured, both toggles must be JSON booleans. The config API projects them as
 `"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true }`. Before launching Pi,
 `axon` merges `"+codemode"` and `"litellm": { "mcp": { "enabled": true } }` into
 `$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`), preserving other tool choices,
@@ -374,25 +376,108 @@ Standalone `~/.pi/agent/settings.json` is never modified.
 These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
 On `/reload`, a managed online session fetches fresh backend Pi defaults through the launcher
 relay before Pi reloads settings and provider extensions. This reapplies both Pi fields, including
-restoring the backend MCP value after a local edit. It does not refresh telemetry/search preferences
+restoring the backend MCP value after a local edit. It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
 or poll in the background. Fetch/auth/schema failures preserve the current settings and warn safely.
 Pi preserves already-active tools on reload: changing `CODEMODE_ENABLED` updates its tool-selection
 default but does not forcibly deactivate an active codemode tool. The MCP bridge is recreated using
 the freshly applied value.
 `CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_MCP_ENABLED: false`
 disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
-Omit `PI` or set it to null to stop managing both defaults; this leaves the last local settings untouched. Offline, administrative,
+`DEFAULT_PROVIDER` and `DEFAULT_MODEL` (for example `"litellm"` and `"openai/gpt-6.1-sol"`) set Pi's
+`defaultProvider`/`defaultModel` and project as `pi.defaultProvider`/`pi.defaultModel`. Pi only uses a
+saved default when both are present, so set both or neither; values must be trimmed text without control
+characters, at most 256 characters. Empty strings or null leave the model unmanaged: nothing is sent and
+the user's last `/model` choice stays. When set, the backend model is rewritten at every managed launch and
+`/reload`, replacing a local `/model` choice; Pi's `--model`/`--provider` flags and resumed sessions still
+take precedence. CLIs released before this field reject the whole `pi` section when the pair is set.
+Omit `PI` or set it to null to stop managing all Pi defaults; this leaves the last local settings untouched. Offline, administrative,
 unauthenticated, and failed config fetches do not change Pi settings. Defaults are persisted locally
 and reused offline. Unsafe settings or a busy settings lock are left untouched, without blocking launch.
 Restart the backend after a config edit; defaults apply on the next online authenticated CLI launch
 or `/reload` in an updated managed online session. Existing sessions need one updated CLI launch
 to load the managed reload hook.
 
+#### Launch-only compaction, recommender, and provider preferences
+
+Add optional siblings of `PI` under `CLI_CLIENT_CONFIG` (these are examples, not defaults):
+
+```json
+"COMPACTION": {
+  "ENABLED": true,
+  "MODEL": "litellm/your-summary-model",
+  "THRESHOLD_TOKENS": 80000,
+  "MAX_OUTPUT_TOKENS": 8192,
+  "TIMEOUT_MS": 120000
+},
+"MODEL_RECOMMENDER": {
+  "ENABLED": true,
+  "TIMEOUT_MS": 15000,
+  "AUTO_SELECT_MS": 10000
+},
+"LITELLM_CLIENT": {
+  "DISCOVERY_TIMEOUT_MS": 5000,
+  "DEFAULT_CONTEXT_WINDOW": 128000
+}
+```
+
+The response uses `compaction` (`enabled`, `model`, `thresholdTokens`, `maxOutputTokens`, `timeoutMs`),
+`modelRecommender` (`enabled`, `timeoutMs`, `autoSelectMs`), and `litellmClient`
+(`discoveryTimeoutMs`, `defaultContextWindow`), without bumping schema version 1. Each supplied field
+wins over its inherited CLI environment value. Missing/null fields retain local environment/default
+fallback; absent/null/empty/all-null sections are omitted. No operational defaults are inserted.
+Removing a field restores fallback on the next launch. These objects contain no credentials, URLs,
+arbitrary environment keys, or generic Pi settings. `LITELLM_CLIENT` is distinct from private `LITELLM`.
+
+Booleans are JSON booleans. Numeric fields must be integral JSON numbers (1 and 1.0 are equivalent),
+not booleans, strings, fractions, or non-finite values. Compaction numbers and context fallback are
+1–2147483647; recommender timeout/countdown are 1–300000 ms; discovery timeout is 0–300000 ms.
+Zero disables provider discovery, including affected provider integrations. Recommender zero is not an
+independent auto-select-off control. The model must be a trimmed `provider/model-id` (IDs may contain
+slashes), at most 256 characters, without blank components or control characters. Registry/auth checks
+remain at use time. All non-null fields are validated even if disabled; invalid operator settings fail
+startup with a bounded non-secret diagnostic.
+
+`COMPACTION.ENABLED=false` bypasses extension overrides, not native Pi compaction. Native settings
+still govern automatic compaction/retention; model/auth checks, idle thresholds, overflow recovery,
+and failure cancellation remain unchanged. Client recommender enablement cannot override a server
+204 eligibility response. Provider context fallback only fills metadata gaps, never known context or
+output limits. The pinned `pi-provider-litellm@4.2.0` may retain older custom fallback values in offline
+caches; do not promise to rewrite all cached metadata without discovery. Publish correct model metadata.
+
+Restart backend workers after edits; values apply on the **next authenticated online non-administrative
+Pi launch**, interactive or scripted. They are launch-environment-only: no disk policy cache, background
+polling, or `/reload` refresh. Pi's persisted two-toggle defaults remain separate. Unavailable config,
+invalid individual sections, account changes/unverifiable credentials, offline, and administrative
+launches retain documented local fallback. Explicit offline still suppresses managed discovery/search/
+telemetry. Accepted `WEB_SEARCH` enablement and all five numeric values are also exact backend values;
+local disables or lower limits no longer win. Authorized local `allowedModels` selection is unchanged.
+
+The template contains structurally complete objects with every new leaf **null**, making them no-ops.
+The external Vault/Kubernetes config generator is not included in this repository: before deployment,
+run that actual workflow with null leaves and a partial populated section, inspect the rendered JSON,
+and validate it with backend startup. Local template/parser tests are not evidence that the external
+workflow ran. Roll out updated CLIs before relying on these semantics; older clients ignore new fields
+but keep old search/telemetry overrides. Notify users that managed organization telemetry has no local
+opt-out. This remains best-effort preference distribution, not guaranteed export or authorization.
+
 ### Model recommendations through LiteLLM
 
 `POST /api/v1/model-recommendations` assesses a coding task with Jev and deterministically ranks
-the compatible models in the backend catalog. Register `typesafe/jev-1.13` as a model alias in
-LiteLLM and ensure the deployment supports **`POST /v1/systemone`**. This endpoint accepts our
+the compatible models in the backend catalog. Set the classifier model in backend `config.json`:
+
+```json
+"MODEL_RECOMMENDER": {
+  "CLASSIFIER_MODEL": "typesafe/jev-1.14"
+}
+```
+
+`CLASSIFIER_MODEL` is a non-empty LiteLLM model alias, not a deployment UUID. The default is
+`typesafe/jev-1.14` when the section or field is omitted. Restart the backend after changing it.
+This backend-only setting is separate from `CLI_CLIENT_CONFIG.MODEL_RECOMMENDER`, which controls
+the CLI picker preferences; no CLI update is needed to change the classifier.
+
+Register the configured alias in LiteLLM and ensure the deployment supports
+**`POST /v1/systemone`**. This endpoint accepts our
 existing `model`/`state`/`questions` payload and returns typed `answers`; `/v1/decisions` expects
 a different format and is not interchangeable.
 
@@ -411,7 +496,7 @@ current models return 204 without inference, and Axon session authentication rem
 There is no direct OpenRouter client or credential requirement in the backend. Remove the old
 `OPENROUTER` block from private `config.json` files and restart the backend after deployment.
 Provider credentials and routing now belong to LiteLLM. A Jev deployment configured as
-`openrouter/typesafe/jev-1.13` still uses OpenRouter upstream; removing that dependency entirely
+`openrouter/typesafe/jev-1.14` still uses OpenRouter upstream; removing that dependency entirely
 requires a supported alternative Jev provider configured in LiteLLM.
 
 ### Backend recommender telemetry

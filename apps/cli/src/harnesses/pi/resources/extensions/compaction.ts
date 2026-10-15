@@ -6,7 +6,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 /**
- * Optional compaction overrides, read on use:
+ * Launch environment compaction overrides, read on use. Axon applies explicitly supplied
+ * backend fields at authenticated online startup, ahead of inherited local values.
+ * Backend changes require a new launch, not /reload; this extension never fetches config.
  *   PI_COMPACTION_MODEL=litellm/your-summary-model (provider/model ID)
  *   PI_COMPACTION_THRESHOLD_TOKENS=80000
  *   PI_COMPACTION_MAX_OUTPUT_TOKENS=8192 (optional output cap)
@@ -397,7 +399,7 @@ export default function compactionExtension(pi: ExtensionAPI): void {
           `Keep recent: ${settings.keepRecentTokens} tokens (Pi settings)`,
           `Summary output cap: ${config.maxOutputTokens ?? "native Pi budget"} tokens`,
           `Timeout: ${config.timeoutMs ?? 120_000} ms for custom summaries`,
-          "Configure PI_COMPACTION_MODEL and PI_COMPACTION_THRESHOLD_TOKENS before launching Pi.",
+          "Configure backend COMPACTION or local PI_COMPACTION_* before launching Pi; backend fields win.",
           "Context-overflow recovery is not suppressed by the custom threshold.",
         ].join("\n"),
         "info",

@@ -32,11 +32,6 @@
     },
     "LATEST_VERSION": "",
     "VERSIONS": {
-      "0.2.0": {
-        "s3_key": "cli/releases/0.2.0/axon-darwin-arm64.gz",
-        "archive_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-        "binary_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
-      }
     }
   },
   "SESSION_BACKUPS": {
@@ -59,7 +54,25 @@
   "CLI_CLIENT_CONFIG": {
     "PI": {
       "CODEMODE_ENABLED": true,
-      "LITELLM_MCP_ENABLED": true
+      "LITELLM_MCP_ENABLED": true,
+      "DEFAULT_PROVIDER": "",
+      "DEFAULT_MODEL": ""
+    },
+    "COMPACTION": {
+      "ENABLED": null,
+      "MODEL": null,
+      "THRESHOLD_TOKENS": null,
+      "MAX_OUTPUT_TOKENS": null,
+      "TIMEOUT_MS": null
+    },
+    "MODEL_RECOMMENDER": {
+      "ENABLED": null,
+      "TIMEOUT_MS": null,
+      "AUTO_SELECT_MS": null
+    },
+    "LITELLM_CLIENT": {
+      "DISCOVERY_TIMEOUT_MS": null,
+      "DEFAULT_CONTEXT_WINDOW": null
     },
     "ALLOWED_TELEMETRY_ORIGINS": [],
     "TELEMETRY": {
@@ -80,6 +93,9 @@
       "MAX_CONCURRENT_REQUESTS": 20,
       "RATE_LIMIT_PER_MINUTE": 120
     }
+  },
+  "MODEL_RECOMMENDER": {
+    "CLASSIFIER_MODEL": "typesafe/jev-1.14"
   },
   "WEB_SEARCH": {
     "ENABLED": false,
