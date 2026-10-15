@@ -1,0 +1,57 @@
+apps/backend/app/main.py
+  s_c6a35c0813f9cc::t_459b1fb7899cd2 9,26-27
+apps/backend/tests/test_litellm_proxy.py
+  s_c6a35c0813f9cc::t_b1425ccec02aaf 51
+  s_c6a35c0813f9cc::t_56e020f786e7bb 5,39-50,52-65
+  s_c6a35c0813f9cc::t_6ab15a1672cc56 66-67
+apps/backend/README.md
+  s_c6a35c0813f9cc::t_47349b888e4440 45-103,181-183,209
+apps/backend/app/clients/litellm/transport.py
+  s_c6a35c0813f9cc::t_504b459d0b4033 4,28-34,131
+  s_c6a35c0813f9cc::t_95a1aecd8d6557 7,67
+apps/backend/pyproject.toml
+  h_cbc19accedcd8a 3
+apps/backend/config_template.json
+  s_c6a35c0813f9cc::t_ee57a312429f4b 113
+apps/backend/app/proxies/litellm.py
+  s_c6a35c0813f9cc::t_f2382dbbf115d8 157,171-173,231
+  s_c6a35c0813f9cc::t_409f6b58bc0a0d 160,248
+apps/backend/app/core/config.py
+  s_c6a35c0813f9cc::t_0a5e00085393c6 91,504
+apps/backend/app/proxies/__init__.py
+  s_c6a35c0813f9cc::t_4d860709af25fa 4,6
+apps/backend/app/proxies/litellm_ui.py
+  s_c6a35c0813f9cc::t_92cbc20dc21e23 9
+  s_c6a35c0813f9cc::t_f2382dbbf115d8 135
+  s_c6a35c0813f9cc::t_ab8ed85c1c1739 1-8,10-134,136-215
+apps/backend/tests/test_litellm_ui.py
+  s_c6a35c0813f9cc::t_825212966d390d 1-51,58-79,83-125,129-150,154-162,173-174,176-182,186-196,198-211,215-249,253-269,273-283,288-289,294-337,351-354,361,363-397
+  s_c6a35c0813f9cc::t_2cc1d1cdc48f85 175,338-350,362
+  s_c6a35c0813f9cc::t_f2382dbbf115d8 52-57,80-82,126-128,151-153,163-172,183-185,197,212-214,250-252,270-272,284-287,290-293,355-360
+apps/backend/tests/test_litellm_transport.py
+  s_c6a35c0813f9cc::t_03f98540d12613 5,145-164,166-168,170-176
+  s_c6a35c0813f9cc::t_482bc415fa7bda 165,169
+apps/backend/uv.lock
+  h_cbc19accedcd8a 64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2ad9c14dde9158a7426f6963db4826c33bd84f52",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_c6a35c0813f9cc": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13bc0-2a83-7382-8988-bd5242cb3046",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
