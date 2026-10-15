@@ -1,0 +1,43 @@
+apps/cli/tests/launcher.test.ts
+  s_1180b816c856e4::t_2faafdbd079270 344
+apps/cli/package.json
+  s_1180b816c856e4::t_9e8fee6dd68170 17-18,22-23,28,33
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_1180b816c856e4::t_2002b4dca0755e 25-28
+  s_1180b816c856e4::t_3bda5924b1095e 1-10,12-24,29-110,114-169
+  s_1180b816c856e4::t_d3c89cc9446a53 11,111-113
+apps/cli/src/product/manifest.ts
+  s_1180b816c856e4::t_8fe159c53dd4d4 21-22,91,107,183
+apps/cli/tests/terminal-permissions.test.ts
+  s_1180b816c856e4::t_9b2d954e857103 402
+apps/cli/tests/pi-package-setup.test.ts
+  s_1180b816c856e4::t_a4787ca0dff09a 721
+apps/cli/README.md
+  s_1180b816c856e4::t_f960da68aa4bed 296,303
+  s_1180b816c856e4::t_0b540d204cbc0f 304
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_1180b816c856e4::t_a3d685bfa63b50 1-8
+apps/cli/scripts/build-terminal-permissions.ts
+  s_1180b816c856e4::t_15db011de180b9 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab3ed8f5904a05ee5e6eca08c10f234009765339",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_1180b816c856e4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13fbb-2de1-74fc-8885-ffde97128a17",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
