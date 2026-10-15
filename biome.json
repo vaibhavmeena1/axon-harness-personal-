@@ -37,7 +37,8 @@
     {
       "includes": [
         "apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs",
-        "apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs"
+        "apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs",
+        "apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs"
       ],
       "formatter": {
         "enabled": false
