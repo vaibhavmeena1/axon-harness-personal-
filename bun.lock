@@ -10,7 +10,7 @@
     },
     "apps/cli": {
       "name": "axon-cli",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "axon": "src/index.ts",
       },
