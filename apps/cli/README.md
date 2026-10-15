@@ -326,7 +326,8 @@ export RELEASE_VERSION=0.2.0  # Must match package.json.
 export BUILD_COMMIT="$(git rev-parse HEAD)"
 export AXON_SERVICE_ORIGIN=https://deputydev.ai/axon
 export RELEASE_KEY_PREFIX=axon-prod/cli/releases/
-bun run release:prepare-s3
+# Stop if checks or tests fail; do not prepare a release after a failed test run.
+bun run check && bun run test && bun run release:prepare-s3
 
 # Stage release/cli-release-config.json in backend CLI_RELEASES.VERSIONS,
 # keep LATEST_VERSION unchanged, and restart the backend.
