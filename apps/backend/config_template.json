@@ -110,6 +110,7 @@
     "API_KEY": "",
     "DECISION_TIMEOUT_SECONDS": 120,
     "IDENTITY_SYNC_ENABLED": true,
+    "UI_ENABLED": false,
     "TEAM_ID": "",
     "TEAM_ROLE": "user",
     "IDENTITY_SYNC_TIMEOUT_SECONDS": 10,

@@ -42,6 +42,65 @@ For a backend running inside Docker on macOS, use `http://host.docker.internal:4
 
 Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through Axon's backend using a saved Axon session, not the LiteLLM master key.
 
+### LiteLLM browser dashboard (optional)
+
+The CLI/API proxy at `/litellm/*` always requires an Axon session. To expose LiteLLM's
+own browser login instead, set `LITELLM.UI_ENABLED` to `true` in private `config.json`.
+It defaults to `false`; enabling it registers a separate `/litellm-admin/*` pass-through
+before the frontend catch-all. This is the **whole native LiteLLM namespace**, including
+its dashboard APIs, not just static UI files. LiteLLM must enforce its own authentication
+and authorization. Never enable it against an unauthenticated LiteLLM deployment.
+
+For production at `https://deputydev.ai/axon/litellm-admin/ui/`, configure LiteLLM:
+
+```yaml
+environment:
+  SERVER_ROOT_PATH: /axon/litellm-admin
+  PROXY_BASE_URL: https://deputydev.ai
+```
+
+Use LiteLLM v1.72.3 or newer and a pinned image. The UI directory must be writable
+because LiteLLM rewrites its assets at startup; on a read-only filesystem, point
+`LITELLM_UI_PATH` to a writable volume. Keep strong master/UI credentials configured.
+
+In the backend's `config.json`, retain the other settings and update:
+
+```json
+"LITELLM": {
+  "UI_ENABLED": true,
+  "UPSTREAM_URL": "http://your-private-litellm-host:4000",
+  "UPSTREAM_ROOT_PATH": "/axon/litellm-admin",
+  "API_KEY": "your-existing-litellm-master-key",
+  "IDENTITY_SYNC_ENABLED": true
+}
+```
+
+`UPSTREAM_URL` is the private origin only. The configured `UPSTREAM_ROOT_PATH` is used
+by both proxies and all identity/decision calls. Assuming ingress forwards `/axon/*`
+to this backend and strips `/axon`, the browser request `/axon/litellm-admin/ui/`
+becomes backend `/litellm-admin/ui/`, then upstream `/axon/litellm-admin/ui/`.
+An existing CLI request `/axon/litellm/v1/chat/completions` keeps its public URL and
+is forwarded to upstream `/axon/litellm-admin/v1/chat/completions` after Axon authentication.
+The browser mount's bare root redirects to the configured upstream root plus `/ui/`.
+Use the same public LiteLLM prefix in `SERVER_ROOT_PATH` and `UPSTREAM_ROOT_PATH`.
+
+The browser proxy does **not** call Axon authentication, synchronize identities, or inject
+the configured master key/virtual keys. It forwards the browser's own LiteLLM authorization,
+API-key headers, login cookies, request bodies, and native responses (including 401/403).
+Separate `Set-Cookie` headers and cookie security attributes are preserved. Explicit Axon
+session/identity headers and named Axon session-cookie fields are stripped. Other cookies
+are passed through, so scope unrelated sensitive application cookies away from this path.
+The shared upstream pool does not retain browser cookies or merge client-default credentials.
+Redirects to the private upstream origin are made root-relative; external SSO redirects are
+preserved. Responses use `Cache-Control: no-store`. HTTP streaming is supported; WebSockets
+are not. The existing `/litellm/*` credential handling and protections remain unchanged.
+
+Restart/redeploy both services after changing their configuration. No separate Nginx location
+is needed if ingress already sends the new path to this backend without an Axon session gate.
+If ingress only forwards selected paths, add `/axon/litellm-admin/*` there as well. Keep the
+LiteLLM port private. Verify the public UI login/assets, a denied anonymous dashboard API call,
+a valid prefixed `/v1/models` request against LiteLLM, and existing CLI inference before rollout.
+
 ### LiteLLM connection pools and stream timeouts
 
 Each backend worker owns separate HTTP pools for proxy streams and buffered identity/decision calls.
@@ -119,7 +178,9 @@ WARNING: app.proxies.litellm LiteLLM request request_id=8f96f2e7 method=GET path
   `upstream_permission_denied` distinguishes them in diagnostics without invalidating the Axon session.
 - `credential_mode=virtual_key` means native user/team credentials; `configured_key` means
   identity sync is disabled and the configured API key is used. `unresolved` means no key mode
-  was resolved. A 403 from `/key/info`, `/v2/user/info`, or `/mcp` should prompt inspection of
+  was resolved. `browser` means the optional dashboard proxy forwards only browser-supplied
+  credentials; native 401/403 responses are preserved for that flow. A 403 from the CLI's
+  `/key/info`, `/v2/user/info`, or `/mcp` should prompt inspection of
   LiteLLM endpoint permissions, user/team/key policy, and MCP permissions—not a CLI login reset.
 - `upstream_duration_ms` measures the forwarded call to response headers (not identity provisioning);
   `duration_ms` covers the full request, including auth, provisioning, and streaming. `completed=false`
@@ -145,6 +206,7 @@ Routing, in match order:
 | `/api/v1/auth/browser-login` | Existing public browser-login start POST and GET polling at `/{session_id}` |
 | `/api/v1/cli/config` | Session-authenticated, non-secret telemetry, search, and Pi preferences |
 | `/litellm/*` | Session-authenticated LiteLLM proxy; streaming, native identity, and model authorization |
+| `/litellm-admin/*` | Opt-in browser proxy (`LITELLM.UI_ENABLED`); LiteLLM's own login/auth, no backend credential injection |
 | `/api/v1/otel/v1/{traces,metrics,logs}` | Session-authenticated OTLP/HTTP proxy with authoritative identity |
 | `/api/v1/cli/releases/*` | Public release discovery, hashes, and CloudFront downloads; private upload-signing POST |
 | `/ping` | FastAPI liveness route |

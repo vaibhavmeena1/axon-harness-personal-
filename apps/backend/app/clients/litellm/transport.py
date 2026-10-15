@@ -1,8 +1,10 @@
 """Application-owned LiteLLM HTTP pools, fixed-origin URLs, and upstream I/O."""
 
 from collections.abc import AsyncIterator, Iterable
+from http.cookiejar import Cookie, CookieJar, DefaultCookiePolicy
 from typing import Any
 from urllib.parse import unquote_to_bytes
+from urllib.request import Request as CookieRequest
 
 import httpx
 
@@ -21,6 +23,13 @@ def validate_raw_path(raw_path: bytes) -> None:
         if decoded_path == path:
             return
         path = decoded_path
+
+
+class _RejectCookies(DefaultCookiePolicy):
+    """A shared pool must never retain browser sessions between requests."""
+
+    def set_ok(self, cookie: Cookie, request: CookieRequest) -> bool:
+        return False
 
 
 class LiteLLMTransport:
@@ -55,6 +64,7 @@ class LiteLLMTransport:
                 ),
                 follow_redirects=False,
                 trust_env=False,
+                cookies=CookieJar(policy=_RejectCookies()),
             )
         self._management_client = management_client
         if self._management_client is None:
@@ -118,7 +128,7 @@ class LiteLLMTransport:
             content=content,
             extensions={"timeout": self._stream_timeout.as_dict()},
         )
-        return await self._client.send(request, stream=True, follow_redirects=False)
+        return await self._client.send(request, stream=True, follow_redirects=False, auth=None)
 
     async def aclose(self) -> None:
         try:

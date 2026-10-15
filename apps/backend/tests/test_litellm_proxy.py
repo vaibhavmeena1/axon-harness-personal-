@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import runpy
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,35 @@ def configured_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     config.get_settings.cache_clear()
     yield raw, path
     config.get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("enabled", [None, False, True])
+def test_browser_proxy_is_explicitly_opt_in(
+    configured_settings: tuple[dict[str, Any], Path], enabled: bool | None
+) -> None:
+    raw, path = configured_settings
+    if enabled is None:
+        raw["LITELLM"].pop("UI_ENABLED")
+    else:
+        raw["LITELLM"]["UI_ENABLED"] = enabled
+    path.write_text(json.dumps(raw))
+    assert config.get_settings().litellm.ui_enabled is (enabled is True)
+    namespace = runpy.run_path(str(Path(__file__).resolve().parents[1] / "app" / "main.py"))
+    names = {getattr(route, "name", None) for route in namespace["app"].routes}
+    assert ("litellm-ui" in names) is (enabled is True)
+    assert ("litellm-ui-root" in names) is (enabled is True)
+    assert "litellm-proxy" in names
+
+
+@pytest.mark.parametrize("value", [None, "true", 1, 0])
+def test_browser_proxy_rejects_non_boolean_opt_in(
+    configured_settings: tuple[dict[str, Any], Path], value: object
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["UI_ENABLED"] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="config.LITELLM.UI_ENABLED"):
+        config.get_settings()
 
 
 @pytest.mark.parametrize("key", ["READ_TIMEOUT_SECONDS", "MANAGEMENT_MAX_CONNECTIONS", "DECISION_MAX_CONCURRENCY"])

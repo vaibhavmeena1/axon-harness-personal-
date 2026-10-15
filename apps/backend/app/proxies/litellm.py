@@ -154,9 +154,10 @@ def _diagnostics(scope: Scope) -> _RequestDiagnostics | None:
 class LiteLLMRequestLoggingMiddleware:
     """Correlate session, provisioning, upstream, and streaming failures safely."""
 
-    def __init__(self, app: ASGIApp, *, strip_mount_path: bool = False) -> None:
+    def __init__(self, app: ASGIApp, *, strip_mount_path: bool = False, mount_path: str = LITELLM_MOUNT_PATH) -> None:
         self.app = app
         self.strip_mount_path = strip_mount_path
+        self.mount_path = mount_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -167,7 +168,9 @@ class LiteLLMRequestLoggingMiddleware:
         request = Request(scope)
         diagnostic = _RequestDiagnostics(_safe_identifier(request.headers.get("x-request-id"), str(uuid4())))
         request.state.litellm_request_diagnostics = diagnostic
-        raw_path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path).decode("ascii", errors="replace")
+        raw_path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path, mount_path=self.mount_path).decode(
+            "ascii", errors="replace"
+        )
         path = raw_path if raw_path in _DIAGNOSTIC_PATHS else "<other>"
         method = str(scope.get("method", "GET"))
         method = method if method in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"} else "<other>"
@@ -225,7 +228,7 @@ def _end_to_end_headers(headers: Iterable[tuple[bytes, bytes]]) -> list[tuple[by
     return [(name, value) for name, value in raw_headers if name.lower() not in excluded_headers]
 
 
-def _relative_raw_path(scope: Scope, *, strip_mount_path: bool) -> bytes:
+def _relative_raw_path(scope: Scope, *, strip_mount_path: bool, mount_path: str = LITELLM_MOUNT_PATH) -> bytes:
     """Return the encoded request path after Starlette's mounted root path."""
     raw_path = scope.get("raw_path")
     if not isinstance(raw_path, bytes):
@@ -242,7 +245,7 @@ def _relative_raw_path(scope: Scope, *, strip_mount_path: bool) -> bytes:
         relative_path = quote(decoded_path, safe="/").encode("ascii")
 
     if strip_mount_path:
-        encoded_mount_path = LITELLM_MOUNT_PATH.encode("ascii")
+        encoded_mount_path = mount_path.encode("ascii")
         if relative_path == encoded_mount_path:
             relative_path = b"/"
         elif relative_path.startswith(encoded_mount_path + b"/"):
