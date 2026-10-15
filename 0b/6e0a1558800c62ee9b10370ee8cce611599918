@@ -1,0 +1,51 @@
+apps/backend/tests/test_litellm_metadata_routes.py
+  s_1180b816c856e4::t_12003c1219199a 19,29
+  s_1180b816c856e4::t_3552dab7c8df7f 43,176
+  s_1180b816c856e4::t_649a5471282739 62,99,145
+apps/backend/tests/test_litellm_identity.py
+  s_1180b816c856e4::t_9b9d68f69d9ef1 6,79,82-83,101-138,161-163
+  s_1180b816c856e4::t_035dcd7ba7efdc 242,322
+  s_1180b816c856e4::t_7f64d0f4bdb8f6 10,20-21,73,84-87,180-182,192-193,200,212-219,223-226,233-234,244,277,289,295,302,306-311,324
+apps/backend/app/clients/auth_service.py
+  s_1180b816c856e4::t_228acf52e3e351 32,34
+apps/backend/app/clients/litellm/identity.py
+  s_1180b816c856e4::t_14ebe21edff923 218,228-231
+  s_1180b816c856e4::t_29002643e9ec41 42,154,283-284
+  s_1180b816c856e4::t_998ae90db03977 206-210,214,216-217,219-220
+  s_1180b816c856e4::t_ac1e279a183697 27-29,47,130-153,155-205,211-213,215,221-227,232-236,238-243,312,320-323,334,337-338,343-344,366-367,386,394,398,419-422,432
+  s_1180b816c856e4::t_d102aa7a8ce84f 237,280,286,368
+apps/backend/tests/test_litellm_decisions.py
+  s_1180b816c856e4::t_f3264d7b500ef5 462
+  s_1180b816c856e4::t_0a09a79cbb927a 415-417,461
+  s_1180b816c856e4::t_e112aad323950a 368-369
+apps/backend/tests/test_litellm_email_identity.py
+  s_1180b816c856e4::t_e0c68c36e983b0 242
+  s_1180b816c856e4::t_7e6cb0a227062b 260-262
+  s_1180b816c856e4::t_fda9a4f24c4718 4
+  s_1180b816c856e4::t_14ebe21edff923 39,60-62,76,99,141,239-241
+  s_1180b816c856e4::t_b82814555d7387 250-259,263-277
+  s_1180b816c856e4::t_f32d0daafad134 1-3,5-38,40-59,63-75,77-98,100-140,142-238,243-249
+apps/backend/README.md
+  s_1180b816c856e4::t_8b4a3dd429cf4e 158-162,179-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b6e0a1558800c62ee9b10370ee8cce611599918",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_1180b816c856e4": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13fbb-2de1-74fc-8885-ffde97128a17",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
