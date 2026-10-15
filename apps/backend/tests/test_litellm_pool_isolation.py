@@ -4,13 +4,14 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
-from app.proxies.litellm import _send_upstream_response
+from app.proxies.litellm_common import ResponseHead, UpstreamRequest, forward_stream
 
 
 @asynccontextmanager
@@ -199,8 +200,25 @@ def test_mid_stream_read_timeout_closes_response_without_second_headers() -> Non
         async def send(message: dict) -> None:
             messages.append(message)
 
+        transport = AsyncMock(spec=LiteLLMTransport)
+        transport.send_stream.return_value = response
+
+        async def receive() -> dict:
+            return {"type": "http.request", "body": b""}
+
+        async def build_request(request_id: str) -> UpstreamRequest:
+            return UpstreamRequest([], b"")
+
         with pytest.raises(httpx.ReadTimeout):
-            await _send_upstream_response(response, send, "request-id", None)
+            await forward_stream(
+                {"type": "http", "headers": []},
+                receive,
+                send,
+                transport,
+                b"/stream",
+                build_request=build_request,
+                response_policy=lambda response, request_id: ResponseHead(response.status_code, []),
+            )
         assert stream.closed
         assert response.is_closed
         assert [message["status"] for message in messages if message["type"] == "http.response.start"] == [200]

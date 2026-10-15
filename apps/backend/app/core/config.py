@@ -89,6 +89,10 @@ class LiteLLMSettings:
     api_key: str = field(default="", repr=False)
     identity_sync_enabled: bool = False
     ui_enabled: bool = False
+    ui_body_idle_timeout_seconds: int = 30
+    ui_write_timeout_seconds: int = 30
+    ui_request_timeout_seconds: int = 360
+    ui_max_request_body_bytes: int = 32 * 1024 * 1024
     identity_sync_timeout_seconds: int = 10
     identity_sync_cache_seconds: int = 60
     identity_sync_cache_max_entries: int = 1000
@@ -502,6 +506,16 @@ def get_settings() -> Settings:
         team_role=litellm_team_role,
         identity_sync_enabled=_boolean(litellm_config, "IDENTITY_SYNC_ENABLED", "config.LITELLM", default=False),
         ui_enabled=_boolean(litellm_config, "UI_ENABLED", "config.LITELLM", default=False),
+        ui_body_idle_timeout_seconds=_integer(
+            litellm_config, "UI_BODY_IDLE_TIMEOUT_SECONDS", "config.LITELLM", default=30
+        ),
+        ui_write_timeout_seconds=_integer(litellm_config, "UI_WRITE_TIMEOUT_SECONDS", "config.LITELLM", default=30),
+        ui_request_timeout_seconds=_integer(
+            litellm_config, "UI_REQUEST_TIMEOUT_SECONDS", "config.LITELLM", default=360
+        ),
+        ui_max_request_body_bytes=_integer(
+            litellm_config, "UI_MAX_REQUEST_BODY_BYTES", "config.LITELLM", default=32 * 1024 * 1024
+        ),
         identity_sync_timeout_seconds=_integer(
             litellm_config, "IDENTITY_SYNC_TIMEOUT_SECONDS", "config.LITELLM", default=10
         ),

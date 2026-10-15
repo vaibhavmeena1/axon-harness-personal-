@@ -23,7 +23,9 @@ import type { ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace";
 
 import { loadEncryptedSession, refreshEncryptedSession } from "../../../../../cli/auth/session.ts";
+import { SERVICE_ENDPOINTS } from "../../../../../product/endpoints.ts";
 import { resolveAxonPaths } from "../../../../../product/paths.ts";
+import { parseServiceOrigin } from "../../../../../product/service-origin.ts";
 
 const MAX_RESPONSE_BYTES = 65536;
 const RETRYABLE = new Set([429, 502, 503, 504]);
@@ -182,17 +184,15 @@ function managedDestination(
   if (!endpoint && !home) return undefined;
   if (!endpoint || !home || !isAbsolute(home))
     throw new Error("Invalid managed telemetry configuration");
-  const url = new URL(endpoint);
-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if (
-    (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
-    url.pathname !== "/api/v1/otel" ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  )
+  const suffix = SERVICE_ENDPOINTS.otel.base;
+  try {
+    if (!endpoint.endsWith(suffix)) throw new Error("Invalid proxy path");
+    // The fixed proxy path may live below a deployment mount, never at an
+    // arbitrary collector URL. Reuse the CLI base-path safety checks.
+    parseServiceOrigin(endpoint.slice(0, -suffix.length), { allowLoopbackHttp: true });
+  } catch {
     throw new Error("Invalid managed telemetry destination");
+  }
   return { url: `${endpoint}/v1/${signal}`, home };
 }
 

@@ -1,33 +1,36 @@
-"""Browser pass-through: LiteLLM, not Axon, authenticates dashboard requests."""
+"""Browser credential/response policies over the shared LiteLLM streaming lifecycle."""
 
-from time import monotonic
-from urllib.parse import urlsplit, urlunsplit
-from uuid import uuid4
+import logging
+from functools import partial
+from urllib.parse import unquote_to_bytes, urlsplit, urlunsplit
 
 import httpx
 from fastapi import FastAPI, Request
 from starlette.types import Receive, Scope, Send
 
 from app.clients.litellm.dependencies import LITELLM_TRANSPORT_STATE_KEY
-from app.clients.litellm.transport import LiteLLMTransport, validate_raw_path
-from app.proxies.litellm import (
-    _BAD_GATEWAY_BODY,
-    _INVALID_PATH_BODY,
-    _PROTECTED_REQUEST_HEADERS,
-    _PROTECTED_RESPONSE_HEADERS,
-    _SERVICE_UNAVAILABLE_BODY,
+from app.clients.litellm.transport import LiteLLMTransport
+from app.proxies.litellm_common import (
+    PROTECTED_REQUEST_HEADERS,
+    PROTECTED_RESPONSE_HEADERS,
+    SERVICE_UNAVAILABLE_BODY,
+    BodyLimits,
     LiteLLMRequestLoggingMiddleware,
-    _diagnostics,
-    _end_to_end_headers,
-    _relative_raw_path,
-    _request_body,
-    _safe_identifier,
-    _send_error,
+    ResponseHead,
+    UpstreamRequest,
+    end_to_end_headers,
+    forward_stream,
+    get_diagnostics,
+    reject_non_http,
+    send_error,
+    validated_request_path,
 )
+
+logger = logging.getLogger(__name__)
 
 LITELLM_UI_MOUNT_PATH = "/litellm-admin"
 # Native LiteLLM credentials belong to the browser, never to the backend.
-_REQUEST_EXCLUDED = _PROTECTED_REQUEST_HEADERS - {
+_REQUEST_EXCLUDED = PROTECTED_REQUEST_HEADERS - {
     b"authorization",
     b"api-key",
     b"x-api-key",
@@ -35,13 +38,14 @@ _REQUEST_EXCLUDED = _PROTECTED_REQUEST_HEADERS - {
     b"cookie",
 }
 _REQUEST_EXCLUDED |= {b"forwarded", b"x-forwarded-prefix", b"x-forwarded-port", b"x-real-ip"}
-_RESPONSE_EXCLUDED = _PROTECTED_RESPONSE_HEADERS - {b"set-cookie"}
+_RESPONSE_EXCLUDED = PROTECTED_RESPONSE_HEADERS - {b"set-cookie"}
 _AXON_COOKIE_NAMES = {"encrypted_session_data", "extension_auth_token", "session_refresh_token", "axon_session"}
 
 
 def _browser_headers(scope: Scope, request_id: str) -> list[tuple[bytes, bytes]]:
+    """Retain LiteLLM credentials/cookies, stripping Axon identity and forwarding assertions."""
     headers = []
-    for name, value in _end_to_end_headers(scope.get("headers", [])):
+    for name, value in end_to_end_headers(scope.get("headers", [])):
         if name.lower() in _REQUEST_EXCLUDED:
             continue
         if name.lower() == b"cookie":
@@ -69,46 +73,67 @@ def _browser_headers(scope: Scope, request_id: str) -> list[tuple[bytes, bytes]]
     return headers
 
 
-def _public_location(value: bytes, transport: LiteLLMTransport) -> bytes:
-    """Keep private-origin redirects on the public site; leave SSO redirects alone."""
-    location = urlsplit(value.decode("latin-1"))
+def _public_root(scope: Scope, transport: LiteLLMTransport) -> str:
+    """Share the configured external prefix, or derive the mounted ASGI prefix."""
+    root = transport.settings.upstream_root_path.rstrip("/")
+    if root:
+        return root
+    root = str(scope.get("root_path", "")).rstrip("/")
+    return root if root.endswith(LITELLM_UI_MOUNT_PATH) else root + LITELLM_UI_MOUNT_PATH
+
+
+def _public_location(value: bytes, transport: LiteLLMTransport, public_root: str) -> bytes:
+    """Rewrite private/root-relative redirects; preserve SSO and malformed headers."""
+    try:
+        location = urlsplit(value.decode("latin-1"))
+    except ValueError:
+        return value
     upstream = urlsplit(transport.settings.upstream_url)
     if location.netloc and location.netloc.lower() != upstream.netloc.lower():
         return value
     if not location.path.startswith("/"):
         return value
-    root = transport.settings.upstream_root_path.rstrip("/")
     path = location.path
-    if root and path != root and not path.startswith(root + "/"):
-        path = root + path
-    # Root-relative URLs avoid trusting the caller's Host for redirect targets.
+    if path != public_root and not path.startswith(public_root + "/"):
+        path = public_root + path
     return urlunsplit(("", "", path, location.query, location.fragment)).encode("latin-1")
 
 
-async def _send_browser_response(response: httpx.Response, send: Send, transport: LiteLLMTransport) -> None:
-    try:
-        headers = []
-        for name, value in _end_to_end_headers(response.headers.raw):
-            if name.lower() in _RESPONSE_EXCLUDED:
-                continue
-            if name.lower() == b"location":
-                value = _public_location(value, transport)
-            # Preserve duplicate Set-Cookie headers and their security attributes.
-            headers.append((name, value))
+def _cacheable_asset(response: httpx.Response, raw_path: bytes) -> bool:
+    """Trust native caching only for successful static assets without session effects."""
+    path = unquote_to_bytes(raw_path)
+    static = path.startswith((b"/ui/_next/static/", b"/_next/static/", b"/litellm-asset-prefix/_next/static/"))
+    vary = {token.strip().lower() for token in response.headers.get("vary", "").split(",")}
+    return (
+        static
+        and response.status_code in {200, 304}
+        and "cache-control" in response.headers
+        and "set-cookie" not in response.headers
+        and not vary.intersection({"*", "cookie", "authorization"})
+    )
+
+
+def _browser_response(
+    response: httpx.Response, request_id: str, *, transport: LiteLLMTransport, raw_path: bytes, public_root: str
+) -> ResponseHead:
+    """Preserve native auth and duplicate cookies; shared forwarding owns bytes/closure."""
+    cacheable = _cacheable_asset(response, raw_path)
+    excluded = _RESPONSE_EXCLUDED - {b"cache-control", b"expires"} if cacheable else _RESPONSE_EXCLUDED
+    headers = []
+    for name, value in end_to_end_headers(response.headers.raw):
+        if name.lower() in excluded:
+            continue
+        if name.lower() == b"location":
+            value = _public_location(value, transport, public_root)
+        headers.append((name, value))
+    if not cacheable:
         headers.append((b"cache-control", b"no-store"))
-        await send({"type": "http.response.start", "status": response.status_code, "headers": headers})
-        if response.is_stream_consumed:
-            if response.content:
-                await send({"type": "http.response.body", "body": response.content, "more_body": True})
-        else:
-            async for chunk in response.aiter_raw():
-                if chunk:
-                    await send({"type": "http.response.body", "body": chunk, "more_body": True})
-        await send({"type": "http.response.body", "body": b"", "more_body": False})
-    except OSError:
-        return
-    finally:
-        await response.aclose()
+    return ResponseHead(response.status_code, headers, reason="upstream_http_error" if response.is_error else "none")
+
+
+async def _browser_request(request_id: str, *, scope: Scope) -> UpstreamRequest:
+    """Use browser credentials verbatim; never resolve/inject a backend key."""
+    return UpstreamRequest(_browser_headers(scope, request_id), scope.get("query_string", b""))
 
 
 class LiteLLMUIProxy:
@@ -118,11 +143,10 @@ class LiteLLMUIProxy:
         self.strip_mount_path = strip_mount_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            if scope["type"] == "websocket":
-                await send({"type": "websocket.close", "code": 1008})
+        """Validate the mount and delegate bounded body/response ownership to forward_stream."""
+        if await reject_non_http(scope, send):
             return
-        diagnostic = _diagnostics(scope)
+        diagnostic = get_diagnostics(scope)
         if diagnostic is not None:
             diagnostic.stage = "proxy"
             diagnostic.credential_mode = "browser"
@@ -130,20 +154,17 @@ class LiteLLMUIProxy:
         if transport is None:
             if diagnostic is not None:
                 diagnostic.reason = "transport_not_initialized"
-            await _send_error(send, 503, _SERVICE_UNAVAILABLE_BODY)
+            await send_error(send, 503, SERVICE_UNAVAILABLE_BODY)
             return
-        raw_path = _relative_raw_path(scope, strip_mount_path=self.strip_mount_path, mount_path=LITELLM_UI_MOUNT_PATH)
-        try:
-            validate_raw_path(raw_path)
-        except ValueError:
-            if diagnostic is not None:
-                diagnostic.reason = "invalid_path"
-            await _send_error(send, 400, _INVALID_PATH_BODY)
+        raw_path = await validated_request_path(
+            scope, send, strip_mount_path=self.strip_mount_path, mount_path=LITELLM_UI_MOUNT_PATH
+        )
+        if raw_path is None:
             return
+        root = _public_root(scope, transport)
         if raw_path == b"/":
             # The configured root is also LiteLLM's browser-visible root. This
             # works when ingress strips /axon without setting ASGI root_path.
-            root = transport.settings.upstream_root_path.rstrip("/") or LITELLM_UI_MOUNT_PATH
             await send(
                 {
                     "type": "http.response.start",
@@ -153,49 +174,23 @@ class LiteLLMUIProxy:
             )
             await send({"type": "http.response.body", "body": b""})
             return
-        await self._forward(scope, receive, send, transport, raw_path)
-
-    async def _forward(
-        self, scope: Scope, receive: Receive, send: Send, transport: LiteLLMTransport, raw_path: bytes
-    ) -> None:
-        first_message = await receive()
-        if first_message["type"] == "http.disconnect":
-            return
-        has_body = bool(first_message.get("body")) or bool(first_message.get("more_body", False))
-        diagnostic = _diagnostics(scope)
-        request_id = (
-            diagnostic.request_id
-            if diagnostic is not None
-            else _safe_identifier(Request(scope).headers.get("x-request-id"), str(uuid4()))
+        settings = transport.settings
+        limits = BodyLimits(
+            idle_timeout_seconds=settings.ui_body_idle_timeout_seconds,
+            write_timeout_seconds=settings.ui_write_timeout_seconds,
+            request_timeout_seconds=settings.ui_request_timeout_seconds,
+            max_bytes=settings.ui_max_request_body_bytes,
         )
-        if diagnostic is not None:
-            diagnostic.stage = "upstream"
-        started = monotonic()
-        try:
-            # send_stream constructs an httpx.Request directly: shared-client
-            # cookies/auth defaults are not merged into this browser's request.
-            response = await transport.send_stream(
-                str(scope.get("method", "GET")),
-                raw_path,
-                query_string=scope.get("query_string", b""),
-                headers=_browser_headers(scope, request_id),
-                content=_request_body(first_message, receive) if has_body else None,
-            )
-        except httpx.HTTPError as exc:
-            if diagnostic is not None:
-                diagnostic.reason = "upstream_transport_failed"
-                diagnostic.error_type = type(exc).__name__
-            await _send_error(send, 502, _BAD_GATEWAY_BODY)
-            return
-        finally:
-            if diagnostic is not None:
-                diagnostic.upstream_duration_ms = round((monotonic() - started) * 1000, 1)
-        if diagnostic is not None:
-            diagnostic.upstream_status = response.status_code
-            diagnostic.reason = "upstream_http_error" if response.is_error else "none"
-        # Unlike the API proxy, native 401/403 responses belong to LiteLLM's
-        # login flow and must not be converted into Axon authentication errors.
-        await _send_browser_response(response, send, transport)
+        await forward_stream(
+            scope,
+            receive,
+            send,
+            transport,
+            raw_path,
+            build_request=partial(_browser_request, scope=scope),
+            response_policy=partial(_browser_response, transport=transport, raw_path=raw_path, public_root=root),
+            limits=limits,
+        )
 
 
 def mount_litellm_ui_proxy(app: FastAPI) -> None:
@@ -203,13 +198,17 @@ def mount_litellm_ui_proxy(app: FastAPI) -> None:
     app.add_route(
         LITELLM_UI_MOUNT_PATH,
         LiteLLMRequestLoggingMiddleware(
-            LiteLLMUIProxy(strip_mount_path=True), strip_mount_path=True, mount_path=LITELLM_UI_MOUNT_PATH
+            LiteLLMUIProxy(strip_mount_path=True),
+            strip_mount_path=True,
+            mount_path=LITELLM_UI_MOUNT_PATH,
+            logger=logger,
         ),
         name="litellm-ui-root",
         include_in_schema=False,
     )
     app.mount(
         LITELLM_UI_MOUNT_PATH,
-        LiteLLMRequestLoggingMiddleware(LiteLLMUIProxy(), mount_path=LITELLM_UI_MOUNT_PATH),
+        LiteLLMRequestLoggingMiddleware(LiteLLMUIProxy(), mount_path=LITELLM_UI_MOUNT_PATH, logger=logger),
         name="litellm-ui",
     )
+    logger.info("LiteLLM UI proxy mounted at %s", LITELLM_UI_MOUNT_PATH)

@@ -1,5 +1,6 @@
 import { BUILD_INFO } from "../../build-info.ts";
 import { createHarnessEnvironment, type EnvironmentOverrides } from "../../launcher/environment.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 
@@ -8,10 +9,10 @@ const PI_PROCESS_OVERRIDES = Object.freeze({
   PI_AXON_CLI_VERSION: BUILD_INFO.version,
   // PI_* markers survive the launcher's final Axon-control-variable filter.
   PI_AXON_BACKUP_SERVICE_ORIGIN: BUILD_INFO.serviceOrigin,
-  PI_MODEL_RECOMMENDER_URL: new URL(
-    "/api/v1/model-recommendations",
+  PI_MODEL_RECOMMENDER_URL: resolveServiceUrl(
     BUILD_INFO.serviceOrigin,
-  ).toString(),
+    SERVICE_ENDPOINTS.models.recommendations,
+  ),
 }) satisfies EnvironmentOverrides;
 
 /**

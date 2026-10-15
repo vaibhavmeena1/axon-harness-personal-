@@ -10,18 +10,24 @@ import httpx
 
 from app.core.config import LiteLLMSettings
 
+MAX_RAW_PATH_BYTES = 8192
+MAX_PATH_DECODE_LAYERS = 4
+
 
 def validate_raw_path(raw_path: bytes) -> None:
-    """Reject dot segments at every decoding layer without rewriting safe paths."""
+    """Bound validation work and reject dot segments at every accepted decode layer."""
+    if len(raw_path) > MAX_RAW_PATH_BYTES:
+        raise ValueError("LiteLLM request path is too long")
     path = raw_path
-    while True:
+    # Include a final stabilization check after the allowed decoding layers.
+    for depth in range(MAX_PATH_DECODE_LAYERS + 1):
         if any(segment in {b".", b".."} for segment in path.split(b"/")):
             raise ValueError("LiteLLM request paths must not contain dot segments")
-        # Encoded separators can expose segments, and an upstream gateway
-        # may decode nested escapes more than once.
         decoded_path = unquote_to_bytes(path)
         if decoded_path == path:
             return
+        if depth == MAX_PATH_DECODE_LAYERS:
+            raise ValueError("LiteLLM request path has too many encoding layers")
         path = decoded_path
 
 
@@ -119,14 +125,18 @@ class LiteLLMTransport:
         query_string: bytes = b"",
         headers: Iterable[tuple[bytes, bytes]],
         content: AsyncIterator[bytes] | None = None,
+        write_timeout_seconds: float | None = None,
     ) -> httpx.Response:
         """Forward without buffering, default headers, redirects, or payload inspection."""
+        timeout = self._stream_timeout.as_dict()
+        if write_timeout_seconds is not None:
+            timeout["write"] = write_timeout_seconds
         request = httpx.Request(
             method=method,
             url=self.upstream_url(raw_path, query_string),
             headers=headers,
             content=content,
-            extensions={"timeout": self._stream_timeout.as_dict()},
+            extensions={"timeout": timeout},
         )
         return await self._client.send(request, stream=True, follow_redirects=False, auth=None)
 

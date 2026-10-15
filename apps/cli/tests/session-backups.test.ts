@@ -24,6 +24,7 @@ import { runSessions } from "../src/cli/commands/sessions.ts";
 import { createPiEnvironment } from "../src/harnesses/pi/environment.ts";
 import sessionBackupExtension from "../src/harnesses/pi/session-backup/index.ts";
 import { createHarnessEnvironment } from "../src/launcher/environment.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 import { BackupApi } from "../src/sessions/api.ts";
 import { SessionBackups } from "../src/sessions/backup.ts";
@@ -551,6 +552,8 @@ test("native backup bundle captures after final environment filtering using the 
     ),
   );
   expect(environment["AXON_HOME"]).toBeUndefined();
+  expect(environment["PI_AXON_BACKUP_SERVICE_ORIGIN"]).toBe(BUILD_INFO.serviceOrigin);
+  expect(environment["PI_AXON_BACKUP_HOME"]).toBe(paths.home);
   const child = Bun.spawn(["node", "--input-type=module", "-e", script], {
     env: environment,
     stdout: "pipe",
@@ -566,11 +569,15 @@ test("native backup bundle captures after final environment filtering using the 
   const output = JSON.parse(stdout) as { events: string[]; commands: string[]; calls: string[] };
   expect(output.events).toEqual(["session_start", "session_shutdown", "session_tree"]);
   expect(output.commands).toEqual(["axon-backup-now", "axon-backups"]);
-  expect(output.calls).toEqual([
-    "/api/v1/sessions/status",
-    "/api/v1/sessions/status",
-    "/api/v1/sessions",
-  ]);
+  // The source test runner may use a deployment mount (e.g. an exported production
+  // build URL). The native bundle must retain it, not fall back to domain-root paths.
+  expect(output.calls).toEqual(
+    [
+      SERVICE_ENDPOINTS.sessions.status,
+      SERVICE_ENDPOINTS.sessions.status,
+      SERVICE_ENDPOINTS.sessions.base,
+    ].map((path) => new URL(resolveServiceUrl(BUILD_INFO.serviceOrigin, path)).pathname),
+  );
   expect(await controller.status()).toContain("pending streams: 1");
   const scope = (await readdir(controller.root)).find((name) => /^[a-f0-9]{64}$/.test(name));
   if (!scope) throw new Error("Missing backup scope");

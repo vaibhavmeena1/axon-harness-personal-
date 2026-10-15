@@ -17,7 +17,8 @@ from app.clients.auth_service import AuthenticatedUser, AuthServiceError
 from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
-from app.proxies.litellm import LiteLLMProxy, LiteLLMRequestLoggingMiddleware, mount_litellm_proxy
+from app.proxies.litellm import LiteLLMProxy, mount_litellm_proxy
+from app.proxies.litellm_common import LiteLLMRequestLoggingMiddleware
 
 LOGGER = "app.proxies.litellm"
 
@@ -261,7 +262,7 @@ def test_stream_failures_preserve_status_and_cleanup(
                 if failure == "disconnected":
                     raise OSError("secret-disconnect-detail")
 
-        proxy = LiteLLMRequestLoggingMiddleware(LiteLLMProxy())
+        proxy = LiteLLMRequestLoggingMiddleware(LiteLLMProxy(), logger=logging.getLogger(LOGGER))
         if failure == "disconnected":
             await proxy(scope, receive, send)
         else:

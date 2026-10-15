@@ -16,7 +16,7 @@ from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityE
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
 from app.proxies.litellm import LiteLLMProxy, _metadata_query_string
-from tests.test_litellm_identity import IdentityAPI
+from tests.test_litellm_identity import NATIVE_USER_ID, IdentityAPI
 from tests.test_litellm_streaming import verified_scope
 
 pytest_plugins = ["tests.test_litellm_identity"]
@@ -26,7 +26,7 @@ EXPECTED_ROUTES = ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/
 
 def stored_policy(settings: LiteLLMSettings) -> dict:
     return {
-        "user_id": "12",
+        "user_id": NATIVE_USER_ID,
         "team_id": settings.team_id,
         "key_type": "llm_api",
         "allowed_routes": ["llm_api_routes"],
@@ -40,7 +40,7 @@ def stored_policy(settings: LiteLLMSettings) -> dict:
     }
 
 
-@pytest.mark.parametrize("owner_field", ["axon_user_team_id", "deputydev_user_team_id"])
+@pytest.mark.parametrize("owner_field", ["deputydev-user-team-id", "axon_user_team_id", "deputydev_user_team_id"])
 @pytest.mark.parametrize(
     "old_routes",
     [
@@ -59,7 +59,7 @@ def test_migrate_original_managed_key_preserves_other_policies(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id)
+            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
             original["metadata"][owner_field] = original["metadata"].pop("axon_user_team_id")
@@ -96,7 +96,7 @@ def test_do_not_override_custom_unmanaged_or_inactive_keys(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id)
+            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
             if policy == "custom-routes":
@@ -142,7 +142,7 @@ def test_failed_migration_fails_closed_without_caching(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id)
+            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = stored_policy(settings)
             with pytest.raises(LiteLLMIdentityError):
                 await identity.ensure_identity(user)
@@ -173,7 +173,7 @@ def test_key_info_hashes_and_pins_credential_without_leaking_it(
             transport = LiteLLMTransport(settings, client=client, management_client=client)
             identity = LiteLLMIdentityClient(settings, transport)
             user_key = "backend-only-key"
-            identity._cache[(12, settings.team_id)] = (float("inf"), user_key)
+            identity._cache[("dev@example.test", 12, settings.team_id)] = (float("inf"), user_key)
             app = FastAPI()
             app.state.litellm_transport = transport
             app.state.litellm_identity_client = identity

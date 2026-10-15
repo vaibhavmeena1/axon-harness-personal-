@@ -43,23 +43,60 @@ describe("CLI release tag contract", () => {
   });
 });
 
-describe("production service origin contract", () => {
-  test("accepts an HTTPS origin only", () => {
+describe("production service base URL contract", () => {
+  test("accepts an HTTPS origin", () => {
     expect(parseServiceOrigin("https://cli.example.test:8443", { allowLoopbackHttp: false })).toBe(
       "https://cli.example.test:8443",
     );
   });
 
-  test("rejects HTTP and URL components beyond the origin", () => {
-    expect(() =>
-      parseServiceOrigin("http://cli.example.test", { allowLoopbackHttp: false }),
-    ).toThrow("must use HTTPS");
-    expect(() =>
-      parseServiceOrigin("https://cli.example.test/path", { allowLoopbackHttp: false }),
-    ).toThrow("only scheme, host, and optional port");
-    expect(() =>
-      parseServiceOrigin("https://cli.example.test/", { allowLoopbackHttp: false }),
-    ).toThrow("must not have a trailing slash");
+  test.each([
+    "https://deputydev.ai/axon",
+    "https://cli.example.test:8443/services/axon-prod_v1.0~beta",
+  ])("preserves the deployment base path in %s", (base) => {
+    expect(parseServiceOrigin(base, { allowLoopbackHttp: false })).toBe(base);
+  });
+
+  test("normalizes the origin without discarding its base path", () => {
+    expect(
+      parseServiceOrigin("https://CLI.EXAMPLE.TEST:443/axon", { allowLoopbackHttp: false }),
+    ).toBe("https://cli.example.test/axon");
+  });
+
+  test.each(["http://localhost:3000/axon", "http://127.0.0.1:3000/axon", "http://[::1]:3000/axon"])(
+    "allows loopback HTTP base paths only in development: %s",
+    (base) => {
+      expect(parseServiceOrigin(base, { allowLoopbackHttp: true })).toBe(base);
+      expect(() => parseServiceOrigin(base, { allowLoopbackHttp: false })).toThrow(
+        "must use HTTPS",
+      );
+    },
+  );
+
+  test.each([
+    "http://cli.example.test/axon",
+    "https://cli.example.test/",
+    "https://cli.example.test/axon/",
+    "https://user:password@cli.example.test/axon",
+    "https://cli.example.test/axon?",
+    "https://cli.example.test/axon#",
+    "https://cli.example.test/axon?url=https://evil.test",
+    "https://cli.example.test/axon#other",
+    "https://cli.example.test/axon//nested",
+    "https://cli.example.test/axon/../other",
+    "https://cli.example.test/axon/./nested",
+    "https://cli.example.test/axon/%2e%2e/other",
+    "https://cli.example.test/axon%2fother",
+    "https://cli.example.test/axon%5cother",
+    "https://cli.example.test/axon\\\\other",
+    " https://cli.example.test/axon",
+    "https://cli.example.test/axon\n",
+    "https://cli.example.test/axon\u0000",
+    "https://cli.example.test/axon path",
+    "https:cli.example.test/axon",
+    "/axon",
+  ])("rejects unsafe or ambiguous service base URL %j", (base) => {
+    expect(() => parseServiceOrigin(base, { allowLoopbackHttp: false })).toThrow();
   });
 });
 

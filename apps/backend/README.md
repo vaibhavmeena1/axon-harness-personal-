@@ -83,6 +83,9 @@ An existing CLI request `/axon/litellm/v1/chat/completions` keeps its public URL
 is forwarded to upstream `/axon/litellm-admin/v1/chat/completions` after Axon authentication.
 The browser mount's bare root redirects to the configured upstream root plus `/ui/`.
 Use the same public LiteLLM prefix in `SERVER_ROOT_PATH` and `UPSTREAM_ROOT_PATH`.
+If the upstream root is `/`, root-relative redirects fall back to the browser's ASGI mount
+(including an ingress root path when supplied). This fallback does not rewrite HTML/assets;
+LiteLLM still needs its correct public root configuration for those URLs.
 
 The browser proxy does **not** call Axon authentication, synchronize identities, or inject
 the configured master key/virtual keys. It forwards the browser's own LiteLLM authorization,
@@ -91,9 +94,31 @@ Separate `Set-Cookie` headers and cookie security attributes are preserved. Expl
 session/identity headers and named Axon session-cookie fields are stripped. Other cookies
 are passed through, so scope unrelated sensitive application cookies away from this path.
 The shared upstream pool does not retain browser cookies or merge client-default credentials.
-Redirects to the private upstream origin are made root-relative; external SSO redirects are
-preserved. Responses use `Cache-Control: no-store`. HTTP streaming is supported; WebSockets
-are not. The existing `/litellm/*` credential handling and protections remain unchanged.
+Redirects to the private upstream origin are made root-relative; external SSO redirects and
+malformed Location headers are preserved without a policy-parser crash. Dynamic HTML, login,
+and session responses use `Cache-Control: no-store`. Successful static assets under the known
+Next.js `/_next/static/` namespaces preserve native cache headers only when the response has
+no `Set-Cookie` or credential-dependent `Vary`; caching is never invented for an uncached asset.
+HTTP streaming is supported; WebSockets are not. Both modes use one shared request/response
+lifecycle for body iteration, diagnostics, transport errors, cancellation and response closure.
+The existing `/litellm/*` credential handling and protections remain unchanged.
+
+Browser request limits are optional positive integers in `LITELLM`; existing configurations
+need no edits:
+
+| Setting | Default | Scope |
+| --- | --- | --- |
+| `UI_BODY_IDLE_TIMEOUT_SECONDS` | 30 | Waiting for the first and each subsequent incoming body frame |
+| `UI_WRITE_TIMEOUT_SECONDS` | 30 | Each upstream socket write |
+| `UI_REQUEST_TIMEOUT_SECONDS` | 360 | Total time through body ingestion and upstream response headers, including pool waits |
+| `UI_MAX_REQUEST_BODY_BYTES` | 33554432 (32 MiB) | Declared and actually streamed browser request bytes |
+
+Idle/total browser request timeouts return a sanitized 408; oversized bodies return 413.
+An aborted upload releases the upstream connection. Upstream transport failures retain the
+sanitized 502 behavior. These bounds do not cap response-stream duration or change CLI/API
+upload timeouts. Request paths in both modes are limited to 8192 bytes and four percent-decoding
+layers; oversized, excessively encoded, and dot-segment paths return 400 before body/key handling.
+Enabling the browser mount emits `LiteLLM UI proxy mounted at /litellm-admin` at INFO level.
 
 Restart/redeploy both services after changing their configuration. No separate Nginx location
 is needed if ingress already sends the new path to this backend without an Axon session gate.
@@ -130,7 +155,11 @@ With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteL
 
 New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified Axon team ID and creates that native team if needed.
 
-No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing budgets, model/MCP permissions, and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
+Native users are resolved **only by the verified auth-service email**, normalized by trimming whitespace and case-folding. The backend searches `/user/list?user_email=...`, verifies an exact email match locally (LiteLLM's filter is a substring search), and follows pagination. Ambiguous, malformed, unavailable, or excessive lookup results fail closed. A missing email is created through `/user/new` **without `user_id`**, letting LiteLLM generate its native ID; a competing create is accepted only after an exact-email read-back. There is no lookup fallback to an Axon account or membership ID.
+
+All team memberships and virtual-key ownership checks use that resolved native ID. Multiple verified Axon memberships with the same email reuse one LiteLLM user. User metadata stores their membership references as a list under `deputydev-user-team-id`; each membership-scoped key stores its individual ID under the same field and retains `axon_team_id` for the original Axon team. These references are not native user IDs or authorization inputs. Missing references are merged through a metadata-only `/user/update` and read back before issuing/caching a key. The cache includes verified email as well as membership and native team, so a changed email cannot reuse a cached identity unchecked.
+
+No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. User roles, budgets, model/MCP permissions, unrelated metadata, and existing membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones.
 
 New backend-managed keys use `key_type: "default"` with an explicit route allowlist:
 `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]`. Do not combine that list with the
@@ -147,8 +176,9 @@ After a backend restart, identity provisioning lazily upgrades active keys with 
 harness default (`["llm_api_routes"]`, `["llm_api_routes", "/key/info", "/v2/user/info"]`,
 or `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`)
 only when their metadata identifies them as this harness's key for
-the same verified user (`source=meta-harness`, matching `axon_user_team_id` or the older
-`deputydev_user_team_id` ownership marker). The upgrade changes
+the same verified membership (`source=meta-harness`, matching `deputydev-user-team-id`,
+`axon_user_team_id`, or the older `deputydev_user_team_id` ownership marker). Native key
+ownership is separately checked against the email-resolved LiteLLM user and selected team. The upgrade changes
 only `allowed_routes` and is read back before caching the key. Custom route lists, unmanaged keys,
 blocked/expired keys, budgets, spend, and MCP grants are not changed. No key recreation or login
 reset is required. MCP still requires separately registered servers and grants.
@@ -217,6 +247,34 @@ Routing, in match order:
 The mount is registered in `app/main.py` *after* the API routers, including `/install.sh`. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every registered route has been tried.
 
 `/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, then fetches `/<version>/checksums.txt` and `/<version>/axon-darwin-arm64.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
+
+### Deployment under a path prefix
+
+For `https://deputydev.ai/axon/`, keep the public mount consistent across the CLI, backend configuration, and ingress:
+
+| Setting | Production value |
+| --- | --- |
+| CLI build/publishing `AXON_SERVICE_ORIGIN` | `https://deputydev.ai/axon` (no trailing slash) |
+| Backend `CLI_INSTALL.RELEASES_URL` | `https://deputydev.ai/axon/api/v1/cli/releases` |
+| Backend `AUTH_SERVICE.BROWSER_LOGIN_URL` | The actual browser login application's HTTPS URL ending in `/external-auth`; include its mount if applicable |
+
+Ingress must strip `/axon` before forwarding to this app: `/axon/install.sh` becomes `/install.sh`, `/axon/api/v1/*` becomes `/api/v1/*`, and `/axon/litellm/*` becomes `/litellm/*`. Preserve HTTP methods, ordered queries, and streaming responses. Forward the entire mount, not only installer/release URLs. The backend's internal routes do not gain a hard-coded `/axon` prefix.
+
+Restart the backend after changing its ignored `config.json` and rebuild the CLI with the prefixed service base. `CLI_RELEASES.KEY_PREFIX` controls S3 object keys independently; do not change CloudFront's distribution origin to a URL containing `/axon`.
+
+Frontend console base-path support is deferred; the Dockerfile retains its root-based frontend build and needs no custom frontend build argument. See the [frontend follow-up note](../frontend/README.md#deferred-frontend-deployment-under-a-path-prefix). This does not block CLI or backend API deployment under `/axon`.
+
+The current console is a scaffold, not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there. The separate MCP catalog must likewise be available as JSON at `https://deputydev.ai/axon/v1/cli/pi/mcp.json`; the SPA fallback is not a catalog implementation.
+
+Public smoke checks after publication:
+
+```bash
+curl -i https://deputydev.ai/axon/install.sh
+curl -i https://deputydev.ai/axon/api/v1/cli/releases/latest/VERSION
+curl -i https://deputydev.ai/axon/api/v1/cli/releases/0.2.0/checksums.txt
+```
+
+The release base URL itself has no GET route. An empty `LATEST_VERSION` intentionally makes `/latest/VERSION` return 503 until a verified release is promoted.
 
 ### Web search
 

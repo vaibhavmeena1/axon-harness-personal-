@@ -399,7 +399,7 @@ test("terminal permissions load as a standalone extension in the pinned native P
         "--offline",
         "--no-extensions",
         "--extension",
-        join(projectRoot, "src/harnesses/pi/resources/extensions/terminal-permissions.ts"),
+        join(projectRoot, "src/harnesses/pi/resources/extensions/terminal-permissions.mjs"),
         "--list-models",
       ],
       {

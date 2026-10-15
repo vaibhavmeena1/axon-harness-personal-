@@ -29,7 +29,7 @@ interface Fixture {
   readonly setVersion: (version: string) => void;
 }
 
-async function fixture(binaryVersion = version): Promise<Fixture> {
+async function fixture(binaryVersion = version, basePath = ""): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "axon-update-"));
   roots.push(root);
   const paths = resolveAxonPaths({}, root);
@@ -50,13 +50,14 @@ async function fixture(binaryVersion = version): Promise<Fixture> {
     fetch(request): Response {
       const path = new URL(request.url).pathname;
       requests.push(path);
-      if (path === "/api/v1/cli/releases/latest/VERSION") return new Response(`${latest}\n`);
-      if (path === `/api/v1/cli/releases/${version}/checksums.txt`) {
+      if (path === `${basePath}/api/v1/cli/releases/latest/VERSION`)
+        return new Response(`${latest}\n`);
+      if (path === `${basePath}/api/v1/cli/releases/${version}/checksums.txt`) {
         return new Response(
           `${archiveHash}  axon-darwin-arm64.gz\n${sha256(binary)}  axon-darwin-arm64\n`,
         );
       }
-      if (path === `/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`) {
+      if (path === `${basePath}/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`) {
         return Response.redirect(`http://127.0.0.1:${server.port}/archive`, 302);
       }
       if (path === "/archive") return new Response(archive);
@@ -70,7 +71,7 @@ async function fixture(binaryVersion = version): Promise<Fixture> {
       build: { ...BUILD_INFO, kind: "binary", version: "0.1.0", target: "darwin-arm64" },
       executable: paths.managedBinary,
       paths,
-      client: { baseUrl: `${origin}/api/v1/cli/releases` },
+      client: { baseUrl: `${origin}${basePath}/api/v1/cli/releases` },
       verifySignature: async () => {},
     },
     paths,
@@ -110,6 +111,17 @@ describe("CLI manual and background updates", () => {
     expect((await readdir(f.paths.bin)).filter((name) => name.startsWith(".axon-update-"))).toEqual(
       [],
     );
+  });
+
+  test("updates below /axon without prefixing the redirected storage URL", async () => {
+    const f = await fixture(version, "/axon");
+    expect(await installUpdate(f.context)).toBe(version);
+    expect(f.requests).toEqual([
+      "/axon/api/v1/cli/releases/latest/VERSION",
+      `/axon/api/v1/cli/releases/${version}/checksums.txt`,
+      `/axon/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`,
+      "/archive",
+    ]);
   });
 
   test("never replaces an existing binary on checksum or version mismatch", async () => {
