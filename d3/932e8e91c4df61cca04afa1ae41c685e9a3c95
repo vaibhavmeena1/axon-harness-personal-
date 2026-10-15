@@ -1,0 +1,25 @@
+apps/backend/pyproject.toml
+  s_26e8a243696d29::t_cd35fb890285cf 3
+apps/cli/package.json
+  s_26e8a243696d29::t_cd35fb890285cf 3
+apps/backend/uv.lock
+  s_26e8a243696d29::t_0ca22aa506dd0d 64
+bun.lock
+  s_26e8a243696d29::t_c0f1df6bb49c07 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3932e8e91c4df61cca04afa1ae41c685e9a3c95",
+  "prompts": {},
+  "sessions": {
+    "s_26e8a243696d29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1241b590-0696-44da-9af5-021878c3056f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
