@@ -29,9 +29,9 @@ class AuthData(BaseModel):
 
 
 class AuthenticatedUser(AuthData):
-    """Verified identity; inherited user_team_id is LiteLLM's canonical user ID."""
+    """Verified identity; email resolves a LiteLLM-generated native user ID."""
 
-    # The account-level ID is optional and never determines LiteLLM ownership.
+    # Axon IDs remain attribution references, not native LiteLLM user IDs.
     user_id: int | None = None
     team_id: int
     user_email: str

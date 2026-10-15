@@ -155,7 +155,11 @@ With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteL
 
 New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified Axon team ID and creates that native team if needed.
 
-No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. Existing budgets, model/MCP permissions, and membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones. LiteLLM user IDs remain the verified Axon `user_team_id`, and key metadata retains the original Axon team ID even when the native LiteLLM team differs.
+Native users are resolved **only by the verified auth-service email**, normalized by trimming whitespace and case-folding. The backend searches `/user/list?user_email=...`, verifies an exact email match locally (LiteLLM's filter is a substring search), and follows pagination. Ambiguous, malformed, unavailable, or excessive lookup results fail closed. A missing email is created through `/user/new` **without `user_id`**, letting LiteLLM generate its native ID; a competing create is accepted only after an exact-email read-back. There is no lookup fallback to an Axon account or membership ID.
+
+All team memberships and virtual-key ownership checks use that resolved native ID. Multiple verified Axon memberships with the same email reuse one LiteLLM user. User metadata stores their membership references as a list under `deputydev-user-team-id`; each membership-scoped key stores its individual ID under the same field and retains `axon_team_id` for the original Axon team. These references are not native user IDs or authorization inputs. Missing references are merged through a metadata-only `/user/update` and read back before issuing/caching a key. The cache includes verified email as well as membership and native team, so a changed email cannot reuse a cached identity unchecked.
+
+No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. User roles, budgets, model/MCP permissions, unrelated metadata, and existing membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones.
 
 New backend-managed keys use `key_type: "default"` with an explicit route allowlist:
 `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]`. Do not combine that list with the
@@ -172,8 +176,9 @@ After a backend restart, identity provisioning lazily upgrades active keys with 
 harness default (`["llm_api_routes"]`, `["llm_api_routes", "/key/info", "/v2/user/info"]`,
 or `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`)
 only when their metadata identifies them as this harness's key for
-the same verified user (`source=meta-harness`, matching `axon_user_team_id` or the older
-`deputydev_user_team_id` ownership marker). The upgrade changes
+the same verified membership (`source=meta-harness`, matching `deputydev-user-team-id`,
+`axon_user_team_id`, or the older `deputydev_user_team_id` ownership marker). Native key
+ownership is separately checked against the email-resolved LiteLLM user and selected team. The upgrade changes
 only `allowed_routes` and is read back before caching the key. Custom route lists, unmanaged keys,
 blocked/expired keys, budgets, spend, and MCP grants are not changed. No key recreation or login
 reset is required. MCP still requires separately registered servers and grants.

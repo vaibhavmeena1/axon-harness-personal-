@@ -365,7 +365,8 @@ def test_recommender_route_uses_litellm_and_preserves_response_contract(
     assert len(seen) == 1
     assert json.loads(seen[0].content) == build_jev_request(request.prompt)
     generated = management.posted("/key/generate")[0]
-    assert generated["user_id"] == "12"
+    assert generated["user_id"] != "12"
+    assert management.users[generated["user_id"]]["user_email"] == "dev12@example.com"
     assert generated["team_id"] == settings.team_id
     assert "/v1/systemone" in generated["allowed_routes"]
     assert seen[0].headers["authorization"] == f"Bearer {generated['key']}"
@@ -411,8 +412,9 @@ def test_recommendations_use_only_verified_caller_identity(settings: LiteLLMSett
     )
     assert response.status_code == 200
     generated = api.posted("/key/generate")[0]
-    assert generated["user_id"] == str(user_team_id)
-    assert api.users[str(user_team_id)]["user_email"] == f"dev{user_team_id}@example.com"
+    assert generated["user_id"] != str(user_team_id)
+    assert generated["metadata"]["deputydev-user-team-id"] == str(user_team_id)
+    assert api.users[generated["user_id"]]["user_email"] == f"dev{user_team_id}@example.com"
     assert seen[0].headers["authorization"] == f"Bearer {generated['key']}"
     assert generated["key"] != settings.api_key
     assert "999" not in api.users
@@ -456,8 +458,8 @@ def test_recommendation_identity_failures_never_fall_back_to_admin(settings: Lit
         response = api(request)
         if response.is_success:
             payload = response.json()
-            if failure == "blocked-user" and request.url.path == "/user/info":
-                payload["user_info"]["blocked"] = True
+            if failure == "blocked-user" and request.url.path == "/user/list":
+                payload["users"] = [{**record, "blocked": True} for record in payload["users"]]
             elif failure in {"blocked-key", "expired-key"} and request.url.path == "/key/info":
                 payload["info"].update(
                     {"blocked": True} if failure == "blocked-key" else {"expires": "2000-01-01T00:00:00Z"}
