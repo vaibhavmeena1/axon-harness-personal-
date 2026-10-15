@@ -12,6 +12,7 @@ async function runRelayScript(
   script: string,
   setup = "",
   allowPiConfigRefresh = false,
+  serviceBasePath = "",
 ): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "axon-request-relay-"));
   await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "initial-session");
@@ -25,7 +26,7 @@ async function runRelayScript(
     let upstream = async () => { throw new Error("Unexpected upstream request"); };
     globalThis.fetch = Object.assign(async (input, init) => {
       const request = new Request(input, init);
-      if (new URL(request.url).origin === process.env.AXON_SERVICE_ORIGIN) {
+      if (new URL(request.url).origin === new URL(process.env.AXON_SERVICE_ORIGIN).origin) {
         return upstream(request);
       }
       return actualFetch(input, init);
@@ -63,7 +64,7 @@ async function runRelayScript(
     env: {
       ...process.env,
       AXON_HOME: home,
-      AXON_SERVICE_ORIGIN: "http://127.0.0.1:1",
+      AXON_SERVICE_ORIGIN: `http://127.0.0.1:1${serviceBasePath}`,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -81,6 +82,106 @@ async function runRelayScript(
     await rm(home, { recursive: true, force: true });
   }
 }
+
+test("deployment base paths reach auth, config, backups and upstream relay requests without changing local URLs", async () => {
+  await runRelayScript(
+    `
+    const base = process.env.AXON_SERVICE_ORIGIN;
+    const calls = [];
+    upstream = async (request) => {
+      const url = new URL(request.url);
+      assert.ok(url.pathname.startsWith("/axon/"), url.pathname);
+      assert.equal(request.headers.get("authorization"), "Bearer initial-session");
+      calls.push(url.pathname + url.search);
+      if (url.pathname === "/axon/api/v1/auth/verify-auth-token")
+        return Response.json({ status: "VERIFIED" });
+      if (url.pathname === "/axon/api/v1/cli/config")
+        return Response.json({ schemaVersion: 1 });
+      if (url.pathname === "/axon/api/v1/sessions/status")
+        return Response.json({ enabled: true, owner_user_team_id: "1" });
+      return Response.json({ path: url.pathname + url.search });
+    };
+    const { BUILD_INFO } = await import("./src/build-info.ts");
+    assert.equal(BUILD_INFO.serviceOrigin, base);
+    const { verifyEncryptedSession } = await import("./src/cli/auth/verification.ts");
+    assert.equal(await verifyEncryptedSession("initial-session"), "VERIFIED");
+    const { BackupApi } = await import("./src/sessions/api.ts");
+    const api = new BackupApi(paths, base);
+    assert.equal(await api.owner(), "1");
+    await api.request(api.endpoint("download", "fixture-session"), "POST");
+    const { createPiEnvironment } = await import("./src/harnesses/pi/environment.ts");
+    const environment = createPiEnvironment({}, paths);
+    assert.equal(environment.PI_AXON_BACKUP_SERVICE_ORIGIN, base);
+    assert.equal(environment.PI_MODEL_RECOMMENDER_URL, base + "/api/v1/model-recommendations");
+    const { createTelemetryOverrides } = await import("./src/harnesses/pi/telemetry-environment.ts");
+    const telemetry = createTelemetryOverrides({}, {
+      enabled: true, endpoint: "/api/v1/otel", protocol: "http/protobuf",
+      traceSampleRatio: 1, metricExportIntervalMs: 10000,
+    }, false, { home: paths.home });
+    assert.equal(telemetry.PI_ORG_OTEL_MANAGED_ENDPOINT, base + "/api/v1/otel");
+    for (const path of ["/litellm/v1/chat/completions?tag=a&tag=b", "/api/v1/model-recommendations"]) {
+      const response = await send(path);
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { path: "/axon" + path });
+    }
+    assert.equal((await send("/_axon/pi-defaults/refresh")).status, 200);
+    assert.equal((await send("/axon/litellm/v1/models")).status, 404);
+    assert.deepEqual(calls, [
+      "/axon/api/v1/auth/verify-auth-token",
+      "/axon/api/v1/sessions/status",
+      "/axon/api/v1/sessions/fixture-session/backup-download",
+      "/axon/litellm/v1/chat/completions?tag=a&tag=b",
+      "/axon/api/v1/model-recommendations",
+      "/axon/api/v1/cli/config",
+    ]);
+  `,
+    "",
+    true,
+    "/axon",
+  );
+});
+
+test("browser login starts and polls under the deployment base path", async () => {
+  await runRelayScript(
+    `
+    const sessionId = "12345678-1234-4123-8123-123456789abc";
+    const browserUrl = "https://deputydev.ai/axon/external-auth?unique_session_id=" + sessionId + "&is_external_auth_request=CLI";
+    const calls = [];
+    upstream = async (request) => {
+      const path = new URL(request.url).pathname;
+      calls.push([request.method, path]);
+      if (path === "/axon/api/v1/auth/browser-login")
+        return Response.json({ session_id: sessionId, browser_url: browserUrl });
+      assert.equal(path, "/axon/api/v1/auth/browser-login/" + sessionId);
+      return Response.json({ status: "AUTHENTICATED", encrypted_session_data: "login-session" });
+    };
+    const { runAuthLogin } = await import("./src/cli/commands/auth.ts");
+    assert.equal(await runAuthLogin(paths, { browser: true, quiet: true }), true);
+    assert.deepEqual(opened, [browserUrl]);
+    assert.equal(await sessions.loadEncryptedSession(paths), "login-session");
+    assert.deepEqual(calls, [
+      ["POST", "/axon/api/v1/auth/browser-login"],
+      ["GET", "/axon/api/v1/auth/browser-login/" + sessionId],
+    ]);
+    `,
+    `
+    const childProcess = await import("node:child_process");
+    const { EventEmitter } = await import("node:events");
+    const opened = [];
+    mock.module("node:child_process", () => ({
+      ...childProcess,
+      spawn: (_command, args) => {
+        opened.push(args.at(-1));
+        const child = new EventEmitter();
+        queueMicrotask(() => child.emit("exit", 0));
+        return child;
+      },
+    }));
+    `,
+    false,
+    "/axon",
+  );
+});
 
 test("slow non-streaming search does not block parallel main-agent and subagent requests", async () => {
   await runRelayScript(`

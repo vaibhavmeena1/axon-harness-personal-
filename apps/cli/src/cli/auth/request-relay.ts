@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { BUILD_INFO } from "../../build-info.ts";
 import { applyPiDefaults } from "../../harnesses/pi/settings-defaults.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import type { AxonPaths } from "../../product/paths.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 import { fetchClientConfig } from "../client-config.ts";
@@ -218,14 +219,17 @@ async function forwardManagedRequest(
 
     let upstream: Response;
     try {
-      upstream = await fetch(new URL(`${url.pathname}${url.search}`, BUILD_INFO.serviceOrigin), {
-        method: request.method,
-        headers,
-        body,
-        redirect: "error",
-        cache: "no-store",
-        signal: request.signal,
-      });
+      upstream = await fetch(
+        resolveServiceUrl(BUILD_INFO.serviceOrigin, `${url.pathname}${url.search}`),
+        {
+          method: request.method,
+          headers,
+          body,
+          redirect: "error",
+          cache: "no-store",
+          signal: request.signal,
+        },
+      );
     } catch {
       return relayError(502, "Axon is temporarily unavailable. Check connectivity and retry.");
     }
@@ -374,7 +378,7 @@ export function startAuthenticatedRequestRelay(
       }
       const allowed =
         url.pathname.startsWith("/litellm/") ||
-        (url.pathname === "/api/v1/model-recommendations" && request.method === "POST");
+        (url.pathname === SERVICE_ENDPOINTS.models.recommendations && request.method === "POST");
       if (!allowed) return relayError(404, "Axon endpoint is not available");
 
       try {

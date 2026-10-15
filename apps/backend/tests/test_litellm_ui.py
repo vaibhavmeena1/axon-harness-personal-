@@ -315,12 +315,13 @@ def test_browser_rejects_traversal_before_reading_body(raw_path: bytes) -> None:
 
 
 @pytest.mark.parametrize("failure", ["not-ready", "transport"])
-def test_browser_errors_are_sanitized(failure: str) -> None:
+def test_browser_errors_are_sanitized(settings: LiteLLMSettings, failure: str) -> None:
     async def run() -> None:
         app = FastAPI()
         if failure == "transport":
             transport = AsyncMock(spec=LiteLLMTransport)
             transport.send_stream.side_effect = httpx.ConnectError("secret upstream credential")
+            transport.settings = settings
             app.state.litellm_transport = transport
         messages: list[Message] = []
 

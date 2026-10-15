@@ -47,6 +47,9 @@ describe("Pi MCP setup paths", () => {
     expect(resolvePiMcpConfigSourceUrl("https://axon.example")).toBe(
       "https://axon.example/v1/cli/pi/mcp.json",
     );
+    expect(resolvePiMcpConfigSourceUrl("https://deputydev.ai/axon")).toBe(
+      "https://deputydev.ai/axon/v1/cli/pi/mcp.json",
+    );
   });
 });
 

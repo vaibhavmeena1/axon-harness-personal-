@@ -39,3 +39,9 @@ pnpm dev
 The console is a static build with nothing to run, so it is not deployed as its own service. `apps/backend` serves `dist/` from its own origin at `/`, and its Docker image runs `pnpm build` here and embeds the output. See that app's README for the routing and caching rules.
 
 Because the API and the console share an origin in production, the app calls the API with **relative** URLs (`BASE_API_URL` is `""`) and there is no CORS. `vite dev` reproduces that: it proxies `/api` to `DEV_API_PROXY_TARGET` (the backend on port 0 by default), so the same relative URLs work in development.
+
+### Deferred: frontend deployment under a path prefix
+
+The frontend is currently a scaffold. Supporting the Docker-bundled console under `/axon/` is deferred and is not required for CLI installation, releases, or backend API traffic. Before rolling out the console there, align its compiled asset URLs, API base, and future router paths with the public mount and ingress prefix stripping. Keep production deployment free of extra build parameters, and document root (`/`) and custom-prefix hosting for open-source deployments. The Dockerfile currently uses the unchanged root-based frontend template.
+
+The scaffold also does not implement `/external-auth`; backend `AUTH_SERVICE.BROWSER_LOGIN_URL` must point to the actual deployed login application.

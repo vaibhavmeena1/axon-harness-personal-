@@ -302,7 +302,7 @@ bun run build
 
 Formatting and lint run from the repository root with `biome ci .`, which the root `bun run check` includes.
 
-Local development reads `AXON_SERVICE_ORIGIN` from the ignored `apps/cli/.env`. Copy `.env.example` in this directory when setting up a new checkout. Compiled release binaries receive a validated service origin at build time and do not autoload project environment files.
+Local development reads `AXON_SERVICE_ORIGIN` from the ignored `apps/cli/.env`. Copy `.env.example` in this directory when setting up a new checkout. Compiled release binaries receive a validated service base URL at build time and do not autoload project environment files. Despite its name, `AXON_SERVICE_ORIGIN` accepts an optional deployment path, such as `https://deputydev.ai/axon`, and preserves it for all backend requests. Use HTTPS without a trailing slash, credentials, query, or fragment; path segments must be plain URL-safe names (no encoded or dot segments).
 
 Every package this app imports must be declared in `apps/cli/package.json`. Bun uses isolated installs in the workspace, so a transitive dependency of another package is not resolvable from here.
 
@@ -311,9 +311,27 @@ Every package this app imports must be declared in `apps/cli/package.json`. Bun 
 Publishing is **manual on native Apple Silicon macOS**; Bitbucket performs checks but does not publish. The retained GitHub Actions files are not modified or needed for this release path. Releases use private S3, CloudFront signed GETs, and the backend's version configuration. Git tags can remain `cli-<semver>` for traceability, but no GitHub Release is created.
 
 1. Configure the backend's ignored `config.json` following [CLI releases](../backend/README.md#cli-releases-macos-arm64-only): HTTPS `CLI_INSTALL.RELEASES_URL`, S3 bucket and region, key prefix, a random 32+-character `UPLOAD_AUTH_KEY`, and CloudFront trusted key group, URL and RSA PEM. Provision S3/CloudFront OAC and IAM; start with `CLI_RELEASES.ENABLED=true` and `LATEST_VERSION=""` if there is no published version yet. Never commit real secrets.
-2. On a trusted macOS arm64 machine, update `apps/cli/package.json` to the desired canonical SemVer, merge and run the checks and installer tests. From `apps/cli`, set `RELEASE_VERSION` to that version, `BUILD_COMMIT` to the full tagged commit SHA, and `AXON_SERVICE_ORIGIN` to the production **HTTPS origin** (no path or trailing slash). Run `bun run release:prepare-s3`. This validates the version/commit/origin, compiles, ad-hoc signs and tests the binary, reproducibly gzips it, then writes `release/checksums.txt`, `release/VERSION`, `release/release-metadata.json`, and `release/cli-release-config.json`. The source map is copied locally; it need not be publicly distributed.
+2. On a trusted macOS arm64 machine, update `apps/cli/package.json` to the desired canonical SemVer, merge and run the checks and installer tests. From `apps/cli`, set `RELEASE_VERSION` to that version, `BUILD_COMMIT` to the full tagged commit SHA, and `AXON_SERVICE_ORIGIN` to the production **HTTPS base URL** (optional deployment path, no trailing slash), for example `https://deputydev.ai/axon`. Run `bun run release:prepare-s3`. This validates the version/commit/origin, compiles, ad-hoc signs and tests the binary, reproducibly gzips it, then writes `release/checksums.txt`, `release/VERSION`, `release/release-metadata.json`, and `release/cli-release-config.json`. The source map is copied locally; it need not be publicly distributed.
 3. Add the entry from `release/cli-release-config.json` under `CLI_RELEASES.VERSIONS` in the ignored backend `config.json` **without changing `LATEST_VERSION`**. Restart the backend; test `GET /api/v1/cli/releases/<version>/checksums.txt`. The first release may have `LATEST_VERSION=""` until it is published. Do not reuse or overwrite an existing S3 version key.
 4. Set `CLI_UPLOAD_AUTH_KEY` in the publishing shell to the same private upload secret as the backend, then run `bun run release:publish-s3`. It compares **both** backend hashes with the prepared files, asks the protected endpoint for a short-lived PUT, uploads with its mandatory checksum/immutability headers, and re-downloads the object via CloudFront to verify the archive hash. Treat the returned URL as a credential; never log it. If the upload succeeds but CDN verification fails, **do not retry the PUT** against the same immutable key. Wait for any cached 404 to expire, verify the exact-version CloudFront download and hashes manually, and promote only after that verification succeeds.
 5. Only after verification set `CLI_RELEASES.LATEST_VERSION` to the new version and restart the backend. Confirm `GET /api/v1/cli/releases/latest/VERSION`, run the public `/install.sh` path and `axon update --check` from a prior managed binary. Keep the old version's config/key for existing clients. With an enabled `LATEST_VERSION`, new installs and foreground/background updates discover the change on their next check.
 
-For example, run preparation with `RELEASE_VERSION=0.2.0 BUILD_COMMIT=$(git rev-parse HEAD) AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN bun run release:prepare-s3` and publication with `RELEASE_VERSION=0.2.0 AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN CLI_UPLOAD_AUTH_KEY=<secret> bun run release:publish-s3` (prefer a secret manager over shell history). `RELEASE_KEY_PREFIX` is optional for preparation and must match backend `KEY_PREFIX`; the default is `cli/releases/`. The production origin must also serve the separate `application/json` MCP catalog at `/v1/cli/pi/mcp.json`. The installer/updater release endpoints do not require a database.
+For example, run preparation with `RELEASE_VERSION=0.2.0 BUILD_COMMIT=$(git rev-parse HEAD) AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN bun run release:prepare-s3` and publication with `RELEASE_VERSION=0.2.0 AXON_SERVICE_ORIGIN=https://YOUR_ORIGIN CLI_UPLOAD_AUTH_KEY=<secret> bun run release:publish-s3` (prefer a secret manager over shell history). `RELEASE_KEY_PREFIX` is optional for preparation and must match backend `KEY_PREFIX`; the default is `cli/releases/`. The service base must also serve the separate `application/json` MCP catalog at `<base>/v1/cli/pi/mcp.json` (for example `/axon/v1/cli/pi/mcp.json`). The installer/updater release endpoints do not require a database.
+
+For production under `/axon`, use the same base URL for preparation and publication:
+
+```bash
+# From apps/cli, after committing the intended release source.
+export RELEASE_VERSION=0.2.0  # Must match package.json.
+export BUILD_COMMIT="$(git rev-parse HEAD)"
+export AXON_SERVICE_ORIGIN=https://deputydev.ai/axon
+export RELEASE_KEY_PREFIX=axon-prod/cli/releases/
+bun run release:prepare-s3
+
+# Stage release/cli-release-config.json in backend CLI_RELEASES.VERSIONS,
+# keep LATEST_VERSION unchanged, and restart the backend.
+# Load CLI_UPLOAD_AUTH_KEY securely into the publishing shell, then:
+bun run release:publish-s3
+```
+
+After upload/CDN verification succeeds, promote `CLI_RELEASES.LATEST_VERSION` and restart the backend. Set `CLI_INSTALL.RELEASES_URL=https://deputydev.ai/axon/api/v1/cli/releases`; the shell installer does not infer the binary's service base. Ingress must forward `/axon/*` to backend `/*`, stripping `/axon`. Auth, configuration, model/recommendation/search traffic, telemetry, backups, MCP discovery, and update/release requests all retain the public prefix; per-launch loopback relay URLs do not. See [base-path deployment](../backend/README.md#deployment-under-a-path-prefix) for backend settings and the deferred frontend follow-up.

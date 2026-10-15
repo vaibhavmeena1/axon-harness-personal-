@@ -15,7 +15,8 @@ from app.clients.auth_service import AuthenticatedUser
 from app.clients.litellm.identity import LiteLLMIdentityClient, LiteLLMIdentityError
 from app.clients.litellm.transport import LiteLLMTransport
 from app.core.config import LiteLLMSettings
-from app.proxies.litellm import LiteLLMProxy, LiteLLMRequestLoggingMiddleware
+from app.proxies.litellm import LiteLLMProxy
+from app.proxies.litellm_common import LiteLLMRequestLoggingMiddleware
 
 
 class UpstreamStream(httpx.AsyncByteStream):

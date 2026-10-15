@@ -1,6 +1,7 @@
 import { BUILD_INFO } from "../../build-info.ts";
 import { LauncherError } from "../../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../../launcher/exit-status.ts";
+import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../../product/endpoints.ts";
 import { emitProductEvent } from "../../telemetry/product-events.ts";
 
 export type SessionVerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "EXPIRED";
@@ -11,7 +12,7 @@ export async function verifyEncryptedSession(
   const startedAt = Date.now();
   try {
     const response = await fetch(
-      new URL("/api/v1/auth/verify-auth-token", BUILD_INFO.serviceOrigin),
+      resolveServiceUrl(BUILD_INFO.serviceOrigin, SERVICE_ENDPOINTS.auth.verifyToken),
       {
         method: "POST",
         headers: { Authorization: `Bearer ${encryptedSession}` },

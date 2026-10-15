@@ -4,6 +4,7 @@ export interface ServiceOriginOptions {
   readonly allowLoopbackHttp: boolean;
 }
 
+/** Validate the service base URL, including an optional deployment path such as /axon. */
 export function parseServiceOrigin(value: string, options: ServiceOriginOptions): string {
   if (value.endsWith("/")) {
     throw new Error("service origin must not have a trailing slash");
@@ -17,13 +18,26 @@ export function parseServiceOrigin(value: string, options: ServiceOriginOptions)
     throw new Error("service origin must be an absolute URL");
   }
 
-  const hasOriginOnlyPath = url.pathname === "/";
-  const hasQueryOrFragmentDelimiter = value.includes("?") || value.includes("#");
-  const hasDisallowedComponents =
-    !hasOriginOnlyPath || hasQueryOrFragmentDelimiter || url.username !== "" || url.password !== "";
+  if (value.includes("?") || value.includes("#") || url.username || url.password) {
+    throw new Error("service origin must not contain credentials, a query, or a fragment");
+  }
 
-  if (hasDisallowedComponents) {
-    throw new Error("service origin must contain only scheme, host, and optional port");
+  // Inspect the original path: URL parsing silently removes dot segments and normalizes
+  // backslashes/whitespace, which could otherwise move requests outside the deployment mount.
+  const match = /^[a-z][a-z0-9+.-]*:\/\/[^/]+(\/.*)?$/i.exec(value);
+  const path = match?.[1] ?? "";
+  if (
+    !match ||
+    /[\\\s\p{Cc}]/u.test(value) ||
+    (path !== "" &&
+      path
+        .slice(1)
+        .split("/")
+        .some(
+          (segment) => !/^[A-Za-z0-9._~-]+$/.test(segment) || segment === "." || segment === "..",
+        ))
+  ) {
+    throw new Error("service origin base path must contain safe, non-empty URL segments");
   }
 
   const isHttps = url.protocol === "https:";
@@ -34,5 +48,5 @@ export function parseServiceOrigin(value: string, options: ServiceOriginOptions)
     throw new Error("service origin must use HTTPS outside loopback development");
   }
 
-  return url.origin;
+  return `${url.origin}${path}`;
 }

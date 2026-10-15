@@ -223,20 +223,29 @@ describe("install.sh platform and prerequisites", () => {
 });
 
 describe("install.sh verified installation", () => {
-  test("downloads from one exact release and installs without sudo", async () => {
-    const fixture = await createFixture();
-    const result = await runInstaller(fixture);
-    const installedPath = join(fixture.managedHome, "bin", "axon");
-    const requests = await Bun.file(fixture.requestLog).text();
+  test.each(["", "/axon"])(
+    "downloads one exact release below %j and installs without sudo",
+    async (basePath) => {
+      const fixture = await createFixture();
+      const releasesUrl = `https://fixtures.invalid${basePath}/api/v1/cli/releases`;
+      const result = await runInstaller(fixture, {
+        _AXON_RELEASES_URL: releasesUrl,
+        MOCK_RELEASES_URL: releasesUrl,
+      });
+      const installedPath = join(fixture.managedHome, "bin", "axon");
+      const requests = await Bun.file(fixture.requestLog).text();
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(`Installed axon 0.1.0 at ${installedPath}`);
-    expect(await Bun.file(installedPath).text()).toContain("0.1.0");
-    expect(requests).toContain("/latest/VERSION");
-    expect(requests).toContain("/0.1.0/checksums.txt");
-    expect(requests).toContain("/0.1.0/axon-darwin-arm64.gz");
-    expect(requests).not.toContain("/latest/checksums.txt");
-  });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(`Installed axon 0.1.0 at ${installedPath}`);
+      expect(await Bun.file(installedPath).text()).toContain("0.1.0");
+      expect(requests.trim().split("\n")).toEqual([
+        `${releasesUrl}/latest/VERSION`,
+        `${releasesUrl}/0.1.0/checksums.txt`,
+        `${releasesUrl}/0.1.0/axon-darwin-arm64.gz`,
+      ]);
+      expect(requests).not.toContain("/latest/checksums.txt");
+    },
+  );
 
   test("fails when an exact-release download fails", async () => {
     const fixture = await createFixture();

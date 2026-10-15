@@ -1,6 +1,7 @@
 """Public installer delivery and release URL configuration."""
 
 import json
+import shlex
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,14 @@ from app.web.static import SinglePageApplication
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
-def test_install_script_is_public_and_precedes_frontend(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "releases_url",
+    [
+        "https://downloads.example.test/cli/$channel/releases",
+        "https://deputydev.ai/axon/api/v1/cli/releases",
+    ],
+)
+def test_install_script_is_public_and_precedes_frontend(tmp_path: Path, releases_url: str) -> None:
     """Match the application's registration order, including the SPA catch-all."""
     (tmp_path / "index.html").write_text("<html>console</html>", encoding="utf-8")
     app = FastAPI()
@@ -26,7 +34,6 @@ def test_install_script_is_public_and_precedes_frontend(tmp_path: Path) -> None:
         app.include_router(router)
     app.mount("/", SinglePageApplication(directory=tmp_path), name="console")
 
-    releases_url = "https://downloads.example.test/cli/$channel/releases"
     app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
         cli_install=CliInstallSettings(releases_url=releases_url)
     )
@@ -40,7 +47,7 @@ def test_install_script_is_public_and_precedes_frontend(tmp_path: Path) -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.text == INSTALLER_TEMPLATE.replace(
         DEFAULT_RELEASES_LINE,
-        f"DEFAULT_RELEASES_URL='{releases_url}'",
+        f"DEFAULT_RELEASES_URL={shlex.quote(releases_url)}",
     )
     assert response.text.startswith("#!/bin/sh")
     assert subprocess.run(["/bin/sh", "-n"], input=response.text, text=True, check=False).returncode == 0

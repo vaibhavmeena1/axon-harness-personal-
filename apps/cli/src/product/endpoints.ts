@@ -33,6 +33,10 @@ function defineEndpoint<const T extends EndpointPath>(path: T): T {
 export const SERVICE_ENDPOINTS = Object.freeze({
   auth: Object.freeze({
     browserLogin: defineEndpoint("/api/v1/auth/browser-login"),
+    verifyToken: defineEndpoint("/api/v1/auth/verify-auth-token"),
+  }),
+  models: Object.freeze({
+    recommendations: defineEndpoint("/api/v1/model-recommendations"),
   }),
   otel: Object.freeze({
     /** Authenticated OTLP/HTTP base; exporters append /v1/{signal}. */
@@ -99,9 +103,9 @@ function appendQuery(url: string, query?: EndpointQuery): string {
 }
 
 /**
- * Compose a full service URL from a validated origin and an endpoint path.
- * The origin is expected to have no trailing slash (see `parseServiceOrigin`),
- * but a stray slash is tolerated so callers never produce `//v1/...`.
+ * Append an endpoint to the validated service base URL, preserving its deployment
+ * path (e.g. https://deputydev.ai/axon). Unlike new URL("/api/...", base), this
+ * never discards the mount prefix. A stray trailing slash is tolerated.
  */
 export function resolveServiceUrl(
   serviceOrigin: string,

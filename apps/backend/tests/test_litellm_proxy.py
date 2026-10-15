@@ -65,6 +65,40 @@ def test_browser_proxy_rejects_non_boolean_opt_in(
         config.get_settings()
 
 
+UI_LIMITS = [
+    ("UI_BODY_IDLE_TIMEOUT_SECONDS", "ui_body_idle_timeout_seconds", 30),
+    ("UI_WRITE_TIMEOUT_SECONDS", "ui_write_timeout_seconds", 30),
+    ("UI_REQUEST_TIMEOUT_SECONDS", "ui_request_timeout_seconds", 360),
+    ("UI_MAX_REQUEST_BODY_BYTES", "ui_max_request_body_bytes", 33554432),
+]
+
+
+@pytest.mark.parametrize("key, attribute, default", UI_LIMITS)
+@pytest.mark.parametrize("value", [None, 7])
+def test_browser_resource_limits_default_without_config_changes(
+    configured_settings: tuple[dict[str, Any], Path], key: str, attribute: str, default: int, value: int | None
+) -> None:
+    raw, path = configured_settings
+    if value is None:
+        raw["LITELLM"].pop(key)
+    else:
+        raw["LITELLM"][key] = value
+    path.write_text(json.dumps(raw))
+    assert getattr(config.get_settings().litellm, attribute) == (default if value is None else value)
+
+
+@pytest.mark.parametrize("key, attribute, default", UI_LIMITS)
+@pytest.mark.parametrize("value", [None, False, 0, -1, "30"])
+def test_invalid_browser_resource_limits_fail_at_startup(
+    configured_settings: tuple[dict[str, Any], Path], key: str, attribute: str, default: int, value: object
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"][key] = value
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match=f"config.LITELLM.{key}"):
+        config.get_settings()
+
+
 @pytest.mark.parametrize("key", ["READ_TIMEOUT_SECONDS", "MANAGEMENT_MAX_CONNECTIONS", "DECISION_MAX_CONCURRENCY"])
 @pytest.mark.parametrize("value", [None, False, 0, -1, "120"])
 def test_invalid_stream_pool_settings_fail_at_startup(

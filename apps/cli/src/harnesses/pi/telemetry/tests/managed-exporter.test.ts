@@ -179,76 +179,81 @@ test("does not follow redirects or retry authentication errors; errors never con
   });
 });
 
-test("all three managed SDK exporters send serialized protobuf to fixed proxy paths", async () => {
-  await withHome(async (home) => {
-    const requests: Array<{
-      path: string;
-      authorization: string | null;
-      contentType: string | null;
-      body: Buffer;
-    }> = [];
-    const server = Bun.serve({
-      port: 0,
-      async fetch(request) {
-        requests.push({
-          path: new URL(request.url).pathname,
-          authorization: request.headers.get("authorization"),
-          contentType: request.headers.get("content-type"),
-          body: Buffer.from(await request.arrayBuffer()),
-        });
-        return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
-      },
-    });
-    const endpoint = `${server.url.origin}/api/v1/otel`;
-    const restore = manageEnv({
-      PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
-      PI_ORG_OTEL_MANAGED_HOME: home,
-      OTEL_EXPORTER_OTLP_ENDPOINT: "https://must-not-contact.test",
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://must-not-contact.test/traces",
-      OTEL_EXPORTER_OTLP_HEADERS: "authorization=ambient-secret",
-      PI_ORG_OTEL_DIAGNOSTICS: "false",
-    });
-    try {
-      const config = resolveConfig();
-      expect(config).toBeDefined();
-      if (!config) throw new Error("missing config");
-      const runtime = createOtelRuntime(config, await resolveIdentity());
-      const tracker = new AgentTelemetryTracker(runtime);
-      tracker.startSession({
-        sessionId: "s",
-        project: "p",
-        mode: "tui",
-        reason: "startup",
-        ephemeral: false,
-        cwd: home,
+test.each(["", "/axon"])(
+  "all three managed SDK exporters send serialized protobuf below base path %j",
+  async (basePath) => {
+    await withHome(async (home) => {
+      const requests: Array<{
+        path: string;
+        authorization: string | null;
+        contentType: string | null;
+        body: Buffer;
+      }> = [];
+      const server = Bun.serve({
+        port: 0,
+        async fetch(request) {
+          requests.push({
+            path: new URL(request.url).pathname,
+            authorization: request.headers.get("authorization"),
+            contentType: request.headers.get("content-type"),
+            body: Buffer.from(await request.arrayBuffer()),
+          });
+          return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
+        },
       });
-      tracker.startInteraction(10, 0);
-      tracker.startRun();
-      tracker.startTurn(0);
-      tracker.startLlm({ provider: "litellm", model: "test" });
-      tracker.endLlm({ stopReason: "stop", usage: { input: 1, output: 1 } });
-      tracker.endTurn("ok", { stopReason: "stop" }, 0);
-      tracker.endRun("stop");
-      tracker.endInteraction();
-      tracker.endSession("quit");
-      await runtime.shutdown();
-      expect(new Set(requests.map((request) => request.path))).toEqual(
-        new Set(["/api/v1/otel/v1/traces", "/api/v1/otel/v1/metrics", "/api/v1/otel/v1/logs"]),
-      );
-      for (const request of requests) {
-        expect(request.authorization).toBe("Bearer initial-token");
-        expect(request.contentType).toBe("application/x-protobuf");
-        expect(request.body.byteLength).toBeGreaterThan(0);
-        expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
-        expect(request.body.includes(Buffer.from("initial-token"))).toBe(false);
-        expect(request.body.includes(Buffer.from("ambient-secret"))).toBe(false);
+      const endpoint = `${server.url.origin}${basePath}/api/v1/otel`;
+      const restore = manageEnv({
+        PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
+        PI_ORG_OTEL_MANAGED_HOME: home,
+        OTEL_EXPORTER_OTLP_ENDPOINT: "https://must-not-contact.test",
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://must-not-contact.test/traces",
+        OTEL_EXPORTER_OTLP_HEADERS: "authorization=ambient-secret",
+        PI_ORG_OTEL_DIAGNOSTICS: "false",
+      });
+      try {
+        const config = resolveConfig();
+        expect(config).toBeDefined();
+        if (!config) throw new Error("missing config");
+        const runtime = createOtelRuntime(config, await resolveIdentity());
+        const tracker = new AgentTelemetryTracker(runtime);
+        tracker.startSession({
+          sessionId: "s",
+          project: "p",
+          mode: "tui",
+          reason: "startup",
+          ephemeral: false,
+          cwd: home,
+        });
+        tracker.startInteraction(10, 0);
+        tracker.startRun();
+        tracker.startTurn(0);
+        tracker.startLlm({ provider: "litellm", model: "test" });
+        tracker.endLlm({ stopReason: "stop", usage: { input: 1, output: 1 } });
+        tracker.endTurn("ok", { stopReason: "stop" }, 0);
+        tracker.endRun("stop");
+        tracker.endInteraction();
+        tracker.endSession("quit");
+        await runtime.shutdown();
+        expect(new Set(requests.map((request) => request.path))).toEqual(
+          new Set(
+            ["traces", "metrics", "logs"].map((signal) => `${basePath}/api/v1/otel/v1/${signal}`),
+          ),
+        );
+        for (const request of requests) {
+          expect(request.authorization).toBe("Bearer initial-token");
+          expect(request.contentType).toBe("application/x-protobuf");
+          expect(request.body.byteLength).toBeGreaterThan(0);
+          expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
+          expect(request.body.includes(Buffer.from("initial-token"))).toBe(false);
+          expect(request.body.includes(Buffer.from("ambient-secret"))).toBe(false);
+        }
+      } finally {
+        restore();
+        server.stop(true);
       }
-    } finally {
-      restore();
-      server.stop(true);
-    }
-  });
-});
+    });
+  },
+);
 
 test("rotation lock contention obeys batch deadline, retains CAS and never persists after cancellation", async () => {
   await withHome(async (home) => {
@@ -400,17 +405,28 @@ test("runtime shutdown is shared and aborts managed hanging bodies at its deadli
   });
 });
 
-test("invalid managed endpoint fails closed rather than using env credentials", async () => {
-  const restore = manageEnv({
-    PI_ORG_OTEL_MANAGED_ENDPOINT: "https://evil.test/other",
-    PI_ORG_OTEL_MANAGED_HOME: "/tmp/home",
-    OTEL_EXPORTER_OTLP_ENDPOINT: "https://fallback.test",
-  });
-  try {
-    const config = resolveConfig();
-    if (!config) throw new Error("missing config");
-    expect(() => createOtelRuntime(config, { userId: "managed", source: "axon_auth" })).toThrow();
-  } finally {
-    restore();
-  }
-});
+test.each([
+  "https://evil.test/other",
+  "http://backend.test/axon/api/v1/otel",
+  "https://user:password@backend.test/axon/api/v1/otel",
+  "https://backend.test/axon/api/v1/otel?collector=other",
+  "https://backend.test/axon/../api/v1/otel",
+  "https://backend.test/axon/%2e%2e/api/v1/otel",
+  "https://backend.test/axon//api/v1/otel",
+])(
+  "invalid managed endpoint %j fails closed rather than using env credentials",
+  async (endpoint) => {
+    const restore = manageEnv({
+      PI_ORG_OTEL_MANAGED_ENDPOINT: endpoint,
+      PI_ORG_OTEL_MANAGED_HOME: "/tmp/home",
+      OTEL_EXPORTER_OTLP_ENDPOINT: "https://fallback.test",
+    });
+    try {
+      const config = resolveConfig();
+      if (!config) throw new Error("missing config");
+      expect(() => createOtelRuntime(config, { userId: "managed", source: "axon_auth" })).toThrow();
+    } finally {
+      restore();
+    }
+  },
+);

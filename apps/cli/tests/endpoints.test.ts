@@ -39,6 +39,24 @@ describe("resolveServiceUrl", () => {
     );
   });
 
+  test.each(["/axon", "/services/axon"])("preserves %s for every registered endpoint", (prefix) => {
+    const base = `https://deputydev.ai${prefix}`;
+    const toUrl = createServiceUrlResolver(base);
+    for (const { path } of listServiceEndpoints()) {
+      expect(toUrl(path)).toBe(`${base}${path}`);
+      expect(resolveServiceUrl(`${base}/`, path)).toBe(`${base}${path}`);
+    }
+    expect(toUrl(SERVICE_ENDPOINTS.cli.config, { profile: "a/b" })).toBe(
+      `${base}/api/v1/cli/config?profile=a%2Fb`,
+    );
+  });
+
+  test("preserves a relay request's encoded path and ordered query string", () => {
+    expect(resolveServiceUrl("https://deputydev.ai/axon", "/litellm/v1/models/a%2Fb?x=1&x=2")).toBe(
+      "https://deputydev.ai/axon/litellm/v1/models/a%2Fb?x=1&x=2",
+    );
+  });
+
   test("appends an optional query string", () => {
     expect(
       resolveServiceUrl("https://example.test", SERVICE_ENDPOINTS.pi.mcpConfig, {

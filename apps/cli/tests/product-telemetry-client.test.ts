@@ -20,71 +20,80 @@ const policy = {
   metricExportIntervalMs: 10000,
 };
 
-test("launcher product events export authenticated protobuf to the pinned backend without mutating ambient env", async () => {
-  const home = await mkdtemp(join(tmpdir(), "axon-products-"));
-  const paths = resolveAxonPaths({ AXON_HOME: home });
-  const received: {
-    path: string;
-    auth: string | null;
-    contentType: string | null;
-    body: Buffer;
-  }[] = [];
-  const server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    async fetch(request) {
-      received.push({
-        path: new URL(request.url).pathname,
-        auth: request.headers.get("authorization"),
-        contentType: request.headers.get("content-type"),
-        body: Buffer.from(await request.arrayBuffer()),
-      });
-      return new Response(null, {
-        status: 200,
-        headers: { "content-type": "application/x-protobuf" },
-      });
-    },
-  });
-  const oldEndpoint = process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
-  try {
-    await saveEncryptedSession(paths, "product-test-session");
-    takeProductEvents();
-    emitProductEvent({
-      category: "update",
-      stage: "install",
-      outcome: "failed",
-      reason: "validation",
+test.each(["", "/axon"])(
+  "launcher product events export authenticated protobuf below base path %j without mutating ambient env",
+  async (basePath) => {
+    const home = await mkdtemp(join(tmpdir(), "axon-products-"));
+    const paths = resolveAxonPaths({ AXON_HOME: home });
+    const received: {
+      path: string;
+      auth: string | null;
+      contentType: string | null;
+      body: Buffer;
+    }[] = [];
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      async fetch(request) {
+        received.push({
+          path: new URL(request.url).pathname,
+          auth: request.headers.get("authorization"),
+          contentType: request.headers.get("content-type"),
+          body: Buffer.from(await request.arrayBuffer()),
+        });
+        return new Response(null, {
+          status: 200,
+          headers: { "content-type": "application/x-protobuf" },
+        });
+      },
     });
-    await initializeProductTelemetry(paths, policy, { serviceOrigin: server.url.origin });
-    emitProductEvent({
-      category: "restore",
-      stage: "request",
-      outcome: "success",
-      durationMs: 200,
-    });
-    await flushProductTelemetry(paths);
-    assert.deepEqual(
-      new Set(received.map((request) => request.path)),
-      new Set(["/api/v1/otel/v1/traces", "/api/v1/otel/v1/metrics", "/api/v1/otel/v1/logs"]),
-    );
-    assert.ok(
-      received.every(
-        (request) =>
-          request.auth === "Bearer product-test-session" &&
-          request.contentType === "application/x-protobuf",
-      ),
-    );
-    assert.ok(received.some((request) => request.body.includes(Buffer.from("axon.update.events"))));
-    assert.ok(
-      received.every((request) => !request.body.includes(Buffer.from("product-test-session"))),
-    );
-    assert.equal(process.env["OTEL_EXPORTER_OTLP_ENDPOINT"], oldEndpoint);
-  } finally {
-    await flushProductTelemetry(paths, true);
-    server.stop(true);
-    await rm(home, { recursive: true, force: true });
-  }
-});
+    const oldEndpoint = process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
+    try {
+      await saveEncryptedSession(paths, "product-test-session");
+      takeProductEvents();
+      emitProductEvent({
+        category: "update",
+        stage: "install",
+        outcome: "failed",
+        reason: "validation",
+      });
+      await initializeProductTelemetry(paths, policy, {
+        serviceOrigin: `${server.url.origin}${basePath}`,
+      });
+      emitProductEvent({
+        category: "restore",
+        stage: "request",
+        outcome: "success",
+        durationMs: 200,
+      });
+      await flushProductTelemetry(paths);
+      assert.deepEqual(
+        new Set(received.map((request) => request.path)),
+        new Set(
+          ["traces", "metrics", "logs"].map((signal) => `${basePath}/api/v1/otel/v1/${signal}`),
+        ),
+      );
+      assert.ok(
+        received.every(
+          (request) =>
+            request.auth === "Bearer product-test-session" &&
+            request.contentType === "application/x-protobuf",
+        ),
+      );
+      assert.ok(
+        received.some((request) => request.body.includes(Buffer.from("axon.update.events"))),
+      );
+      assert.ok(
+        received.every((request) => !request.body.includes(Buffer.from("product-test-session"))),
+      );
+      assert.equal(process.env["OTEL_EXPORTER_OTLP_ENDPOINT"], oldEndpoint);
+    } finally {
+      await flushProductTelemetry(paths, true);
+      server.stop(true);
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);
 
 test("concurrent close waits for initialization, shares shutdown and detaches the event observer", async () => {
   const home = await mkdtemp(join(tmpdir(), "axon-product-close-"));
