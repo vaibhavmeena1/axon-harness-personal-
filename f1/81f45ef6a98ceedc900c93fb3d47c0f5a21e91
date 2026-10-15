@@ -1,0 +1,116 @@
+apps/cli/tests/web-search-relay.test.ts
+  s_cd654308e5f2ba::t_a4c22c9314103e 12
+  s_cd654308e5f2ba::t_77431cf2b13708 84
+apps/cli/tests/release-base-path.test.ts
+  s_6ebfb13873b113::t_745a034a0ef6a7 45-47,50-53
+apps/cli/src/cli/auth/session.ts
+  s_cd654308e5f2ba::t_0c41668a2e007b 2,5,9,13,96-97,100
+  s_cd654308e5f2ba::t_2b4b8dde6bcaf6 19,66
+apps/cli/scripts/prepare-s3-release.ts
+  s_6ebfb13873b113::t_ff4a54b77416cd 1,66-68,75
+apps/cli/install.sh
+  s_cd654308e5f2ba::t_b861b9a014aa0b 110
+  s_cd654308e5f2ba::t_eb5cec9ba87759 121-199,305-306,313-317
+apps/cli/tests/launcher.test.ts
+  s_cd654308e5f2ba::t_a9486deb8c1279 430-433
+  s_cd654308e5f2ba::t_ff978ad2b62ac6 122-125
+apps/cli/tests/sessions-menu.test.ts
+  s_cd654308e5f2ba::t_8a3436f6a0c053 281,332,394
+  s_cd654308e5f2ba::t_ff978ad2b62ac6 311-314,350-353
+apps/backend/app/main.py
+  s_cd654308e5f2ba::t_16e52e69902a61 20
+apps/cli/tests/compiled-pi-resources.test.ts
+  s_cd654308e5f2ba::t_c313924ec15dd8 31
+apps/cli/tests/pi-telemetry-extension-integration.test.ts
+  s_cd654308e5f2ba::t_988604405082ca 93
+apps/cli/src/cli/commands/paths.ts
+  s_cd654308e5f2ba::t_2e183f87e5cd36 6-7
+apps/cli/tests/shared-auth-session.test.ts
+  s_cd654308e5f2ba::t_8b37bf72eb0fe8 1-41,49-56,65-78,86-98,102-113
+  s_cd654308e5f2ba::t_ff978ad2b62ac6 42-48,57-64,79-85,99-101
+apps/cli/src/product/identity.ts
+  s_cd654308e5f2ba::t_e11ab3f137a202 7-8
+apps/cli/README.md
+  s_cd654308e5f2ba::t_c0edd0ec652f26 7,103-105
+  s_cd654308e5f2ba::t_32cf262c8b3079 61
+  s_cd654308e5f2ba::t_7c97ce2519a392 97
+  s_b808db49a17c61::t_306e536d7f6c66 221
+  s_cd654308e5f2ba::t_85b5b666aa8fad 106
+apps/cli/package.json
+  s_cd654308e5f2ba::t_e42f2e44f52e16 3
+apps/cli/tests/session-backups.test.ts
+  s_cd654308e5f2ba::t_9f51010f7f3cd2 153
+  s_cd654308e5f2ba::t_ef0eb656c2e7c8 548
+  s_cd654308e5f2ba::t_e3d20799b6654a 621-622,656-657
+apps/cli/tests/auth-preflight.test.ts
+  s_cd654308e5f2ba::t_252312ca66e374 22,76-77,115-116,138
+apps/backend/pyproject.toml
+  s_cd654308e5f2ba::t_56cf5521a18d73 3
+apps/cli/tests/product-telemetry-client.test.ts
+  s_cd654308e5f2ba::t_65552c11c7df74 182
+  s_cd654308e5f2ba::t_ff978ad2b62ac6 84-90
+  s_cd654308e5f2ba::t_7a9d828aaa794b 51-52,101-102,122-123,139-140
+  s_cd654308e5f2ba::t_94ada1066bc1be 27,111,148
+apps/cli/tests/pi-client-config.test.ts
+  s_cd654308e5f2ba::t_4a40f2b38ca098 33,208,305
+apps/cli/src/cli/commands/uninstall.ts
+  s_cd654308e5f2ba::t_cce6803ec27af3 2,60
+apps/cli/tests/session-backup-recovery.test.ts
+  s_cd654308e5f2ba::t_bb0eae7c54a8d9 30
+  s_cd654308e5f2ba::t_02432cf8e602ee 304-305,336-337,362
+apps/cli/src/harnesses/pi/telemetry/tests/managed-exporter.test.ts
+  s_cd654308e5f2ba::t_dd85ae96c6cd29 18
+  s_cd654308e5f2ba::t_6df8e78d659cd8 17,23,269
+apps/cli/tests/request-relay.test.ts
+  s_cd654308e5f2ba::t_ded876600d96ba 67
+  s_cd654308e5f2ba::t_c5e14b4385107c 218-250
+  s_cd654308e5f2ba::t_595e7ba7e4630f 18
+apps/cli/tests/installer/install.test.ts
+  s_cd654308e5f2ba::t_75fd465f4252be 276,278-281,305-315
+  s_cd654308e5f2ba::t_baefab989d8dd4 229-275,277,282-304,316-334
+  s_cd654308e5f2ba::t_08768118cc5a23 139-142,423,428-430
+apps/cli/tests/pi-package-setup.test.ts
+  s_b808db49a17c61::t_dca3ce91885b1f 152,154
+apps/cli/src/product/paths.ts
+  s_cd654308e5f2ba::t_c46298d8548f51 36
+  s_cd654308e5f2ba::t_35643f9281f34f 8-10,40-41,50-52
+apps/cli/src/product/manifest.ts
+  s_b808db49a17c61::t_09a51c0c5542a6 114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f181f45ef6a98ceedc900c93fb3d47c0f5a21e91",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_6ebfb13873b113": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13fec-f6af-776f-8b8c-123215a5217b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_b808db49a17c61": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a14012-2411-70d1-9cad-6e8d491758c4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_cd654308e5f2ba": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a14003-7e6d-71ff-bc1c-81eda1c96c83",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
