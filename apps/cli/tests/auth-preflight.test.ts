@@ -7,7 +7,6 @@ import { ensureAxonSession, runPiSessionPreflight } from "../src/cli/auth/prefli
 import {
   loadEncryptedSession,
   refreshEncryptedSession,
-  SESSION_FILE_NAME,
   saveEncryptedSession,
 } from "../src/cli/auth/session.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
@@ -20,7 +19,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 function paths(name: string) {
-  return resolveAxonPaths({ AXON_HOME: join(root, name) });
+  return resolveAxonPaths({ AXON_HOME: join(root, name, "axon"), HOME: join(root, name) });
 }
 
 describe("first-run preflight", () => {
@@ -74,8 +73,8 @@ describe("first-run preflight", () => {
 
   test("unsafe session files fail safely instead of being overwritten", async () => {
     const home = paths("unsafe");
-    await mkdir(home.home);
-    await symlink("/does/not/exist", join(home.home, SESSION_FILE_NAME));
+    await mkdir(home.sharedAuthDirectory, { recursive: true });
+    await symlink("/does/not/exist", home.sharedAuthFile);
     await expect(
       ensureAxonSession(home, {
         interactive: true,
@@ -113,8 +112,8 @@ describe("first-run preflight", () => {
 describe("refresh persistence", () => {
   test("preserves unrelated keys, enforces 0600, and rejects stale refreshes", async () => {
     const home = paths("refresh");
-    await mkdir(home.home);
-    const file = join(home.home, SESSION_FILE_NAME);
+    await mkdir(home.sharedAuthDirectory, { recursive: true });
+    const file = home.sharedAuthFile;
     await Bun.write(file, JSON.stringify({ vscode: "retained", extension_auth_token: "original" }));
     await chmod(file, 0o644);
     expect(await refreshEncryptedSession(home, "original", "rotated")).toBe(true);
@@ -136,6 +135,7 @@ test("real dispatch fails before provisioning and keeps help/status/invalid usag
       env: {
         ...process.env,
         AXON_HOME: home.home,
+        HOME: join(root, "dispatch"),
         AXON_SERVICE_ORIGIN: "http://127.0.0.1:1",
       },
       stdin: "ignore",

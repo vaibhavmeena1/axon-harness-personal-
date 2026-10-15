@@ -4,7 +4,7 @@ This app lives at `apps/cli` inside the Axon monorepo. Workspace-wide setup is d
 
 Native Bun/TypeScript launcher for running Pi with Axon-managed configuration and resources. The command is `axon`, managed state defaults to `~/.axon`, and launcher controls use `AXON_*`.
 
-This is a clean-install rename: previous product installations are not automatically upgraded or migrated. Install Axon, update PATH and shell controls, and sign in again. Existing local sessions/settings and remote backups remain untouched; retain them until an explicit migration is reviewed. See the [rename progress and cutover checklist](../../docs/project-rename-to-loom.md).
+This is a clean-install rename: previous product installations are not automatically upgraded or migrated. Install Axon and update PATH and shell controls. Authentication reuses the shared DeputyDev token described below. Existing local sessions/settings and remote backups remain untouched; retain them until an explicit migration is reviewed. See the [rename progress and cutover checklist](../../docs/project-rename-to-loom.md).
 
 ## Current status
 
@@ -58,7 +58,7 @@ less install.sh
 sh install.sh
 ```
 
-The installer itself uses no `sudo` (Homebrew may request privileges when installing Node.js), installs to `${AXON_HOME:-$HOME/.axon}/bin/axon`, verifies compressed and decompressed SHA-256 hashes, verifies the ad-hoc code signature and exact version, preserves an existing binary as `axon.prev`, and atomically activates the replacement. Follow its printed PATH instruction, then run:
+The installer itself uses no `sudo` (Homebrew may request privileges when installing Node.js), installs to `${AXON_HOME:-$HOME/.axon}/bin/axon`, verifies compressed and decompressed SHA-256 hashes, verifies the ad-hoc code signature and exact version, preserves an existing binary as `axon.prev`, and atomically activates the replacement. It automatically adds the Axon bin directory to your shell startup configuration: `.zshrc` for Zsh (honoring `ZDOTDIR`), `.bashrc` and the selected login profile for Bash, `config.fish` for Fish (honoring `XDG_CONFIG_HOME`), and `.profile` for sh/dash/ksh. Existing configuration is preserved, and repeat installs or repeated sourcing do not duplicate PATH entries. Restart your terminal or run the printed shell-specific command to enable Axon in the current shell, then run:
 
 ```bash
 axon doctor
@@ -94,11 +94,15 @@ axon setup pi --sync-packages   # installs Pi if needed, required packages, reso
 axon uninstall [--remove-runtimes]
 ```
 
-`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It preserves Pi settings, authentication, and sessions under `${AXON_HOME}/pi`; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
+`uninstall` only mutates an installation when the running executable is the managed binary at `~/.axon/bin/axon`. It preserves Pi settings, provider authentication, and sessions under `${AXON_HOME}/pi`, as well as the shared DeputyDev authentication file; `--remove-runtimes` removes only cached runtimes. Files created by earlier releases for other harnesses are not deleted automatically.
 
 Set `AXON_DEBUG=1` for a redacted launch preview on stderr. `AXON_PI_BIN` is rejected. A different `AXON_PI_VERSION` is allowed only when running the CLI from source, not in any compiled CLI.
 
 ### First-run login and client configuration
+
+Axon and the existing DeputyDev VS Code/binary application use the **same** user-wide authentication file: `~/.deputydev/264325ba-cbd0-47d5-9269-ac4bd19067c2.json`, under the `extension_auth_token` key. Axon does not use the separate `cli_auth_token` key. `AXON_HOME` changes only Axon's managed installation/runtime data, never this authentication location. Existing `.axon` authentication files are ignored; there is no fallback or migration.
+
+Login and refresh write that shared token while preserving other JSON keys. Requests reload the live credential, and Axon's refresh writes use a shared `~/.deputydev/locks/session.lock` plus compare-and-swap checks so stale responses cannot replace an already changed credential. This coordinates Axon processes across different `AXON_HOME` values. The older DeputyDev writer does not acquire this lock, so sharing the file alone does not guarantee race-free writes between the two applications; full cross-app serialization requires DeputyDev to adopt the same locking protocol. Axon never deletes the shared credential on uninstall.
 
 Normal Pi sessions and `setup`, `doctor`, `paths`, and `harnesses` first check for a safely readable saved Axon session. If absent, interactive online invocations offer browser login before doing any command work, then resume the original command after saving the credential. Non-TTY/CI/scripted or offline Pi invocations without a session fail with guidance to run `axon auth login` while online. Help/version, auth, update, uninstall, and Pi administrative commands remain exempt. A saved session avoids repeat onboarding; API routes still validate it server-side.
 
@@ -214,7 +218,7 @@ Every non-administrative `axon pi` session also loads the embedded `pi-org-telem
 
 The telemetry extension stays inert without managed OTLP configuration. To export traces, metrics, and structured logs, configure the backend's `CLI_CLIENT_CONFIG.TELEMETRY` or provide `OTEL_EXPORTER_OTLP_ENDPOINT` (or all three per-signal endpoint variables) as a fallback in the environment used to start `axon`. A fetched policy uses only the pinned backend OTEL proxy with Axon session auth, clears inherited exporter authorization/TLS overrides, and cannot select an external destination for the session. The extension reads the session for each batch and safely persists rotations. Managed mode supports HTTP/protobuf; environment fallback supports HTTP/protobuf and gRPC with normal env headers/API keys. Export failures are passive and bounded, and `PI_ORG_OTEL_ENABLED=false` is the emergency kill switch. The extension never exports prompt/completion text, system prompts, file contents, tool results, provider payloads, authorization headers, environment values, full session paths, raw Git remotes, or stack traces. Managed mode exports backend-verified user ID/email, optional name, and user-team membership after server-side identity replacement; environment fallback exports raw effective Git email when available or an installation UUID. Both export the normalized private repository slug; collector access and retention must be restricted accordingly. See [`src/harnesses/pi/telemetry/README.md`](src/harnesses/pi/telemetry/README.md), its [data policy](src/harnesses/pi/telemetry/docs/data-policy.md), and its [schema](src/harnesses/pi/telemetry/docs/telemetry-schema.md).
 
-The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.2.0` and `@juicesharp/rpiv-ask-user-question` to `2.12.0`. Package entries support:
+The embedded manifest in `src/product/manifest.ts` declares required community packages. Pi 1.0 provides MCP support natively, so Axon no longer installs `pi-mcp-adapter`; upgrading to a CLI with this manifest removes the adapter on the next package synchronization when its ownership state and settings entry are unchanged. If it was adopted or modified, remove it manually with `axon pi remove npm:pi-mcp-adapter@2.34.0`. The manifest locks `pi-provider-litellm` to `4.2.0` and `@juicesharp/rpiv-ask-user-question` to `2.13.8`. Package entries support:
 
 - `exact`: only the declared version is accepted; a failed migration may use a verified, non-revoked last-known-good exact version
 - `minimum`: the declared version is a hard floor; newer installed versions are accepted and never downgraded

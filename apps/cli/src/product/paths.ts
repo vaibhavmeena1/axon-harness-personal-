@@ -5,6 +5,9 @@ import { PRODUCT_IDENTITY } from "./identity.ts";
 
 export interface AxonPaths {
   readonly home: string;
+  readonly sharedAuthDirectory: string;
+  readonly sharedAuthFile: string;
+  readonly sharedAuthLock: string;
   readonly bin: string;
   readonly managedBinary: string;
   readonly previousBinary: string;
@@ -30,10 +33,12 @@ export interface AxonPaths {
 
 export function resolveAxonPaths(
   environment: NodeJS.ProcessEnv = process.env,
-  userHome: string = homedir(),
+  userHome: string = environment["HOME"] || process.env["HOME"] || homedir(),
 ): AxonPaths {
   const configuredHome = environment[PRODUCT_IDENTITY.homeEnvironmentVariable]?.trim();
   const home = resolve(configuredHome || join(userHome, PRODUCT_IDENTITY.defaultHomeDirectoryName));
+  // Authentication belongs to the OS user, never to AXON_HOME or a project.
+  const sharedAuthDirectory = resolve(userHome, PRODUCT_IDENTITY.sharedAuthDirectoryName);
   const bin = join(home, "bin");
   const runtime = join(home, "runtime");
   const pi = join(home, "pi");
@@ -42,6 +47,9 @@ export function resolveAxonPaths(
 
   return Object.freeze({
     home,
+    sharedAuthDirectory,
+    sharedAuthFile: join(sharedAuthDirectory, PRODUCT_IDENTITY.sharedAuthFileName),
+    sharedAuthLock: join(sharedAuthDirectory, "locks", "session.lock"),
     bin,
     managedBinary: join(bin, PRODUCT_IDENTITY.command),
     previousBinary: join(bin, `${PRODUCT_IDENTITY.command}.prev`),

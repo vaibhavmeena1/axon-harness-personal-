@@ -136,6 +136,10 @@ async function runInstaller(
     env: {
       ...process.env,
       HOME: fixture.home,
+      AXON_HOME: "",
+      SHELL: "/bin/zsh",
+      ZDOTDIR: "",
+      XDG_CONFIG_HOME: "",
       PATH: `${fixture.mockBin}:/usr/bin:/bin:/usr/sbin:/sbin`,
       container: "",
       _AXON_RELEASES_URL: releasesUrl,
@@ -219,6 +223,112 @@ describe("install.sh platform and prerequisites", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("required tool is not available: curl");
+  });
+});
+
+describe("install.sh shell PATH configuration", () => {
+  test.each([
+    ["zsh", ".zshrc"],
+    ["bash", ".bashrc"],
+    ["fish", ".config/fish/config.fish"],
+    ["sh", ".profile"],
+    ["dash", ".profile"],
+    ["ksh", ".profile"],
+    ["", ".profile"],
+  ])("configures %s persistently without duplicate entries", async (shell, config) => {
+    const fixture = await createFixture();
+    const configPath = join(fixture.home, config);
+    await mkdir(resolve(configPath, ".."), { recursive: true });
+    await Bun.write(configPath, "# existing user configuration");
+
+    const result = await runInstaller(fixture, { SHELL: shell && `/bin/${shell}` });
+    expect(result.exitCode).toBe(0);
+    const firstConfig = await Bun.file(configPath).text();
+    expect(firstConfig).toStartWith("# existing user configuration\n");
+    expect(firstConfig).toContain(`${fixture.managedHome}/bin`);
+    expect(firstConfig).toContain(shell === "fish" ? "set -gx PATH" : "export PATH=");
+    expect((await runInstaller(fixture, { SHELL: shell && `/bin/${shell}` })).exitCode).toBe(0);
+    expect(await Bun.file(configPath).text()).toBe(firstConfig);
+  });
+
+  test.each([".bash_profile", ".bash_login", ".profile"])(
+    "updates Bash's selected login profile %s as well as bashrc",
+    async (profile) => {
+      const fixture = await createFixture();
+      await Bun.write(join(fixture.home, profile), "# login config\n");
+      expect((await runInstaller(fixture, { SHELL: "/bin/bash" })).exitCode).toBe(0);
+      expect(await Bun.file(join(fixture.home, profile)).text()).toContain("export PATH=");
+      expect(await Bun.file(join(fixture.home, ".bashrc")).text()).toContain("export PATH=");
+    },
+  );
+
+  test.each([
+    ["zsh", "ZDOTDIR", ".zshrc"],
+    ["fish", "XDG_CONFIG_HOME", "fish/config.fish"],
+  ])("honors %s configuration directory overrides", async (shell, variable, config) => {
+    const fixture = await createFixture();
+    const configHome = join(fixture.root, "custom config");
+    const result = await runInstaller(fixture, { SHELL: `/bin/${shell}`, [variable]: configHome });
+    expect(result.exitCode).toBe(0);
+    expect(await Bun.file(join(configHome, config)).text()).toContain(`${fixture.managedHome}/bin`);
+  });
+
+  test.each(["sh", "bash", "zsh", "fish"])(
+    "generated config works in %s with literal special characters and no duplicate PATH entries",
+    async (shellName) => {
+      // Only exercise shells available on the development/CI host.
+      const shell = Bun.which(shellName);
+      if (!shell) return;
+      const fixture = await createFixture();
+      const managedHome = join(fixture.root, "axon's $HOME `test` \\ \" [*] directory");
+      const result = await runInstaller(fixture, { SHELL: shell, AXON_HOME: managedHome });
+      expect(result.exitCode).toBe(0);
+      const config = shell.endsWith("fish") ? ".config/fish/config.fish"
+        : shell.endsWith("zsh") ? ".zshrc" : shell.endsWith("bash") ? ".bashrc" : ".profile";
+      const configPath = join(fixture.home, config);
+      const command = shell.endsWith("fish")
+        ? 'source "$CONFIG"; source "$CONFIG"; command -v axon; count (string match -e -- "$BIN" $PATH)'
+        : '. "$CONFIG"; . "$CONFIG"; command -v axon; printf "%s\\n" "$PATH"';
+      const subprocess = Bun.spawn([shell, "-c", command], {
+        env: { HOME: fixture.home, PATH: "/usr/bin:/bin", CONFIG: configPath, BIN: join(managedHome, "bin") },
+        stdout: "pipe", stderr: "pipe",
+      });
+      const output = await new Response(subprocess.stdout).text();
+      const stderr = await new Response(subprocess.stderr).text();
+      expect(stderr).toBe("");
+      expect(await subprocess.exited).toBe(0);
+      expect(output.split("\n")[0]).toBe(join(managedHome, "bin", "axon"));
+      if (shell.endsWith("fish")) expect(output.split("\n")[1]).toBe("1");
+      else expect(output.split("\n")[1]?.split(":").filter((entry) => entry === join(managedHome, "bin"))).toHaveLength(1);
+    },
+  );
+
+  test("persists PATH even when the current session already includes the managed bin", async () => {
+    const fixture = await createFixture();
+    const result = await runInstaller(fixture, {
+      PATH: `${fixture.managedHome}/bin:${fixture.mockBin}:/usr/bin:/bin:/usr/sbin:/sbin`,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(await Bun.file(join(fixture.home, ".zshrc")).text()).toContain("export PATH=");
+    expect(result.stdout).toContain("Next, run: axon doctor");
+    expect(result.stdout).not.toContain("Restart your terminal");
+  });
+
+  test("warns without writing incompatible config for an unknown shell", async () => {
+    const fixture = await createFixture();
+    const result = await runInstaller(fixture, { SHELL: "/bin/nu" });
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("automatic PATH configuration is not supported for nu");
+    expect(await Bun.file(join(fixture.home, ".profile")).exists()).toBe(false);
+  });
+
+  test("does not fail installation if shell configuration cannot be written", async () => {
+    const fixture = await createFixture();
+    await mkdir(join(fixture.home, ".zshrc"));
+    const result = await runInstaller(fixture);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("could not update");
+    expect(result.stdout).toContain("export PATH=");
   });
 });
 
@@ -310,13 +420,14 @@ describe("install.sh verified installation", () => {
     expect(await Bun.file(join(fixture.managedHome, "bin", "axon")).exists()).toBe(false);
   });
 
-  test("prints an exact PATH instruction when the managed bin is absent", async () => {
+  test("persists PATH and prints a current-shell instruction when the managed bin is absent", async () => {
     const fixture = await createFixture();
     const result = await runInstaller(fixture);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain(`${fixture.managedHome}/bin is not on PATH`);
-    expect(result.stdout).toContain(`export PATH="${fixture.managedHome}/bin:$PATH"`);
+    expect(result.stdout).toContain(`Configured Axon PATH in ${fixture.home}/.zshrc`);
+    expect(result.stdout).toContain(`export PATH='${fixture.managedHome}/bin':"$PATH"`);
+    expect(result.stdout).toContain("Restart your terminal");
     expect(result.stdout).toContain("After updating PATH, run: axon doctor");
   });
 });

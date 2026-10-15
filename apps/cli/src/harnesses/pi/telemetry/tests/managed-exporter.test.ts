@@ -14,10 +14,13 @@ import { AgentTelemetryTracker } from "../src/tracker.ts";
 
 async function withHome(operation: (home: string) => Promise<void>): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "axon-managed-otel-"));
+  const restoreHome = manageEnv({ HOME: home });
+  expect(resolveAxonPaths({ AXON_HOME: home }).sharedAuthDirectory).toBe(join(home, ".deputydev"));
   try {
     await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "initial-token");
     await operation(home);
   } finally {
+    restoreHome();
     await rm(home, { recursive: true, force: true });
   }
 }
@@ -263,7 +266,7 @@ test("rotation lock contention obeys batch deadline, retains CAS and never persi
     const ready = new Promise<void>((resolve) => {
       acquired = resolve;
     });
-    const lock = withFileLock(join(paths.locks, "session.lock"), async () => {
+    const lock = withFileLock(paths.sharedAuthLock, async () => {
       acquired();
       await new Promise<void>((resolve) => {
         release = resolve;

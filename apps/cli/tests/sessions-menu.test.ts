@@ -278,6 +278,7 @@ async function cli(args: string[]) {
       env: {
         ...process.env,
         AXON_HOME: join(directory, "home"),
+        HOME: directory,
         AXON_SERVICE_ORIGIN: "http://127.0.0.1:1",
       },
       stdin: "ignore",
@@ -307,7 +308,10 @@ test("bare sessions rejects a non-TTY before login or filesystem work, while hel
 });
 
 test("bare sessions is wired to the guided menu in an interactive terminal", async () => {
-  await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: directory }), "synthetic-token");
+  await saveEncryptedSession(
+    resolveAxonPaths({ AXON_HOME: directory, HOME: directory }),
+    "synthetic-token",
+  );
   const script = `
     import { mock } from "bun:test";
     const clack = await import("@clack/prompts");
@@ -325,7 +329,7 @@ test("bare sessions is wired to the guided menu in an interactive terminal", asy
   `;
   const child = Bun.spawn([process.execPath, "--no-env-file", "--eval", script], {
     cwd: join(import.meta.dir, ".."),
-    env: { ...process.env, AXON_HOME: directory, CI: "false" },
+    env: { ...process.env, AXON_HOME: directory, HOME: directory, CI: "false" },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -343,7 +347,10 @@ test("bare sessions is wired to the guided menu in an interactive terminal", asy
 test.each([false, true])(
   "guided deletion uses the real owned-session API and respects confirmation: %s",
   async (accepted) => {
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: directory }), "synthetic-token");
+    await saveEncryptedSession(
+      resolveAxonPaths({ AXON_HOME: directory, HOME: directory }),
+      "synthetic-token",
+    );
     const requests: string[] = [];
     const server = Bun.serve({
       hostname: "127.0.0.1",
@@ -384,6 +391,7 @@ test.each([false, true])(
         env: {
           ...process.env,
           AXON_HOME: directory,
+          HOME: directory,
           AXON_SERVICE_ORIGIN: server.url.origin,
           CI: "false",
         },

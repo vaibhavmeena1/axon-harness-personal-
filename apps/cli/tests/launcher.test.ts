@@ -108,7 +108,6 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     [join(fixtureDirectory, "dev home"), DEVELOPMENT_VERSION],
   ]) {
     if (home === undefined || version === undefined) throw new Error("invalid Pi test fixture");
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "fixture-session");
     const directory = join(home, "pi-runtime", version, "node_modules");
     const packageDirectory = join(directory, PI_PACKAGE_NAME);
     const binaryDirectory = join(directory, ".bin");
@@ -120,7 +119,10 @@ process.exit(Number(process.env.FAKE_EXIT_CODE ?? "0"));
     );
     await Bun.write(join(binaryDirectory, "pi"), Bun.file(fakeHarnessPath));
     await chmod(join(binaryDirectory, "pi"), 0o755);
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "launcher-fixture-session");
+    await saveEncryptedSession(
+      resolveAxonPaths({ AXON_HOME: home, HOME: fixtureDirectory }),
+      "launcher-fixture-session",
+    );
   }
 });
 
@@ -425,7 +427,10 @@ describe("launcher dispatch", () => {
     expect(output).toContain(`version ${PI_INSTALL_VERSION} (pinned)`);
 
     const absentHome = join(fixtureDirectory, "doctor missing home");
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: absentHome }), "fixture-session");
+    await saveEncryptedSession(
+      resolveAxonPaths({ AXON_HOME: absentHome, HOME: fixtureDirectory }),
+      "launcher-fixture-session",
+    );
     const absent = runLauncher(["doctor", "pi"], { AXON_HOME: absentHome });
     const [missingOutput, missingStatus] = await Promise.all([
       new Response(absent.stdout).text(),

@@ -15,7 +15,7 @@ async function runRelayScript(
   serviceBasePath = "",
 ): Promise<void> {
   const home = await mkdtemp(join(tmpdir(), "axon-request-relay-"));
-  await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home }), "initial-session");
+  await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home, HOME: home }), "initial-session");
   const childScript = `
     import assert from "node:assert/strict";
     import { mock } from "bun:test";
@@ -64,6 +64,7 @@ async function runRelayScript(
     env: {
       ...process.env,
       AXON_HOME: home,
+      HOME: home,
       AXON_SERVICE_ORIGIN: `http://127.0.0.1:1${serviceBasePath}`,
     },
     stdout: "pipe",
@@ -211,6 +212,39 @@ test("slow non-streaming search does not block parallel main-agent and subagent 
       ]);
       assert.equal(calls.length, 3);
     } finally { releaseSearch.resolve(); await search; }
+  `);
+});
+
+test("relay uses the live DeputyDev extension token and persists refresh to the same shared file", async () => {
+  await runRelayScript(`
+    const { join } = await import("node:path");
+    assert.equal(paths.sharedAuthFile, join(process.env.HOME, ".deputydev", "264325ba-cbd0-47d5-9269-ac4bd19067c2.json"));
+    await Bun.write(paths.sharedAuthFile, JSON.stringify({
+      extension_auth_token: "deputydev-rotation",
+      cli_auth_token: "unrelated-cli-token",
+    }));
+    upstream = async (request) => {
+      assert.equal(request.headers.get("authorization"), "Bearer deputydev-rotation");
+      return Response.json({ ok: true }, { headers: { "x-session-refresh-token": "axon-rotation" } });
+    };
+    assert.equal((await send("/litellm/v1/chat/completions")).status, 200);
+    assert.deepEqual(await Bun.file(paths.sharedAuthFile).json(), {
+      extension_auth_token: "axon-rotation",
+      cli_auth_token: "unrelated-cli-token",
+    });
+    // An external refresh during a request wins over the old response.
+    upstream = async (request) => {
+      assert.equal(request.headers.get("authorization"), "Bearer axon-rotation");
+      await Bun.write(paths.sharedAuthFile, JSON.stringify({ extension_auth_token: "new-deputydev-rotation" }));
+      return Response.json({ ok: true }, { headers: { "x-session-refresh-token": "stale-axon-rotation" } });
+    };
+    await send("/litellm/v1/chat/completions");
+    assert.equal(await sessions.loadEncryptedSession(paths), "new-deputydev-rotation");
+    upstream = async (request) => {
+      assert.equal(request.headers.get("authorization"), "Bearer new-deputydev-rotation");
+      return Response.json({ ok: true });
+    };
+    assert.equal((await send("/litellm/v1/chat/completions")).status, 200);
   `);
 });
 

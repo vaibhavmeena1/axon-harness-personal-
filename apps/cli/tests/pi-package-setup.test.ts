@@ -149,9 +149,9 @@ describe("Pi package manifest", () => {
     ).toEqual([
       {
         id: "rpiv-ask-user-question",
-        installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.12.0",
+        installTarget: "npm:@juicesharp/rpiv-ask-user-question@2.13.8",
         updateOwner: "axon",
-        versionPolicy: { kind: "exact", version: "2.12.0" },
+        versionPolicy: { kind: "exact", version: "2.13.8" },
       },
       {
         id: "pi-provider-litellm",
