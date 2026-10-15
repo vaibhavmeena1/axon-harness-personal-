@@ -1,0 +1,22 @@
+apps/cli/tests/session-backups.test.ts
+  s_07e18ac07e6d69::t_477042d9b3534c 27,555-556,572-574,580
+  s_07e18ac07e6d69::t_59ea2e3aa9599b 575-579
+apps/cli/README.md
+  s_07e18ac07e6d69::t_3405ed91f2e2eb 329-330
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "595d55acbc38a223f70b5f0cdb94318cefcb8ebd",
+  "prompts": {},
+  "sessions": {
+    "s_07e18ac07e6d69": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a13f42-dc56-7188-94ea-367a41784906",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
