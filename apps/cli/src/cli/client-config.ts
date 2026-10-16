@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BUILD_INFO } from "../build-info.ts";
-import { isSingleCommandPrefix } from "../harnesses/pi/resources/extensions/terminal-permissions.ts";
+import { isSingleCommandPrefix } from "../harnesses/pi/terminal-permissions/command-parser.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { emitProductEvent } from "../telemetry/product-events.ts";
 

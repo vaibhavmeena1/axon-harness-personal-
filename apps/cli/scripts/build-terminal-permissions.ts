@@ -1,8 +1,8 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-// The launcher imports the TypeScript module's command-prefix validator as code.
-// Embed a distinct bundle so Bun never resolves that same path as a file asset.
+// The launcher imports only the lightweight command parser. Bundle the runtime
+// guard and inspection profiles separately; Pi provides its native tool factories.
 const output = "src/harnesses/pi/resources/extensions/terminal-permissions.mjs";
 const temporary = join(
   "node_modules",
