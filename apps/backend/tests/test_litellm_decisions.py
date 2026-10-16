@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -16,12 +17,14 @@ from app.clients.litellm.decisions import LiteLLMDecisionClient, LiteLLMDecision
 from app.clients.litellm.dependencies import get_litellm_decision_client
 from app.clients.litellm.identity import LiteLLMIdentityClient
 from app.clients.litellm.transport import LiteLLMTransport
-from app.core.config import LiteLLMSettings
+from app.core.config import LiteLLMSettings, ModelRecommenderSettings, get_settings
 from app.routers.model_recommendations import router
 from app.services.model_recommendation.catalog import get_model_catalog, model_policy_version
 from app.services.model_recommendation.jev import build_jev_request, parse_jev_assessment
 from app.services.model_recommendation.schemas import AvailableModel, ModelRecommendationRequest
 from tests.test_litellm_identity import IdentityAPI
+
+TEST_CLASSIFIER_MODEL = "typesafe/jev-1.14"
 
 
 @pytest.fixture
@@ -42,7 +45,7 @@ def settings() -> LiteLLMSettings:
 
 def assessment_response() -> dict[str, Any]:
     return {
-        "model": "typesafe/jev-1.13",
+        "model": TEST_CLASSIFIER_MODEL,
         "answers": {
             "complexity": {"score": 3, "confidence": 1, "probabilities": {"0": 0, "1": 0, "2": 0, "3": 1}},
             "needs_deep_reasoning": {"noul": 0.98},
@@ -66,7 +69,7 @@ def recommendation_request() -> ModelRecommendationRequest:
 
 def test_decisions_use_systemone_with_existing_payload_and_buffered_pool(settings: LiteLLMSettings) -> None:
     seen: list[httpx.Request] = []
-    payload = build_jev_request("private task content")
+    payload = build_jev_request("private task content", model=TEST_CLASSIFIER_MODEL)
 
     def upstream(request: httpx.Request) -> httpx.Response:
         seen.append(request)
@@ -106,7 +109,7 @@ def test_decisions_reject_missing_or_admin_key_before_io(settings: LiteLLMSettin
         try:
             with pytest.raises(LiteLLMDecisionError, match="caller-specific"):
                 await LiteLLMDecisionClient(settings, transport).create_decision(
-                    build_jev_request("private task"), api_key=api_key
+                    build_jev_request("private task", model=TEST_CLASSIFIER_MODEL), api_key=api_key
                 )
         finally:
             await transport.aclose()
@@ -130,7 +133,7 @@ def test_unsuccessful_decisions_do_not_follow_redirects_or_expose_content(
         try:
             with pytest.raises(LiteLLMDecisionError, match=f"HTTP {status}") as error:
                 await LiteLLMDecisionClient(settings, transport).create_decision(
-                    build_jev_request("private task"), api_key="caller-virtual-key"
+                    build_jev_request("private task", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
                 )
             assert "private task" not in str(error.value)
             assert "backend-only-key" not in str(error.value)
@@ -150,7 +153,7 @@ def test_malformed_decisions_are_rejected(settings: LiteLLMSettings, body: bytes
         try:
             with pytest.raises(LiteLLMDecisionError) as error:
                 await LiteLLMDecisionClient(settings, transport).create_decision(
-                    build_jev_request("private task"), api_key="caller-virtual-key"
+                    build_jev_request("private task", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
                 )
             assert "private task" not in str(error.value)
         finally:
@@ -170,7 +173,7 @@ def test_decision_transport_errors_are_sanitized(settings: LiteLLMSettings, erro
         try:
             with pytest.raises(LiteLLMDecisionError, match="request failed") as error:
                 await LiteLLMDecisionClient(settings, transport).create_decision(
-                    build_jev_request("private task"), api_key="caller-virtual-key"
+                    build_jev_request("private task", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
                 )
             assert "private task" not in str(error.value)
             assert error.value.__suppress_context__
@@ -192,7 +195,7 @@ def test_denied_decisions_log_the_route_without_content(
         try:
             with pytest.raises(LiteLLMDecisionError):
                 await LiteLLMDecisionClient(settings, transport).create_decision(
-                    build_jev_request("private task"), api_key="caller-virtual-key"
+                    build_jev_request("private task", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
                 )
         finally:
             await transport.aclose()
@@ -225,16 +228,22 @@ def test_decisions_beyond_capacity_fail_fast_and_release_slots(settings: LiteLLM
         decisions = LiteLLMDecisionClient(limited, transport)
         try:
             first = asyncio.create_task(
-                decisions.create_decision(build_jev_request("first"), api_key="caller-virtual-key")
+                decisions.create_decision(
+                    build_jev_request("first", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
+                )
             )
             await started.wait()
             with pytest.raises(LiteLLMDecisionError, match="capacity is exhausted"):
-                await decisions.create_decision(build_jev_request("second"), api_key="caller-virtual-key")
+                await decisions.create_decision(
+                    build_jev_request("second", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
+                )
             release.set()
             assert await first == assessment_response()
             # The slot is released after completion, including for later callers.
             assert (
-                await decisions.create_decision(build_jev_request("third"), api_key="caller-virtual-key")
+                await decisions.create_decision(
+                    build_jev_request("third", model=TEST_CLASSIFIER_MODEL), api_key="caller-virtual-key"
+                )
                 == assessment_response()
             )
         finally:
@@ -298,10 +307,14 @@ async def call_recommender(
     authenticated: bool = True,
     auth_data: AuthData | None = None,
     management: Callable[[httpx.Request], httpx.Response] | None = None,
+    classifier_model: str = TEST_CLASSIFIER_MODEL,
 ) -> httpx.Response:
     app = FastAPI()
     app.include_router(router)
     app.add_middleware(SessionRefreshResponseMiddleware)
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
+        model_recommender=ModelRecommenderSettings(classifier_model=classifier_model)
+    )
     if authenticated:
 
         async def authenticate(request: Request) -> AuthData:
@@ -337,8 +350,9 @@ async def call_recommender(
 
 
 @pytest.mark.parametrize("identity_sync_enabled", [True, False])
+@pytest.mark.parametrize("classifier_model", [TEST_CLASSIFIER_MODEL, "custom/classifier-alias"])
 def test_recommender_route_uses_litellm_and_preserves_response_contract(
-    settings: LiteLLMSettings, identity_sync_enabled: bool
+    settings: LiteLLMSettings, identity_sync_enabled: bool, classifier_model: str
 ) -> None:
     settings = replace(settings, identity_sync_enabled=identity_sync_enabled)
     seen: list[httpx.Request] = []
@@ -350,20 +364,26 @@ def test_recommender_route_uses_litellm_and_preserves_response_contract(
     request = recommendation_request()
     management = IdentityAPI()
     response = asyncio.run(
-        call_recommender(settings, upstream, request.model_dump(mode="json", by_alias=True), management=management)
+        call_recommender(
+            settings,
+            upstream,
+            request.model_dump(mode="json", by_alias=True),
+            management=management,
+            classifier_model=classifier_model,
+        )
     )
     assert response.status_code == 200
     result = response.json()
     assert result["requestId"] == str(request.request_id)
     assert result["policyVersion"] == model_policy_version()
     assert result["assessment"]["complexity"] == 3
-    assert result["recommendations"][0]["id"] == "openai/gpt-5.6-sol"
+    assert result["recommendations"][0]["id"] == "openai/gpt-6.1-sol"
     assert response.headers["x-session-refresh-token"] == "trusted-refresh"
     assert response.headers["cache-control"] == "no-store"
     assert "backend-only-key" not in response.text
     assert "private task content" not in response.text
     assert len(seen) == 1
-    assert json.loads(seen[0].content) == build_jev_request(request.prompt)
+    assert json.loads(seen[0].content) == build_jev_request(request.prompt, model=classifier_model)
     generated = management.posted("/key/generate")[0]
     assert generated["user_id"] != "12"
     assert management.users[generated["user_id"]]["user_email"] == "dev12@example.com"

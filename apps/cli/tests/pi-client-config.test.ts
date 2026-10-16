@@ -15,7 +15,19 @@ let root: string;
 let server: ReturnType<typeof Bun.serve>;
 let requests: string[] = [];
 let authorization: string | null;
-let mode: "valid" | "failed" | "switched" = "valid";
+let mode: "valid" | "failed" | "switched" | "unreadable" | "writeFailed" = "valid";
+let launchPreferences: Record<string, unknown> = {
+  compaction: {
+    enabled: true,
+    model: "litellm/team/summary",
+    thresholdTokens: 80000,
+    maxOutputTokens: 8192,
+    timeoutMs: 120000,
+  },
+  modelRecommender: { enabled: true, timeoutMs: 15000, autoSelectMs: 10000 },
+  litellmClient: { defaultContextWindow: 128000 },
+};
+let productBodies: Buffer[] = [];
 let codemodeEnabled: boolean | undefined = true;
 let litellmMcpEnabled = true;
 const projectRoot = resolve(import.meta.dir, "..");
@@ -57,12 +69,15 @@ beforeAll(async () => {
         authorization = request.headers.get("authorization");
         if (mode === "failed") return new Response("unavailable", { status: 503 });
         if (mode === "switched") await saveEncryptedSession(paths, "different-account-token");
+        if (mode === "unreadable") await Bun.write(paths.sharedAuthFile, "{invalid");
+        if (mode === "writeFailed") await Bun.write(join(paths.pi, "settings.json"), "{invalid");
         return Response.json(
           {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined
               ? {}
               : { pi: { codemodeEnabled, litellmMcpEnabled } }),
+            ...launchPreferences,
             terminalPermissions: terminalPolicy,
             webSearch: {
               enabled: true,
@@ -90,6 +105,10 @@ beforeAll(async () => {
           },
         );
       }
+      if (path.startsWith("/api/v1/otel/")) {
+        productBodies.push(Buffer.from(await request.arrayBuffer()));
+        return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
+      }
       return Response.json({ mcpServers: {} });
     },
   });
@@ -110,6 +129,8 @@ async function launchSpec(
     discoveryDisabled?: boolean;
     piOfflineEnvironment?: string;
     userArguments?: readonly string[];
+    environment?: NodeJS.ProcessEnv;
+    lifecycle?: boolean;
   } = {},
 ) {
   const script = [
@@ -123,6 +144,11 @@ async function launchSpec(
       (options.interactive !== false) +
       " });",
     'const context = { cwd: process.env.HOME, environment: process.env, paths: resolveAxonPaths(), registration: resolveHarnessRegistration("pi"), executable: "/unused" };',
+    'import { flushProductTelemetry } from "./src/telemetry/client.ts";',
+    'import { emitProductEvent } from "./src/telemetry/product-events.ts";',
+    ...(options.lifecycle
+      ? ['emitProductEvent({ category: "startup", stage: "prepare", outcome: "success" });']
+      : []),
     "const adapter = createPiAdapter();",
     "const args = " +
       JSON.stringify(
@@ -133,6 +159,12 @@ async function launchSpec(
     "await adapter.prepare(context, args);",
     "const spec = await adapter.buildLaunchSpec(context, args);",
     "console.log(JSON.stringify({ environment: spec.environment, arguments: spec.arguments }));",
+    ...(options.lifecycle
+      ? [
+          'emitProductEvent({ category: "startup", stage: "spawn", outcome: "success" });',
+          "await flushProductTelemetry(context.paths, spec.offline);",
+        ]
+      : []),
     "spec.dispose?.();",
   ].join("\n");
   const child = Bun.spawn([process.execPath, "--no-env-file", "--eval", script], {
@@ -148,10 +180,21 @@ async function launchSpec(
       OTEL_EXPORTER_OTLP_HEADERS: "authorization=env-secret",
       PI_ORG_OTEL_ENABLED: options.disabled ? "false" : "true",
       PI_WEB_SEARCH_ENABLED: options.searchDisabled ? "false" : "true",
+      PI_WEB_SEARCH_MODEL: "local-search",
       PI_TERMINAL_MANAGED_CONFIG: "inherited-marker",
       PI_OFFLINE: options.piOfflineEnvironment,
       LITELLM_OFFLINE: options.providerOffline ? "1" : undefined,
       LITELLM_DISCOVERY_TIMEOUT_MS: options.discoveryDisabled ? "0" : undefined,
+      PI_COMPACTION_ENABLED: "false",
+      PI_COMPACTION_MODEL: "litellm/local",
+      PI_COMPACTION_THRESHOLD_TOKENS: "100000",
+      PI_COMPACTION_MAX_OUTPUT_TOKENS: "1",
+      PI_COMPACTION_TIMEOUT_MS: "1",
+      PI_MODEL_RECOMMENDER_DISABLED: "true",
+      PI_MODEL_RECOMMENDER_TIMEOUT_MS: "1",
+      PI_MODEL_RECOMMENDER_AUTO_SELECT_MS: "1",
+      LITELLM_DEFAULT_CONTEXT_WINDOW: "9999",
+      ...options.environment,
     },
     stdin: "ignore",
     stdout: "pipe",
@@ -249,10 +292,11 @@ describe("real Pi adapter client config integration", () => {
       expect(environment["PI_AXON_CONFIG_REFRESH_ENABLED"]).toBe(
         options.admin ? undefined : options.offline ? "false" : "true",
       );
-      if (options.offline || options.disabled)
-        expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("false");
-      if (options.offline || options.searchDisabled)
-        expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe("false");
+      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe(options.offline ? "false" : "true");
+      expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe(options.offline ? "false" : "true");
+      expect(environment["PI_COMPACTION_MODEL"]).toBe(
+        options.offline || options.admin ? "litellm/local" : "litellm/team/summary",
+      );
     }
   });
 
@@ -302,6 +346,11 @@ describe("real Pi adapter client config integration", () => {
       const environment = await launchSpec();
       expect(await Bun.file(settingsPath).text()).toBe(settings);
       expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
+      expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBeUndefined();
+      expect(environment["PI_WEB_SEARCH_MODEL"]).toBe("local-search");
+      expect(environment["PI_COMPACTION_MODEL"]).toBe("litellm/local");
+      expect(environment["PI_MODEL_RECOMMENDER_DISABLED"]).toBe("true");
+      expect(environment["LITELLM_DEFAULT_CONTEXT_WINDOW"]).toBe("9999");
       expect(await loadEncryptedSession(resolveAxonPaths({ AXON_HOME: root, HOME: root }))).toBe(
         "different-account-token",
       );
@@ -357,6 +406,157 @@ describe("real Pi adapter client config integration", () => {
         expect(await Bun.file(cachePath).text()).toBe(content);
       }
     } finally {
+      await rm(cachePath, { force: true });
+    }
+  });
+
+  test("all new sections share the startup fetch and are never persisted; removal restores local fallback", async () => {
+    const original = launchPreferences;
+    const settingsPath = join(root, "pi", "settings.json");
+    try {
+      requests = [];
+      const environment = await launchSpec({ interactive: false });
+      expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
+      expect(environment).toMatchObject({
+        PI_COMPACTION_ENABLED: "true",
+        PI_COMPACTION_MODEL: "litellm/team/summary",
+        PI_COMPACTION_THRESHOLD_TOKENS: "80000",
+        PI_COMPACTION_MAX_OUTPUT_TOKENS: "8192",
+        PI_COMPACTION_TIMEOUT_MS: "120000",
+        PI_MODEL_RECOMMENDER_DISABLED: "false",
+        PI_MODEL_RECOMMENDER_TIMEOUT_MS: "15000",
+        PI_MODEL_RECOMMENDER_AUTO_SELECT_MS: "10000",
+        LITELLM_DEFAULT_CONTEXT_WINDOW: "128000",
+      });
+      const settings = await Bun.file(settingsPath).text();
+      expect(settings).not.toContain("summary");
+      expect(settings).not.toContain("128000");
+      expect(settings).not.toContain("PI_COMPACTION");
+      launchPreferences = {
+        compaction: { enabled: false, model: null },
+        modelRecommender: { enabled: false },
+        litellmClient: {},
+      };
+      const partial = await launchSpec();
+      expect(partial).toMatchObject({
+        PI_COMPACTION_ENABLED: "false",
+        PI_COMPACTION_MODEL: "litellm/local",
+        PI_COMPACTION_THRESHOLD_TOKENS: "100000",
+        PI_MODEL_RECOMMENDER_DISABLED: "true",
+        PI_MODEL_RECOMMENDER_AUTO_SELECT_MS: "1",
+        LITELLM_DEFAULT_CONTEXT_WINDOW: "9999",
+      });
+      launchPreferences = {};
+      const removed = await launchSpec();
+      expect(removed["PI_COMPACTION_MODEL"]).toBe("litellm/local");
+      expect(removed["LITELLM_DEFAULT_CONTEXT_WINDOW"]).toBe("9999");
+      expect(await Bun.file(settingsPath).text()).toBe(settings);
+    } finally {
+      launchPreferences = original;
+    }
+  });
+
+  test("managed telemetry retains buffered startup events and flushes despite parent false/samplers", async () => {
+    requests = [];
+    productBodies = [];
+    const environment = await launchSpec({
+      disabled: true,
+      searchDisabled: true,
+      lifecycle: true,
+      environment: {
+        OTEL_TRACES_SAMPLER: "always_off",
+        OTEL_TRACES_SAMPLER_ARG: "0",
+        PI_WEB_SEARCH_MAX_SOURCES: "1",
+      },
+    });
+    expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("true");
+    expect(environment["PI_WEB_SEARCH_ENABLED"]).toBe("true");
+    expect(environment["PI_WEB_SEARCH_MAX_SOURCES"]).toBe("20");
+    expect(requests.filter((path) => path === "/api/v1/cli/config")).toHaveLength(1);
+    expect(productBodies.some((body) => body.includes(Buffer.from("prepare")))).toBe(true);
+    expect(productBodies.some((body) => body.includes(Buffer.from("spawn")))).toBe(true);
+  });
+
+  test("verification read failure discards every fetched preference", async () => {
+    const paths = resolveAxonPaths({ AXON_HOME: root, HOME: root });
+    mode = "unreadable";
+    try {
+      const environment = await launchSpec({ lifecycle: true });
+      expect(environment["PI_COMPACTION_MODEL"]).toBe("litellm/local");
+      expect(environment["PI_MODEL_RECOMMENDER_DISABLED"]).toBe("true");
+      expect(environment["LITELLM_DEFAULT_CONTEXT_WINDOW"]).toBe("9999");
+      expect(environment["PI_ORG_OTEL_MANAGED_ENDPOINT"]).toBeUndefined();
+      expect(environment["PI_WEB_SEARCH_MODEL"]).toBe("local-search");
+      expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
+    } finally {
+      mode = "valid";
+      await saveEncryptedSession(paths, "restored-token");
+    }
+  });
+
+  test("optional Pi-defaults-write failure does not erase accepted environment preferences", async () => {
+    const settingsPath = join(root, "pi", "settings.json");
+    const settings = await Bun.file(settingsPath).text();
+    mode = "writeFailed";
+    try {
+      const environment = await launchSpec();
+      expect(environment["PI_COMPACTION_MODEL"]).toBe("litellm/team/summary");
+      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("true");
+      expect(environment["PI_MODEL_RECOMMENDER_DISABLED"]).toBe("false");
+      expect(await Bun.file(settingsPath).text()).toBe("{invalid");
+    } finally {
+      mode = "valid";
+      await Bun.write(settingsPath, settings);
+    }
+  });
+
+  test("a malformed optional section is rejected alone, not partially applied", async () => {
+    const original = launchPreferences;
+    try {
+      launchPreferences = { ...original, compaction: { enabled: true, timeoutMs: "invalid" } };
+      const environment = await launchSpec({ disabled: true });
+      expect(environment["PI_COMPACTION_ENABLED"]).toBe("false");
+      expect(environment["PI_COMPACTION_MODEL"]).toBe("litellm/local");
+      expect(environment["PI_MODEL_RECOMMENDER_DISABLED"]).toBe("false");
+      expect(environment["PI_ORG_OTEL_ENABLED"]).toBe("true");
+    } finally {
+      launchPreferences = original;
+    }
+  });
+
+  test("discovery cleanup uses final backend timeout in both conflict directions", async () => {
+    const original = launchPreferences;
+    const cachePath = join(root, "pi", "models-store.json");
+    const content = JSON.stringify({
+      litellm: {
+        models: [{ id: "old", provider: "litellm", baseUrl: "http://127.0.0.1:54320/litellm/v1" }],
+      },
+    });
+    try {
+      for (const [local, remote] of [
+        ["0", 5000],
+        ["5000", 0],
+      ] as const) {
+        launchPreferences = { ...original, litellmClient: { discoveryTimeoutMs: remote } };
+        await Bun.write(cachePath, content);
+        const environment = await launchSpec({
+          environment: { LITELLM_DISCOVERY_TIMEOUT_MS: local },
+        });
+        expect(environment["LITELLM_DISCOVERY_TIMEOUT_MS"]).toBe(String(remote));
+        expect(await Bun.file(cachePath).text()).toBe(remote === 0 ? content : "{}\n");
+      }
+      for (const options of [
+        { offline: true },
+        { providerOffline: true },
+        { piOfflineEnvironment: "false" },
+      ]) {
+        launchPreferences = { litellmClient: { discoveryTimeoutMs: 5000 } };
+        await Bun.write(cachePath, content);
+        await launchSpec(options);
+        expect(await Bun.file(cachePath).text()).toBe(content);
+      }
+    } finally {
+      launchPreferences = original;
       await rm(cachePath, { force: true });
     }
   });

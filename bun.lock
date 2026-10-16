@@ -10,7 +10,7 @@
     },
     "apps/cli": {
       "name": "axon-cli",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "axon": "src/index.ts",
       },
@@ -44,6 +44,7 @@
         "@opentelemetry/semantic-conventions": "1.43.0",
         "@types/bun": "^1.4.0",
         "@types/proper-lockfile": "4.1.4",
+        "pi-provider-litellm": "4.2.0",
         "typescript": "^7.0.2",
       },
     },
@@ -378,6 +379,8 @@
     "partial-json": ["partial-json@0.1.7", "", {}, "sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA=="],
 
     "path-key": ["path-key@3.1.1", "", {}, "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="],
+
+    "pi-provider-litellm": ["pi-provider-litellm@4.2.0", "", { "peerDependencies": { "@earendil-works/pi-ai": ">=0.99.2", "@earendil-works/pi-coding-agent": ">=0.99.2" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"] }, "sha512-qLS7Ri4eceYR/0fiZGcoZrtIhFKqcd/IE4Fu52/sRhsw49V6P++jl0dd6CPE8Q+RDDl7e0tvPMmJxydVVfOiiA=="],
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 

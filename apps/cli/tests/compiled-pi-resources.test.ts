@@ -37,16 +37,30 @@ test.each(["unminified", "minified"] as const)(
       blockedCommands: ["rm"],
       approvalTimeoutMs: 60_000,
     };
+    let configRequests = 0;
+    const exported: Buffer[] = [];
     const service = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
-      fetch(request) {
+      async fetch(request) {
         const path = new URL(request.url).pathname;
         if (path === "/api/v1/auth/verify-auth-token") {
           return Response.json({ status: "VERIFIED" });
         }
         if (path === "/api/v1/cli/config") {
-          return Response.json({ schemaVersion: 1, terminalPermissions: policy });
+          configRequests++;
+          return Response.json({
+            schemaVersion: 1,
+            terminalPermissions: policy,
+            compaction: { enabled: true, model: "litellm/summary", thresholdTokens: 80000 },
+            modelRecommender: { enabled: true, autoSelectMs: 10000 },
+            litellmClient: { discoveryTimeoutMs: 0, defaultContextWindow: 256000 },
+            telemetry: { enabled: true, traceSampleRatio: 1, metricExportIntervalMs: 10000 },
+          });
+        }
+        if (path.startsWith("/api/v1/otel/")) {
+          exported.push(Buffer.from(await request.arrayBuffer()));
+          return new Response(null, { headers: { "content-type": "application/x-protobuf" } });
         }
         return new Response(null, { status: 404 });
       },
@@ -101,6 +115,7 @@ if (process.argv[2] === "--version") {
   console.log(JSON.stringify({
     arguments: process.argv.slice(2),
     policy: JSON.parse(process.env.PI_TERMINAL_MANAGED_CONFIG ?? "null"),
+    launchPreferences: Object.fromEntries(["PI_COMPACTION_ENABLED", "PI_COMPACTION_MODEL", "PI_COMPACTION_THRESHOLD_TOKENS", "PI_MODEL_RECOMMENDER_DISABLED", "PI_MODEL_RECOMMENDER_AUTO_SELECT_MS", "LITELLM_DISCOVERY_TIMEOUT_MS", "LITELLM_DEFAULT_CONTEXT_WINDOW", "PI_ORG_OTEL_ENABLED"].map(key => [key, process.env[key]])),
   }));
 }
 `,
@@ -130,6 +145,12 @@ if (process.argv[2] === "--version") {
               HOME: root,
               AXON_HOME: paths.home,
               AXON_DEBUG: "1",
+              PI_ORG_OTEL_ENABLED: "false",
+              OTEL_TRACES_SAMPLER: "always_off",
+              PI_COMPACTION_ENABLED: "false",
+              PI_COMPACTION_THRESHOLD_TOKENS: "1",
+              PI_MODEL_RECOMMENDER_DISABLED: "true",
+              LITELLM_DISCOVERY_TIMEOUT_MS: "5000",
               PATH: process.env["PATH"] ?? "",
             },
             stdin: "ignore",
@@ -143,8 +164,33 @@ if (process.argv[2] === "--version") {
         status: 0,
         error: "",
       });
-      const launched = JSON.parse(launch.stdout) as { arguments: string[]; policy: unknown };
+      const launched = JSON.parse(launch.stdout) as {
+        arguments: string[];
+        policy: unknown;
+        launchPreferences: unknown;
+      };
       expect(launched.policy).toEqual(policy);
+      expect(launched.launchPreferences).toEqual({
+        PI_COMPACTION_ENABLED: "true",
+        PI_COMPACTION_MODEL: "litellm/summary",
+        PI_COMPACTION_THRESHOLD_TOKENS: "80000",
+        PI_MODEL_RECOMMENDER_DISABLED: "false",
+        PI_MODEL_RECOMMENDER_AUTO_SELECT_MS: "10000",
+        LITELLM_DISCOVERY_TIMEOUT_MS: "0",
+        LITELLM_DEFAULT_CONTEXT_WINDOW: "256000",
+        PI_ORG_OTEL_ENABLED: "true",
+      });
+      expect(configRequests).toBe(1);
+      expect(exported.some((body) => body.includes(Buffer.from("axon.startup.events")))).toBe(true);
+      // Actual compiled process teardown must preserve help/administrative exemptions.
+      const before = configRequests;
+      expect((await run(["--help"])).status).toBe(0);
+      expect((await run(["pi", "--help"])).status).toBe(0);
+      const offline = await run(["pi", "--offline", "--print", "hello"]);
+      // This fixture has no cached verification lease; offline preflight stays local.
+      expect(offline.status).toBe(123);
+      expect(offline.stderr).toContain("Cannot verify your Axon session while offline");
+      expect(configRequests).toBe(before);
       expect(launched.arguments.slice(-2)).toEqual(["--print", "hello"]);
       const runtimeDirectory = join(paths.runtime, await readlink(paths.runtimeCurrent));
       for (const resource of EMBEDDED_PI_RESOURCES) {

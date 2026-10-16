@@ -51,6 +51,20 @@ describe("protected client config", () => {
     ).toEqual({ schemaVersion: 1 });
   });
 
+  test("manages the Pi default model only when provider and model are both set", () => {
+    const base = { codemodeEnabled: true, litellmMcpEnabled: false };
+    for (const unset of [null, "", undefined]) {
+      expect(
+        parseClientConfig({
+          schemaVersion: 1,
+          pi: { ...base, defaultProvider: unset, defaultModel: unset },
+        }).pi,
+      ).toEqual(base);
+    }
+    const pi = { ...base, defaultProvider: "litellm", defaultModel: "openai/gpt-6.1-sol" };
+    expect(parseClientConfig({ schemaVersion: 1, pi }).pi).toEqual(pi);
+  });
+
   test("validates optional Pi defaults without accepting arbitrary settings", () => {
     for (const codemodeEnabled of [true, false]) {
       for (const litellmMcpEnabled of [true, false]) {
@@ -70,21 +84,46 @@ describe("protected client config", () => {
       { codemodeEnabled: 1, litellmMcpEnabled: true },
       { codemodeEnabled: true, litellmMcpEnabled: true, shellCommandPrefix: "unsafe" },
       { codemodeEnabled: true, litellmMcpEnabled: true, codemode: { inlineBudget: 3000 } },
+      { codemodeEnabled: true, litellmMcpEnabled: true, defaultProvider: "litellm" },
+      { codemodeEnabled: true, litellmMcpEnabled: true, defaultModel: "openai/gpt-6.1-sol" },
+      { codemodeEnabled: true, litellmMcpEnabled: true, defaultProvider: "", defaultModel: "x/y" },
+      {
+        codemodeEnabled: true,
+        litellmMcpEnabled: true,
+        defaultProvider: " litellm",
+        defaultModel: "x/y",
+      },
+      {
+        codemodeEnabled: true,
+        litellmMcpEnabled: true,
+        defaultProvider: "litellm",
+        defaultModel: "x\ny",
+      },
+      {
+        codemodeEnabled: true,
+        litellmMcpEnabled: true,
+        defaultProvider: "litellm",
+        defaultModel: 1,
+      },
     ]) {
-      expect(() => parseClientConfig({ schemaVersion: 1, pi })).toThrow();
+      expect(parseClientConfig({ schemaVersion: 1, pi, telemetry: policy })).toEqual({
+        schemaVersion: 1,
+        telemetry: policy,
+      });
     }
   });
 
-  test("rejects wrong versions, invalid bounds, and missing endpoints", () => {
+  test("rejects wrong envelopes and isolates invalid telemetry sections", () => {
+    for (const envelope of [{ schemaVersion: 2 }, {}, null, [], true])
+      expect(() => parseClientConfig(envelope)).toThrow();
     for (const payload of [
-      { schemaVersion: 2 },
       { schemaVersion: 1, telemetry: {} },
       { schemaVersion: 1, telemetry: { ...policy, traceSampleRatio: 2 } },
       { schemaVersion: 1, telemetry: { ...policy, protocol: "http/json" } },
       { schemaVersion: 1, telemetry: { ...policy, metricExportIntervalMs: 1 } },
       { schemaVersion: 1, telemetry: { ...policy, enabled: "true" } },
     ])
-      expect(() => parseClientConfig(payload)).toThrow();
+      expect(parseClientConfig(payload)).toEqual({ schemaVersion: 1 });
   });
 
   test("rejects every config destination except the fixed proxy path", () => {
@@ -97,12 +136,12 @@ describe("protected client config", () => {
       "https://collector.test:0",
       "https://collector.test/with space",
     ])
-      expect(() =>
-        parseClientConfig({ schemaVersion: 1, telemetry: { ...policy, endpoint } }),
-      ).toThrow();
-    expect(() =>
-      parseClientConfig({ schemaVersion: 1, telemetry: { ...policy, protocol: "grpc" } }),
-    ).toThrow();
+      expect(
+        parseClientConfig({ schemaVersion: 1, telemetry: { ...policy, endpoint } }).telemetry,
+      ).toBeUndefined();
+    expect(
+      parseClientConfig({ schemaVersion: 1, telemetry: { ...policy, protocol: "grpc" } }).telemetry,
+    ).toBeUndefined();
     expect(parseClientConfig({ schemaVersion: 1, telemetry: policy }).telemetry?.endpoint).toBe(
       "/api/v1/otel",
     );
@@ -213,14 +252,29 @@ describe("Pi telemetry environment", () => {
     expect(environment.OTEL_EXPORTER_OTLP_HEADERS).toBe("authorization=old-secret");
   });
 
-  test("disabled policy beats enabled env; local kill switch and offline always win", () => {
+  test("backend enablement beats local preferences; offline always wins", () => {
     expect(
       createTelemetryOverrides({ PI_ORG_OTEL_ENABLED: "true" }, { ...policy, enabled: false }),
     ).toMatchObject({ PI_ORG_OTEL_ENABLED: "false" });
-    for (const value of ["false", "0", "no", " FALSE "])
-      expect(createTelemetryOverrides({ PI_ORG_OTEL_ENABLED: value }, policy)).toMatchObject({
-        PI_ORG_OTEL_ENABLED: "false",
+    for (const value of ["false", "0", "no", "off", " FALSE ", " NO ", " Off "]) {
+      const environment = {
+        PI_ORG_OTEL_ENABLED: value,
+        OTEL_TRACES_SAMPLER: "always_off",
+        OTEL_TRACES_SAMPLER_ARG: "0",
+      };
+      expect(
+        createTelemetryOverrides(environment, policy, false, { home: "/tmp/managed" }),
+      ).toMatchObject({
+        PI_ORG_OTEL_ENABLED: "true",
+        OTEL_TRACES_SAMPLER: "parentbased_traceidratio",
+        OTEL_TRACES_SAMPLER_ARG: "0.25",
       });
+      // No-policy fallback retains the existing false/0/no parser (not a new env contract).
+      expect(createTelemetryOverrides(environment)["PI_ORG_OTEL_ENABLED"]).toBe(
+        value.trim().toLowerCase() === "off" ? undefined : "false",
+      );
+      expect(environment.PI_ORG_OTEL_ENABLED).toBe(value);
+    }
     expect(createTelemetryOverrides({}, policy, true)).toMatchObject({
       PI_ORG_OTEL_ENABLED: "false",
     });

@@ -3,11 +3,7 @@ import {
   startAuthenticatedRequestRelay,
 } from "../../cli/auth/request-relay.ts";
 import { loadEncryptedSession, refreshEncryptedSession } from "../../cli/auth/session.ts";
-import {
-  fetchClientConfig,
-  type TerminalPermissionsConfig,
-  type WebSearchConfig,
-} from "../../cli/client-config.ts";
+import { type ClientConfig, fetchClientConfig } from "../../cli/client-config.ts";
 import type { HarnessAdapter } from "../../launcher/contracts.ts";
 import type { EnvironmentOverrides } from "../../launcher/environment.ts";
 import { LauncherError } from "../../launcher/errors.ts";
@@ -20,6 +16,11 @@ import {
   resolveConfiguredPiVersion,
   resolvePiExecutable,
 } from "./installation.ts";
+import {
+  createCompactionOverrides,
+  createLiteLLMClientOverrides,
+  createModelRecommenderOverrides,
+} from "./launch-preferences-environment.ts";
 import { invalidateStalePiRelayModels } from "./model-cache.ts";
 import {
   applyPiDefaults,
@@ -65,6 +66,7 @@ export function createPiAdapter(): HarnessAdapter {
       let telemetryOverrides: EnvironmentOverrides = {};
       let webSearchOverrides: EnvironmentOverrides = {};
       let terminalPermissionsOverrides = createTerminalPermissionsOverrides();
+      let featureOverrides: EnvironmentOverrides = {};
       if (setup.invocationKind !== "administrative") {
         try {
           await applyPiProviderDefaults(context.paths);
@@ -85,22 +87,19 @@ export function createPiAdapter(): HarnessAdapter {
             { remediation: `Run ${PRODUCT_IDENTITY.command} auth login --browser.` },
           );
         }
-        telemetryOverrides = createTelemetryOverrides(
-          context.environment,
-          undefined,
-          setup.offline,
-        );
-        let webSearch: WebSearchConfig | undefined;
-        let terminalPermissions: TerminalPermissionsConfig | undefined;
-        // Pi defaults are independent of local telemetry and web-search switches.
+        let config: ClientConfig | undefined;
+        // All startup preferences share this one bounded fetch, regardless of local switches.
         if (encryptedSession && !setup.offline) {
-          const result = await fetchClientConfig(encryptedSession);
+          const result = await fetchClientConfig(encryptedSession, {
+            // Startup precedes the TUI, so this is the one place stderr diagnostics are safe.
+            onInvalidSection: (section) =>
+              console.error(
+                `${PRODUCT_IDENTITY.command}: ignored invalid client config section: ${section}`,
+              ),
+          });
           // Persist rotation before passing the credential to the child. Config is
           // optional, so a failed local rotation must not prevent Pi launch.
-          let telemetry = result.config?.telemetry;
-          let piDefaults = result.config?.pi;
-          webSearch = result.config?.webSearch;
-          terminalPermissions = result.config?.terminalPermissions;
+          config = result.config;
           try {
             if (
               result.sessionRefreshToken &&
@@ -116,22 +115,18 @@ export function createPiAdapter(): HarnessAdapter {
             // Another CLI/VS Code login may have switched users during the fetch.
             // Discard preferences obtained under the old credential in that case.
             if (currentSession !== encryptedSession) {
-              telemetry = undefined;
-              piDefaults = undefined;
-              webSearch = undefined;
-              terminalPermissions = undefined;
+              config = undefined;
             }
             encryptedSession = currentSession;
           } catch {
-            // Do not persist preferences if we could not verify the current account.
-            piDefaults = undefined;
-            terminalPermissions = undefined;
+            // An unverifiable account invalidates every fetched preference, not just disk defaults.
+            config = undefined;
             /* Preserve the previous credential; no token diagnostics. */
           }
-          if (piDefaults !== undefined) {
+          if (config?.pi !== undefined) {
             try {
               const expectedSession = encryptedSession;
-              await applyPiDefaults(context.paths, piDefaults, {
+              await applyPiDefaults(context.paths, config.pi, {
                 // Recheck the account after waiting for the shared settings lock, as on reload.
                 beforeWrite: async () => {
                   if ((await loadEncryptedSession(context.paths)) !== expectedSession) {
@@ -143,12 +138,32 @@ export function createPiAdapter(): HarnessAdapter {
               // Optional defaults must not overwrite unsafe settings or block Pi launch.
               console.error(`${PRODUCT_IDENTITY.command}: could not apply managed Pi defaults`);
             }
+            // Optional disk-write failure must not erase valid environment preferences,
+            // but an account switch/read failure while waiting for that write must.
+            try {
+              const currentSession = await loadEncryptedSession(context.paths);
+              if (currentSession !== encryptedSession) config = undefined;
+              encryptedSession = currentSession;
+            } catch {
+              config = undefined;
+            }
           }
-          telemetryOverrides = createTelemetryOverrides(context.environment, telemetry, false, {
-            home: context.paths.home,
-          });
-          if (telemetry?.enabled) await initializeProductTelemetry(context.paths, telemetry);
         }
+        telemetryOverrides = createTelemetryOverrides(
+          context.environment,
+          config?.telemetry,
+          setup.offline,
+          { home: context.paths.home },
+        );
+        await initializeProductTelemetry(context.paths, undefined, {
+          decision: { offline: setup.offline, policy: config?.telemetry },
+        });
+        featureOverrides = {
+          ...createCompactionOverrides(config?.compaction),
+          ...createModelRecommenderOverrides(config?.modelRecommender),
+          ...createLiteLLMClientOverrides(config?.litellmClient),
+        };
+        const effectiveProviderEnvironment = { ...context.environment, ...featureOverrides };
         // Pi receives only a per-launch loopback capability. The relay reads the
         // live session for each request and owns refresh persistence and recovery.
         relay = startAuthenticatedRequestRelay(context.paths, {
@@ -160,9 +175,12 @@ export function createPiAdapter(): HarnessAdapter {
         if (
           encryptedSession &&
           !setup.offline &&
-          context.environment["PI_OFFLINE"] === undefined &&
-          context.environment["LITELLM_OFFLINE"] !== "1" &&
-          Number.parseInt(context.environment["LITELLM_DISCOVERY_TIMEOUT_MS"] ?? "", 10) !== 0
+          effectiveProviderEnvironment["PI_OFFLINE"] === undefined &&
+          effectiveProviderEnvironment["LITELLM_OFFLINE"] !== "1" &&
+          Number.parseInt(
+            effectiveProviderEnvironment["LITELLM_DISCOVERY_TIMEOUT_MS"] ?? "",
+            10,
+          ) !== 0
         ) {
           try {
             await invalidateStalePiRelayModels(context.paths, relay.origin);
@@ -175,10 +193,12 @@ export function createPiAdapter(): HarnessAdapter {
         webSearchOverrides = createWebSearchOverrides(
           context.environment,
           relay,
-          webSearch,
+          config?.webSearch,
           setup.offline,
         );
-        terminalPermissionsOverrides = createTerminalPermissionsOverrides(terminalPermissions);
+        terminalPermissionsOverrides = createTerminalPermissionsOverrides(
+          config?.terminalPermissions,
+        );
         litellmOverrides = {
           LITELLM_API_KEY: relay.capability,
           LITELLM_BASE_URL: new URL("/litellm", relay.origin).toString(),
@@ -191,6 +211,12 @@ export function createPiAdapter(): HarnessAdapter {
           PI_AXON_AUTH_RELAY_KEY: relay.capability,
           PI_AXON_CONFIG_REFRESH_ENABLED: String(!setup.offline),
         };
+      } else {
+        // Administration is exempt even if spawning it produces startup observations.
+        // Remember resolved absence so command teardown cannot initiate a config fetch.
+        await initializeProductTelemetry(context.paths, undefined, {
+          decision: { offline: setup.offline },
+        });
       }
       const themeArguments =
         setup.invocationKind === "interactive"
@@ -206,8 +232,10 @@ export function createPiAdapter(): HarnessAdapter {
           telemetryOverrides,
           webSearchOverrides,
           terminalPermissionsOverrides,
+          featureOverrides,
         ),
         cwd: context.cwd,
+        offline: setup.offline,
         ...(relay === undefined
           ? {}
           : {

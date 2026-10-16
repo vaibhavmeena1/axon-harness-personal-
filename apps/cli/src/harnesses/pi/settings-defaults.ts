@@ -76,6 +76,10 @@ export async function applyPiDefaults(
         ...settings.config,
         defaultTools: tools,
         litellm: { ...litellm, mcp: { ...mcp, enabled: defaults.litellmMcpEnabled } },
+        // Unmanaged defaults keep the user's last /model selection.
+        ...(defaults.defaultProvider !== undefined && defaults.defaultModel !== undefined
+          ? { defaultProvider: defaults.defaultProvider, defaultModel: defaults.defaultModel }
+          : {}),
       };
       if (JSON.stringify(settings.config) !== JSON.stringify(config)) {
         // Recheck the credential/cancellation after waiting for the shared settings lock.

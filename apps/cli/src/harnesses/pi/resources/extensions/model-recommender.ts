@@ -12,7 +12,10 @@ import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi
  * Ranking comes from Axon's Jev-backed routing API
  * (`PI_MODEL_RECOMMENDER_URL`). The backend owns task assessment and model
  * policy; this extension only validates available recommendations and presents
- * the picker once per session.
+ * the picker once per session. Axon applies backend MODEL_RECOMMENDER preferences
+ * to the launch environment ahead of local values; /reload does not refresh them.
+ * ENABLED is inverted to PI_MODEL_RECOMMENDER_DISABLED. AUTO_SELECT_MS is a positive
+ * millisecond countdown, not a boolean or a zero/off sentinel. Server 204 still wins.
  *
  * The model type is derived from `ExtensionContext` rather than imported from
  * `@earendil-works/pi-ai` so this file has no dependency the CLI does not

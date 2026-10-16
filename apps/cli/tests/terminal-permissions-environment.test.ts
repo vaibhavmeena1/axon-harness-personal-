@@ -54,8 +54,12 @@ describe("managed terminal permissions configuration", () => {
     { approvalTimeoutMs: 1_000.5 },
     { apiKey: "private" },
   ])("rejects invalid or private terminal settings: %j", (patch) => {
-    expect(() =>
-      parseClientConfig({ schemaVersion: 1, terminalPermissions: { ...policy, ...patch } }),
-    ).toThrow();
+    const config = parseClientConfig({
+      schemaVersion: 1,
+      terminalPermissions: { ...policy, ...patch },
+      telemetry: { enabled: false },
+    });
+    expect(config.terminalPermissions).toBeUndefined();
+    expect(config.telemetry?.enabled).toBe(false);
   });
 });

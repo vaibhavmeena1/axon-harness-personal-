@@ -6,11 +6,6 @@ export function isWebSearchDisabled(environment: NodeJS.ProcessEnv): boolean {
   return ["false", "0", "no", "off"].includes(enabled?.trim().toLowerCase() ?? "");
 }
 
-function boundedSetting(raw: string | undefined, maximum: number): string {
-  const value = Number(raw);
-  return String(Number.isSafeInteger(value) && value > 0 ? Math.min(value, maximum) : maximum);
-}
-
 /** Pin authenticated routing; backend preferences configure the extension, not LiteLLM authorization. */
 export function createWebSearchOverrides(
   environment: NodeJS.ProcessEnv,
@@ -24,8 +19,13 @@ export function createWebSearchOverrides(
     PI_WEB_SEARCH_MODE: undefined,
     PI_WEB_SEARCH_SEARCH_TOOL: undefined,
     PI_WEB_SEARCH_API_KEY: relay.capability,
-    PI_WEB_SEARCH_ENABLED:
-      offline || isWebSearchDisabled(environment) || policy?.enabled === false ? "false" : "true",
+    PI_WEB_SEARCH_ENABLED: offline
+      ? "false"
+      : policy
+        ? String(policy.enabled)
+        : isWebSearchDisabled(environment)
+          ? "false"
+          : "true",
   };
   if (policy === undefined) return overrides;
 
@@ -44,14 +44,14 @@ export function createWebSearchOverrides(
     "PI_WEB_SEARCH_MODEL",
     preferredModel && policy.allowedModels.includes(preferredModel) ? preferredModel : policy.model,
   );
-  for (const [name, maximum] of [
+  for (const [name, value] of [
     ["PI_WEB_SEARCH_TIMEOUT_MS", policy.timeoutMs],
     ["PI_WEB_SEARCH_MAX_QUERY_CHARACTERS", policy.maxQueryCharacters],
     ["PI_WEB_SEARCH_MAX_RESULT_CHARACTERS", policy.maxResultCharacters],
     ["PI_WEB_SEARCH_MAX_OUTPUT_TOKENS", policy.maxOutputTokens],
     ["PI_WEB_SEARCH_MAX_SOURCES", policy.maxSources],
   ] as const) {
-    overrides[name] = boundedSetting(environment[name], maximum);
+    overrides[name] = String(value);
   }
   return overrides;
 }

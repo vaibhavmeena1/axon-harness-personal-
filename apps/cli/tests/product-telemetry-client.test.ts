@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { saveEncryptedSession } from "../src/cli/auth/session.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
 import {
+  beginProductTelemetryInvocation,
   closeProductTelemetry,
   flushProductTelemetry,
   initializeProductTelemetry,
@@ -20,9 +21,13 @@ const policy = {
   metricExportIntervalMs: 10000,
 };
 
-test.each(["", "/axon"])(
-  "launcher product events export authenticated protobuf below base path %j without mutating ambient env",
-  async (basePath) => {
+test.each(
+  ["false", "0", "no", "off", " FALSE ", " NO ", " Off "].flatMap((local) =>
+    ["", "/axon"].map((base) => [base, local] as const),
+  ),
+)(
+  "managed product events export below %j despite local disable %j",
+  async (basePath, localDisable) => {
     const home = await mkdtemp(join(tmpdir(), "axon-products-"));
     const paths = resolveAxonPaths({ AXON_HOME: home, HOME: home });
     const received: {
@@ -49,7 +54,18 @@ test.each(["", "/axon"])(
     });
     const oldEndpoint = process.env["OTEL_EXPORTER_OTLP_ENDPOINT"];
     const oldHome = process.env["HOME"];
+    const overrides = {
+      PI_ORG_OTEL_ENABLED: localDisable,
+      OTEL_TRACES_SAMPLER: "always_off",
+      OTEL_TRACES_SAMPLER_ARG: "0",
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://127.0.0.1:1/untrusted",
+    };
+    const previous = Object.fromEntries(
+      Object.keys(overrides).map((key) => [key, process.env[key]]),
+    );
+    Object.assign(process.env, overrides);
     process.env["HOME"] = home;
+    beginProductTelemetryInvocation();
     try {
       await saveEncryptedSession(paths, "product-test-session");
       takeProductEvents();
@@ -96,8 +112,13 @@ test.each(["", "/axon"])(
         received.every((request) => !request.body.includes(Buffer.from("product-test-session"))),
       );
       assert.equal(process.env["OTEL_EXPORTER_OTLP_ENDPOINT"], oldEndpoint);
+      for (const [key, value] of Object.entries(overrides)) assert.equal(process.env[key], value);
     } finally {
       await flushProductTelemetry(paths, true);
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
       if (oldHome === undefined) delete process.env["HOME"];
       else process.env["HOME"] = oldHome;
       server.stop(true);
@@ -208,6 +229,7 @@ test("a short-lived CLI process exports product metrics, traces and logs before 
 });
 
 test("disabled policy discards events without contacting a collector", async () => {
+  beginProductTelemetryInvocation();
   takeProductEvents();
   emitProductEvent({ category: "config", stage: "fetch", outcome: "failed", reason: "timeout" });
   await initializeProductTelemetry(resolveAxonPaths(), { ...policy, enabled: false });

@@ -529,6 +529,9 @@ test("config outages, invalid policies, and omitted defaults preserve local sett
     const settingsPath = paths.pi + "/settings.json";
     const content = JSON.stringify({ defaultTools: ["read"], litellm: { mcp: { enabled: false } } });
     await Bun.write(settingsPath, content);
+    const diagnostics = [];
+    const originalError = console.error;
+    console.error = message => diagnostics.push(message);
     for (const [response, status] of [
       [new Response("private-secret", { status: 503 }), 503],
       [Response.json({ schemaVersion: 1, pi: { codemodeEnabled: true, litellmMcpEnabled: "true" } }), 503],
@@ -541,6 +544,9 @@ test("config outages, invalid policies, and omitted defaults preserve local sett
       assert.equal(await Bun.file(settingsPath).text(), content);
       assert.ok(!(await result.text()).includes("private-secret"));
     }
+    console.error = originalError;
+    // Pi owns the terminal during reload: invalid sections must not be printed over its TUI.
+    assert.deepEqual(diagnostics, []);
   `,
     "",
     true,
@@ -655,7 +661,7 @@ test("invalid config still persists a safe auth rotation without applying defaul
   );
 });
 
-test("real Pi reload applies fresh backend defaults before rerunning extension factories", async () => {
+test("real Pi reload refreshes disk defaults but retains all launch-time environment preferences", async () => {
   await runRelayScript(
     `
     const sdk = await import("@earendil-works/pi-coding-agent");
@@ -665,6 +671,13 @@ test("real Pi reload applies fresh backend defaults before rerunning extension f
     process.env.PI_AXON_CONFIG_REFRESH_ENABLED = "true";
     process.env.PI_AXON_AUTH_RELAY_URL = relay.origin;
     process.env.PI_AXON_AUTH_RELAY_KEY = relay.capability;
+    const launchValues = {
+      PI_COMPACTION_ENABLED: "true", PI_COMPACTION_MODEL: "litellm/launch-summary", PI_COMPACTION_THRESHOLD_TOKENS: "80000", PI_COMPACTION_MAX_OUTPUT_TOKENS: "8192", PI_COMPACTION_TIMEOUT_MS: "120000",
+      PI_MODEL_RECOMMENDER_DISABLED: "false", PI_MODEL_RECOMMENDER_TIMEOUT_MS: "15000", PI_MODEL_RECOMMENDER_AUTO_SELECT_MS: "10000",
+      LITELLM_DISCOVERY_TIMEOUT_MS: "5000", LITELLM_DEFAULT_CONTEXT_WINDOW: "128000",
+      PI_WEB_SEARCH_ENABLED: "true", PI_WEB_SEARCH_TIMEOUT_MS: "60000", PI_ORG_OTEL_ENABLED: "true", OTEL_TRACES_SAMPLER_ARG: "0.5",
+    };
+    Object.assign(process.env, launchValues);
     const factoryValues = [];
     const settingsManager = sdk.SettingsManager.create(paths.home, paths.pi);
     const resourceLoader = new sdk.DefaultResourceLoader({
@@ -673,6 +686,7 @@ test("real Pi reload applies fresh backend defaults before rerunning extension f
       extensionFactories: [managedConfig, async () => {
         const settings = await Bun.file(settingsPath).json();
         factoryValues.push(settings.litellm.mcp.enabled);
+        for (const [name, value] of Object.entries(launchValues)) assert.equal(process.env[name], value);
       }],
     });
     await resourceLoader.reload();
@@ -685,7 +699,12 @@ test("real Pi reload applies fresh backend defaults before rerunning extension f
       assert.equal(factoryValues.at(-1), false);
       let enabled = true;
       upstream = async () => Response.json({ schemaVersion: 1,
-        pi: { codemodeEnabled: true, litellmMcpEnabled: enabled }
+        pi: { codemodeEnabled: true, litellmMcpEnabled: enabled },
+        compaction: { enabled: false, model: "litellm/new-summary", thresholdTokens: 1000, maxOutputTokens: 2000, timeoutMs: 3000 },
+        modelRecommender: { enabled: false, timeoutMs: 2000, autoSelectMs: 3000 },
+        litellmClient: { discoveryTimeoutMs: 0, defaultContextWindow: 256000 },
+        telemetry: { enabled: false, traceSampleRatio: 0 },
+        webSearch: { enabled: false, model: "changed", allowedModels: ["changed"], timeoutMs: 1000, maxQueryCharacters: 1, maxResultCharacters: 1, maxOutputTokens: 1, maxSources: 1, temperature: 0, useUrlContext: false, requireGrounding: true },
       });
       await piSession.reload();
       assert.equal(factoryValues.at(-1), true);

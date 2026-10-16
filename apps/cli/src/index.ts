@@ -7,7 +7,7 @@ import { LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "./product/identity.ts";
 import { resolveAxonPaths } from "./product/paths.ts";
-import { flushProductTelemetry } from "./telemetry/client.ts";
+import { beginProductTelemetryInvocation, flushProductTelemetry } from "./telemetry/client.ts";
 
 const DEBUG_ENVIRONMENT_VARIABLE = "AXON_DEBUG";
 
@@ -23,6 +23,7 @@ function printUnexpectedError(error: unknown): void {
 export async function main(
   argumentsVector: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
+  beginProductTelemetryInvocation();
   try {
     await dispatch(argumentsVector);
   } catch (error) {

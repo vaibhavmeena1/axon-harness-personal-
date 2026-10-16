@@ -30,11 +30,11 @@ queries. The bundled Grafana repeated-run query uses `pi_agent_run_repeated_tota
 Pi token counters remain compatible. Standard call distributions are owned by each invocation,
 not sums of nested/subagent executions.
 
-## Client config (preferred for interactive Axon sessions)
+## Client config (preferred for Axon sessions)
 
-The CLI fetches authenticated `/api/v1/cli/config` before launching interactive online Pi. Configure `CLI_CLIENT_CONFIG.TELEMETRY`, private `PROXY.UPSTREAM_URL`/`HEADERS`, and the collector origin in `ALLOWED_TELEMETRY_ORIGINS`; see [backend setup](../../../../../../backend/README.md#cli-client-configuration). Managed config advertises only `/api/v1/otel`, resolved against the CLI’s compiled service origin, and `http/protobuf`. The extension makes no config request itself.
+The CLI fetches authenticated `/api/v1/cli/config` before authenticated online non-administrative Pi launches (including scripted/CI/print/RPC/JSON). Configure `CLI_CLIENT_CONFIG.TELEMETRY`, private `PROXY.UPSTREAM_URL`/`HEADERS`, and the collector origin in `ALLOWED_TELEMETRY_ORIGINS`; see [backend setup](../../../../../../backend/README.md#cli-client-configuration). Managed config advertises only `/api/v1/otel`, resolved against the CLI’s compiled service origin, and `http/protobuf`. The extension makes no config request itself.
 
-Managed sampling/interval policy takes priority over environment values, except the explicit local `PI_ORG_OTEL_ENABLED=false/0/no` kill switch. Offline Pi disables export. Scripted/CI/print/RPC/JSON/admin launches do not fetch config; unavailable or absent policy uses environment fallback. An explicit disabled policy prevents export instead of falling back. Conflicting per-signal endpoints/protocols and inherited collector headers/TLS identity overrides are cleared for managed export.
+Managed enablement/sampling/interval policy takes priority over all local disable values, samplers, and exporter destinations. There is no supported local managed-telemetry opt-out. This applies to the Pi extension and launcher product telemetry, including buffered startup events and shutdown flushing. Offline Pi disables export and skips config; administrative/help invocations retain their fetch exemptions. Unavailable or absent policy uses Pi environment fallback; launcher events remain managed-only. An explicit disabled policy prevents export instead of falling back. Conflicting per-signal endpoints/protocols and inherited collector headers/TLS identity overrides are cleared for managed export.
 
 Managed exporters always POST protobuf to the pinned backend’s `/api/v1/otel/v1/{traces,metrics,logs}`. They read the shared Axon session safely for each batch, refuse redirects, and persist bounded response refresh tokens using the same compare-and-swap writer as CLI config. Retryable failures get bounded retries honoring Retry-After; auth failures are not retried or made interactive. No session is placed in OTEL attributes or config JSON. Export remains best-effort and bounded.
 
@@ -110,7 +110,7 @@ headers into AI gateway requests.
 3. Verify user attribution, queue pressure, cardinality, and sanitizer output.
 4. Expand deployment while monitoring `pi.telemetry.export_errors`, `pi.telemetry.dropped`, and SDK
    self-observability.
-5. Use `PI_ORG_OTEL_ENABLED=false` as an emergency managed kill switch.
+5. Disable managed telemetry with backend `TELEMETRY.ENABLED: false`, restart backend workers, and relaunch clients. Local `PI_ORG_OTEL_ENABLED=false` only controls no-policy fallback, not an accepted managed enable policy. Communicate this change to users before rollout.
 
 ## Failure behavior
 

@@ -1,5 +1,19 @@
 # Data policy
 
+## Managed policy and user notice
+
+On authenticated online non-administrative Axon/Pi launches, including scripted modes, accepted backend
+organization telemetry policy controls enablement, sampling, and interval. A backend enable policy
+has **no supported local opt-out** via `PI_ORG_OTEL_ENABLED`, samplers, exporters, CLI flags, or Pi
+settings. The decision applies to both Pi and launcher product observations, including buffered startup
+events and shutdown flushing. It is separate from upstream Pi's `PI_TELEMETRY`. Backend disablement
+also wins. Explicit offline disables export and skips config; help/administrative exemptions remain.
+
+Without accepted policy, Pi can use environment exporters and local disablement; launcher product
+telemetry remains managed-only. Policy is best-effort and invocation-local, never persisted or refreshed
+on `/reload`. Missing/invalid/unavailable policy does not guarantee export. Deploy updated clients and
+notify users before relying on the new precedence; older clients retain local managed overrides.
+
 ## Attribution
 
 Every record carries `user.id` and `pi.identity.source`. In **environment fallback**, raw effective Git email is used for both `user.id` and `user.email` when available; otherwise `user.id` is a random installation UUID and `user.email` is absent. No name is automatically read from Git.

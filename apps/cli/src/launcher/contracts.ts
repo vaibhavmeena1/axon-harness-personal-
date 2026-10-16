@@ -18,6 +18,8 @@ export interface LaunchSpec {
   readonly arguments: readonly string[];
   readonly environment: NodeJS.ProcessEnv;
   readonly cwd: string;
+  /** Explicit invocation offline state, not a telemetry environment preference. */
+  readonly offline?: boolean;
   /** Release per-session resources before propagating the child's exit status. */
   readonly dispose?: () => void;
 }

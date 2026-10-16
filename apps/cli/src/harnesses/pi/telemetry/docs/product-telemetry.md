@@ -51,10 +51,13 @@ rollout. The User email selector includes both Pi activity and product-event met
 ## Export policy and lifetime
 
 The launcher uses lazy, app-owned SDK providers for product telemetry, only with an enabled
-managed policy. Interactive Pi reuses its existing config fetch. Standalone CLI commands (including
+managed policy. Online non-administrative Pi (interactive or scripted) reuses its startup config fetch. Standalone CLI commands (including
 updates/restores) may fetch policy best-effort at completion when product observations and a saved
 session exist; this does not change the harness's initial configuration precedence. Missing or
-disabled policy means no product export. Offline and the local telemetry kill switch disable it.
+disabled policy means no product export. Explicit offline disables it. Accepted backend enablement has
+no local opt-out: local false values, disabled samplers, or inherited exporters cannot suppress startup
+buffering, initialization, or final flushing. Both absent and accepted policy decisions are retained
+in memory for the invocation; shutdown does not refetch an absent policy.
 There is no automatic auth attached to an arbitrary environment collector.
 
 Launcher observations buffer at most 128 content-free events in memory before initialization.

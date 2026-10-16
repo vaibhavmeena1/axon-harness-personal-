@@ -1,0 +1,777 @@
+{
+  "sections": {
+    "COMPACTION": {
+      "wireName": "compaction",
+      "fields": {
+        "ENABLED": "enabled",
+        "MODEL": "model",
+        "THRESHOLD_TOKENS": "thresholdTokens",
+        "MAX_OUTPUT_TOKENS": "maxOutputTokens",
+        "TIMEOUT_MS": "timeoutMs"
+      },
+      "valid": [
+        {
+          "input": null,
+          "output": null
+        },
+        {
+          "input": {},
+          "output": null
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "MODEL": null,
+            "THRESHOLD_TOKENS": null,
+            "MAX_OUTPUT_TOKENS": null,
+            "TIMEOUT_MS": null
+          },
+          "output": null
+        },
+        {
+          "input": {
+            "ENABLED": false,
+            "MODEL": "litellm/team/summary",
+            "THRESHOLD_TOKENS": 80000,
+            "MAX_OUTPUT_TOKENS": 8192,
+            "TIMEOUT_MS": 120000
+          },
+          "output": {
+            "enabled": false,
+            "model": "litellm/team/summary",
+            "thresholdTokens": 80000,
+            "maxOutputTokens": 8192,
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": false
+          },
+          "output": {
+            "enabled": false
+          }
+        },
+        {
+          "input": {
+            "ENABLED": false,
+            "MODEL": null,
+            "THRESHOLD_TOKENS": null,
+            "MAX_OUTPUT_TOKENS": null,
+            "TIMEOUT_MS": null
+          },
+          "output": {
+            "enabled": false
+          }
+        },
+        {
+          "input": {
+            "ENABLED": true
+          },
+          "output": {
+            "enabled": true
+          }
+        },
+        {
+          "input": {
+            "MODEL": "litellm/team/summary"
+          },
+          "output": {
+            "model": "litellm/team/summary"
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "MODEL": "litellm/team/summary",
+            "THRESHOLD_TOKENS": null,
+            "MAX_OUTPUT_TOKENS": null,
+            "TIMEOUT_MS": null
+          },
+          "output": {
+            "model": "litellm/team/summary"
+          }
+        },
+        {
+          "input": {
+            "MODEL": "p/m"
+          },
+          "output": {
+            "model": "p/m"
+          }
+        },
+        {
+          "input": {
+            "MODEL": "p/mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+          },
+          "output": {
+            "model": "p/mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+          }
+        },
+        {
+          "input": {
+            "THRESHOLD_TOKENS": 80000
+          },
+          "output": {
+            "thresholdTokens": 80000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "MODEL": null,
+            "THRESHOLD_TOKENS": 80000,
+            "MAX_OUTPUT_TOKENS": null,
+            "TIMEOUT_MS": null
+          },
+          "output": {
+            "thresholdTokens": 80000
+          }
+        },
+        {
+          "input": {
+            "THRESHOLD_TOKENS": 1.0
+          },
+          "output": {
+            "thresholdTokens": 1
+          }
+        },
+        {
+          "input": {
+            "THRESHOLD_TOKENS": 2147483647
+          },
+          "output": {
+            "thresholdTokens": 2147483647
+          }
+        },
+        {
+          "input": {
+            "MAX_OUTPUT_TOKENS": 8192
+          },
+          "output": {
+            "maxOutputTokens": 8192
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "MODEL": null,
+            "THRESHOLD_TOKENS": null,
+            "MAX_OUTPUT_TOKENS": 8192,
+            "TIMEOUT_MS": null
+          },
+          "output": {
+            "maxOutputTokens": 8192
+          }
+        },
+        {
+          "input": {
+            "MAX_OUTPUT_TOKENS": 1
+          },
+          "output": {
+            "maxOutputTokens": 1
+          }
+        },
+        {
+          "input": {
+            "MAX_OUTPUT_TOKENS": 2147483647
+          },
+          "output": {
+            "maxOutputTokens": 2147483647
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 120000
+          },
+          "output": {
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "MODEL": null,
+            "THRESHOLD_TOKENS": null,
+            "MAX_OUTPUT_TOKENS": null,
+            "TIMEOUT_MS": 120000
+          },
+          "output": {
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 1
+          },
+          "output": {
+            "timeoutMs": 1
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 2147483647
+          },
+          "output": {
+            "timeoutMs": 2147483647
+          }
+        }
+      ],
+      "invalid": [
+        false,
+        [],
+        42,
+        "secret",
+        {
+          "UNKNOWN_KEY": "private-secret"
+        },
+        {
+          "ENABLED": 0
+        },
+        {
+          "ENABLED": 1
+        },
+        {
+          "ENABLED": "true"
+        },
+        {
+          "ENABLED": "false"
+        },
+        {
+          "ENABLED": {}
+        },
+        {
+          "ENABLED": []
+        },
+        {
+          "ENABLED": false,
+          "MODEL": ""
+        },
+        {
+          "ENABLED": false,
+          "MODEL": " "
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "model"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "/model"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": " /m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/ "
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m "
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "﻿p/m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m﻿"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "﻿/m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/﻿"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/﻿ ﻿"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": " p/m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m\n"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m\u0000"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/m"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": "p/mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+        },
+        {
+          "ENABLED": false,
+          "MODEL": true
+        },
+        {
+          "ENABLED": false,
+          "MODEL": 1
+        },
+        {
+          "ENABLED": false,
+          "MODEL": {}
+        },
+        {
+          "ENABLED": false,
+          "MODEL": []
+        },
+        {
+          "THRESHOLD_TOKENS": 0
+        },
+        {
+          "THRESHOLD_TOKENS": 2147483648
+        },
+        {
+          "THRESHOLD_TOKENS": 1.5
+        },
+        {
+          "THRESHOLD_TOKENS": "100"
+        },
+        {
+          "THRESHOLD_TOKENS": true
+        },
+        {
+          "THRESHOLD_TOKENS": false
+        },
+        {
+          "THRESHOLD_TOKENS": {}
+        },
+        {
+          "THRESHOLD_TOKENS": []
+        },
+        {
+          "MAX_OUTPUT_TOKENS": 0
+        },
+        {
+          "MAX_OUTPUT_TOKENS": 2147483648
+        },
+        {
+          "MAX_OUTPUT_TOKENS": 1.5
+        },
+        {
+          "MAX_OUTPUT_TOKENS": "100"
+        },
+        {
+          "MAX_OUTPUT_TOKENS": true
+        },
+        {
+          "MAX_OUTPUT_TOKENS": false
+        },
+        {
+          "MAX_OUTPUT_TOKENS": {}
+        },
+        {
+          "MAX_OUTPUT_TOKENS": []
+        },
+        {
+          "TIMEOUT_MS": 0
+        },
+        {
+          "TIMEOUT_MS": 2147483648
+        },
+        {
+          "TIMEOUT_MS": 1.5
+        },
+        {
+          "TIMEOUT_MS": "100"
+        },
+        {
+          "TIMEOUT_MS": true
+        },
+        {
+          "TIMEOUT_MS": false
+        },
+        {
+          "TIMEOUT_MS": {}
+        },
+        {
+          "TIMEOUT_MS": []
+        }
+      ]
+    },
+    "MODEL_RECOMMENDER": {
+      "wireName": "modelRecommender",
+      "fields": {
+        "ENABLED": "enabled",
+        "TIMEOUT_MS": "timeoutMs",
+        "AUTO_SELECT_MS": "autoSelectMs"
+      },
+      "valid": [
+        {
+          "input": null,
+          "output": null
+        },
+        {
+          "input": {},
+          "output": null
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "TIMEOUT_MS": null,
+            "AUTO_SELECT_MS": null
+          },
+          "output": null
+        },
+        {
+          "input": {
+            "ENABLED": true,
+            "TIMEOUT_MS": 15000,
+            "AUTO_SELECT_MS": 10000
+          },
+          "output": {
+            "enabled": true,
+            "timeoutMs": 15000,
+            "autoSelectMs": 10000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": true
+          },
+          "output": {
+            "enabled": true
+          }
+        },
+        {
+          "input": {
+            "ENABLED": true,
+            "TIMEOUT_MS": null,
+            "AUTO_SELECT_MS": null
+          },
+          "output": {
+            "enabled": true
+          }
+        },
+        {
+          "input": {
+            "ENABLED": false
+          },
+          "output": {
+            "enabled": false
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 15000
+          },
+          "output": {
+            "timeoutMs": 15000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "TIMEOUT_MS": 15000,
+            "AUTO_SELECT_MS": null
+          },
+          "output": {
+            "timeoutMs": 15000
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 1
+          },
+          "output": {
+            "timeoutMs": 1
+          }
+        },
+        {
+          "input": {
+            "TIMEOUT_MS": 300000
+          },
+          "output": {
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "input": {
+            "AUTO_SELECT_MS": 10000
+          },
+          "output": {
+            "autoSelectMs": 10000
+          }
+        },
+        {
+          "input": {
+            "ENABLED": null,
+            "TIMEOUT_MS": null,
+            "AUTO_SELECT_MS": 10000
+          },
+          "output": {
+            "autoSelectMs": 10000
+          }
+        },
+        {
+          "input": {
+            "AUTO_SELECT_MS": 1
+          },
+          "output": {
+            "autoSelectMs": 1
+          }
+        },
+        {
+          "input": {
+            "AUTO_SELECT_MS": 300000
+          },
+          "output": {
+            "autoSelectMs": 300000
+          }
+        }
+      ],
+      "invalid": [
+        false,
+        [],
+        42,
+        "secret",
+        {
+          "UNKNOWN_KEY": "private-secret"
+        },
+        {
+          "ENABLED": 0
+        },
+        {
+          "ENABLED": 1
+        },
+        {
+          "ENABLED": "true"
+        },
+        {
+          "ENABLED": "false"
+        },
+        {
+          "ENABLED": {}
+        },
+        {
+          "ENABLED": []
+        },
+        {
+          "TIMEOUT_MS": 0
+        },
+        {
+          "TIMEOUT_MS": 300001
+        },
+        {
+          "TIMEOUT_MS": 1.5
+        },
+        {
+          "TIMEOUT_MS": "100"
+        },
+        {
+          "TIMEOUT_MS": true
+        },
+        {
+          "TIMEOUT_MS": false
+        },
+        {
+          "TIMEOUT_MS": {}
+        },
+        {
+          "TIMEOUT_MS": []
+        },
+        {
+          "AUTO_SELECT_MS": 0
+        },
+        {
+          "AUTO_SELECT_MS": 300001
+        },
+        {
+          "AUTO_SELECT_MS": 1.5
+        },
+        {
+          "AUTO_SELECT_MS": "100"
+        },
+        {
+          "AUTO_SELECT_MS": true
+        },
+        {
+          "AUTO_SELECT_MS": false
+        },
+        {
+          "AUTO_SELECT_MS": {}
+        },
+        {
+          "AUTO_SELECT_MS": []
+        }
+      ]
+    },
+    "LITELLM_CLIENT": {
+      "wireName": "litellmClient",
+      "fields": {
+        "DISCOVERY_TIMEOUT_MS": "discoveryTimeoutMs",
+        "DEFAULT_CONTEXT_WINDOW": "defaultContextWindow"
+      },
+      "valid": [
+        {
+          "input": null,
+          "output": null
+        },
+        {
+          "input": {},
+          "output": null
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": null,
+            "DEFAULT_CONTEXT_WINDOW": null
+          },
+          "output": null
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": 0,
+            "DEFAULT_CONTEXT_WINDOW": 128000
+          },
+          "output": {
+            "discoveryTimeoutMs": 0,
+            "defaultContextWindow": 128000
+          }
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": 0
+          },
+          "output": {
+            "discoveryTimeoutMs": 0
+          }
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": 0,
+            "DEFAULT_CONTEXT_WINDOW": null
+          },
+          "output": {
+            "discoveryTimeoutMs": 0
+          }
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": 0
+          },
+          "output": {
+            "discoveryTimeoutMs": 0
+          }
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": 300000
+          },
+          "output": {
+            "discoveryTimeoutMs": 300000
+          }
+        },
+        {
+          "input": {
+            "DEFAULT_CONTEXT_WINDOW": 128000
+          },
+          "output": {
+            "defaultContextWindow": 128000
+          }
+        },
+        {
+          "input": {
+            "DISCOVERY_TIMEOUT_MS": null,
+            "DEFAULT_CONTEXT_WINDOW": 128000
+          },
+          "output": {
+            "defaultContextWindow": 128000
+          }
+        },
+        {
+          "input": {
+            "DEFAULT_CONTEXT_WINDOW": 1
+          },
+          "output": {
+            "defaultContextWindow": 1
+          }
+        },
+        {
+          "input": {
+            "DEFAULT_CONTEXT_WINDOW": 2147483647
+          },
+          "output": {
+            "defaultContextWindow": 2147483647
+          }
+        }
+      ],
+      "invalid": [
+        false,
+        [],
+        42,
+        "secret",
+        {
+          "UNKNOWN_KEY": "private-secret"
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": -1
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": 300001
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": 1.5
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": "100"
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": true
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": false
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": {}
+        },
+        {
+          "DISCOVERY_TIMEOUT_MS": []
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": 0
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": 2147483648
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": 1.5
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": "100"
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": true
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": false
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": {}
+        },
+        {
+          "DEFAULT_CONTEXT_WINDOW": []
+        }
+      ]
+    }
+  }
+}
