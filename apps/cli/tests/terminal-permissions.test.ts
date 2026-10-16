@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
   ExtensionAPI,
   ExtensionContext,
+  ExtensionToolContext,
   ExtensionUIDialogOptions,
   ToolCallEvent,
   ToolCallEventResult,
@@ -418,11 +419,36 @@ describe("inspection profiles and model approval intent", () => {
     },
   );
 
+  test("executes bash in the invocation cwd with configured shell settings", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "axon-terminal-execute-"));
+    try {
+      const harness = setup();
+      harness.settings.shellPath = "/bin/bash";
+      harness.settings.shellCommandPrefix = "export AXON_PREFIX=configured";
+      const tool = harness.tools.get("bash");
+      const result = await tool?.execute(
+        "terminal-call",
+        { command: 'printf "%s|%s|%s" "$PWD" "$AXON_PREFIX" "$BASH"', requires_approval: false },
+        undefined,
+        undefined,
+        {
+          ...harness.context,
+          cwd: directory,
+          sessionManager: { getSessionId: () => "session", getSessionFile: () => undefined },
+        } as unknown as ExtensionToolContext,
+      );
+      const output = result?.content.map((part) => ("text" in part ? part.text : "")).join("");
+      expect(output).toBe(`${await realpath(directory)}|configured|/bin/bash`);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test.each([
     "pwd",
     "git status --short",
     "git --no-pager log --oneline -n 5",
-    "git diff --stat",
+    "git diff --stat --no-ext-diff --no-textconv",
     "pwd && git status | head -n 20",
   ])(
     "automatically allows verified inspection with requires_approval=false: %s",
@@ -453,6 +479,8 @@ describe("inspection profiles and model approval intent", () => {
     "git reset --hard",
     "git diff --output=result",
     "git diff --ext-diff",
+    "git diff --stat",
+    "git show HEAD",
     "git log --output=result",
     "git log --format --output=result",
     "git -c alias.read=status read",

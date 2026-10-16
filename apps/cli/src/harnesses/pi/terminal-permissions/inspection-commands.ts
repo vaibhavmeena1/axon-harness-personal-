@@ -11,7 +11,15 @@ interface ArgumentProfile {
   readonly values?: Readonly<Record<string, ValueKind>>;
   readonly pattern?: boolean;
   readonly revisions?: boolean;
+  /**
+   * Git reads diff.external and textconv drivers from user/repository config, so
+   * diff output is inspection only when both helpers are disabled. "always", or
+   * the flags that request diff output.
+   */
+  readonly disableHelpers?: "always" | readonly string[];
 }
+export type WorkspacePathChecker = (value: string) => boolean;
+const HELPER_FLAGS = ["no-ext-diff", "no-textconv"] as const;
 
 const FILE_PROFILES: Readonly<Record<string, ArgumentProfile>> = {
   ls: {
@@ -143,6 +151,7 @@ const GIT_PROFILES: Readonly<Record<string, ArgumentProfile>> = {
     ],
     values: { U: "count", unified: "count" },
     revisions: true,
+    disableHelpers: "always",
   },
   log: {
     shortFlags: "p",
@@ -178,6 +187,7 @@ const GIT_PROFILES: Readonly<Record<string, ArgumentProfile>> = {
       grep: "text",
     },
     revisions: true,
+    disableHelpers: ["p", "patch", "stat"],
   },
   show: {
     shortFlags: "ps",
@@ -196,6 +206,7 @@ const GIT_PROFILES: Readonly<Record<string, ArgumentProfile>> = {
     ],
     values: { format: "text", pretty: "text" },
     revisions: true,
+    disableHelpers: "always",
   },
   "ls-files": {
     shortFlags: "zcmos",
@@ -252,39 +263,59 @@ const MUTATING_COMMANDS = new Set([
   "brew",
 ]);
 
-/** Explicit operands must remain in the workspace, including their resolved symlinks. */
-function isWorkspacePath(value: string, cwd: string): boolean {
-  if (value === "-") return true;
-  if (!value || value.startsWith("~") || value.includes("://")) return false;
-  try {
-    const workspace = realpathSync(cwd);
-    const target = realpathSync(resolve(cwd, value));
-    const path = relative(workspace, target);
-    if (isAbsolute(path) || path === ".." || path.startsWith(`..${sep}`)) return false;
-    // Avoid automatically opening devices, sockets, and FIFOs. This is not a sandbox:
-    // recursive reads and Git still rely on trusted programs and repository configuration.
-    const status = statSync(target);
-    return status.isFile() || status.isDirectory();
-  } catch {
-    return false;
-  }
+/**
+ * Explicit operands must remain in the workspace, including their resolved symlinks.
+ * Create one checker per decision: it resolves the workspace once and caches operands.
+ */
+export function createWorkspacePathChecker(cwd: string): WorkspacePathChecker {
+  let workspace: string | undefined;
+  const results = new Map<string, boolean>();
+  const check = (value: string): boolean => {
+    if (value === "-") return true;
+    if (!value || value.startsWith("~") || value.includes("://")) return false;
+    try {
+      workspace ??= realpathSync(cwd);
+      const target = realpathSync(resolve(cwd, value));
+      const path = relative(workspace, target);
+      if (isAbsolute(path) || path === ".." || path.startsWith(`..${sep}`)) return false;
+      // Avoid automatically opening devices, sockets, and FIFOs. This is not a sandbox:
+      // recursive reads and Git still rely on trusted programs and repository configuration.
+      const status = statSync(target);
+      return status.isFile() || status.isDirectory();
+    } catch {
+      return false;
+    }
+  };
+  return (value) => {
+    let result = results.get(value);
+    if (result === undefined) {
+      result = check(value);
+      results.set(value, result);
+    }
+    return result;
+  };
 }
 
-function validValue(kind: ValueKind, value: string | undefined, cwd: string): boolean {
+function validValue(
+  kind: ValueKind,
+  value: string | undefined,
+  isWorkspacePath: WorkspacePathChecker,
+): boolean {
   if (value === undefined || value.length === 0) return false;
   // Optional-value flags differ between programs. Never swallow a following
   // option (for example git log --format --output=result) as inert value text.
   if (value.startsWith("-") && !(kind === "path" && value === "-")) return false;
   if (kind === "count") return /^\+?\d{1,9}$/.test(value);
-  return kind !== "path" || isWorkspacePath(value, cwd);
+  return kind !== "path" || isWorkspacePath(value);
 }
 
 /** Whitelist options, including clustered short flags and attached option values. */
 function inspectArguments(
   argumentsVector: CommandWords,
   profile: ArgumentProfile,
-  cwd: string,
+  isWorkspacePath: WorkspacePathChecker,
 ): boolean {
+  const flags = new Set<string>();
   let optionsEnded = false;
   let patternSeen = !profile.pattern || argumentsVector.includes("--files");
   for (let index = 0; index < argumentsVector.length; index += 1) {
@@ -297,12 +328,13 @@ function inspectArguments(
     if (!optionsEnded && argument.startsWith("--")) {
       const separator = argument.indexOf("=");
       const name = argument.slice(2, separator === -1 ? undefined : separator);
+      flags.add(name);
       if (profile.longFlags?.includes(argument.slice(2))) continue;
       const kind =
         profile.values && Object.hasOwn(profile.values, name) ? profile.values[name] : undefined;
       if (kind === undefined) return false;
       const value = separator === -1 ? argumentsVector[++index] : argument.slice(separator + 1);
-      if (!validValue(kind, value, cwd)) return false;
+      if (!validValue(kind, value, isWorkspacePath)) return false;
       if (name === "regexp" || name === "file") patternSeen = true;
       continue;
     }
@@ -310,11 +342,12 @@ function inspectArguments(
       for (let offset = 1; offset < argument.length; offset += 1) {
         const flag = argument[offset];
         if (flag === undefined) return false;
+        flags.add(flag);
         const kind =
           profile.values && Object.hasOwn(profile.values, flag) ? profile.values[flag] : undefined;
         if (kind !== undefined) {
           const value = argument.slice(offset + 1) || argumentsVector[++index];
-          if (!validValue(kind, value, cwd)) return false;
+          if (!validValue(kind, value, isWorkspacePath)) return false;
           if (flag === "e" || flag === "f") patternSeen = true;
           break;
         }
@@ -328,14 +361,21 @@ function inspectArguments(
       // Revision expressions are data, not command callbacks. Pathspecs after --
       // must pass workspace checks; reject explicit external paths before it too.
       if (isAbsolute(argument) || argument.split("/").includes("..")) return false;
-    } else if (!isWorkspacePath(argument, cwd)) {
+    } else if (!isWorkspacePath(argument)) {
       return false;
     }
+  }
+  const helpers = profile.disableHelpers;
+  if (helpers === "always" || helpers?.some((flag) => flags.has(flag))) {
+    return HELPER_FLAGS.every((flag) => flags.has(flag));
   }
   return true;
 }
 
-function inspectFind(argumentsVector: CommandWords, cwd: string): boolean {
+function inspectFind(
+  argumentsVector: CommandWords,
+  isWorkspacePath: WorkspacePathChecker,
+): boolean {
   const paths: string[] = [];
   let index = 0;
   while (index < argumentsVector.length) {
@@ -344,7 +384,7 @@ function inspectFind(argumentsVector: CommandWords, cwd: string): boolean {
     paths.push(argument);
     index += 1;
   }
-  if (!paths.every((path) => path !== "-" && isWorkspacePath(path, cwd))) return false;
+  if (!paths.every((path) => path !== "-" && isWorkspacePath(path))) return false;
   for (; index < argumentsVector.length; index += 1) {
     const argument = argumentsVector[index];
     if (argument === undefined) return false;
@@ -359,18 +399,20 @@ function inspectFind(argumentsVector: CommandWords, cwd: string): boolean {
   return true;
 }
 
-function inspectSed(argumentsVector: CommandWords, cwd: string): boolean {
+function inspectSed(argumentsVector: CommandWords, isWorkspacePath: WorkspacePathChecker): boolean {
   // Only bounded print expressions, never arbitrary sed scripts (-i, w, e, r, etc.).
   if (argumentsVector[0] !== "-n") return false;
   const expression = argumentsVector[1];
   if (expression === undefined || !/^\d+(?:,\d+)?p$/.test(expression)) return false;
-  return argumentsVector
-    .slice(2)
-    .every((path) => !path.startsWith("-") && isWorkspacePath(path, cwd));
+  return argumentsVector.slice(2).every((path) => !path.startsWith("-") && isWorkspacePath(path));
 }
 
 /** Unknown programs never acquire trust just because the LLM marks a call safe. */
-export function classifyInspectionCommand(words: CommandWords, cwd: string): InspectionDecision {
+export function classifyInspectionCommand(
+  words: CommandWords,
+  cwd: string,
+  isWorkspacePath: WorkspacePathChecker = createWorkspacePathChecker(cwd),
+): InspectionDecision {
   const executable = words[0];
   if (executable === undefined) return "review";
   // An explicit path can name an unrelated executable with a familiar basename.
@@ -384,10 +426,12 @@ export function classifyInspectionCommand(words: CommandWords, cwd: string): Ins
   }
   const profile = Object.hasOwn(FILE_PROFILES, executable) ? FILE_PROFILES[executable] : undefined;
   if (profile !== undefined) {
-    return inspectArguments(argumentsVector, profile, cwd) ? "inspection" : "review";
+    return inspectArguments(argumentsVector, profile, isWorkspacePath) ? "inspection" : "review";
   }
-  if (executable === "find") return inspectFind(argumentsVector, cwd) ? "inspection" : "review";
-  if (executable === "sed") return inspectSed(argumentsVector, cwd) ? "inspection" : "review";
+  if (executable === "find")
+    return inspectFind(argumentsVector, isWorkspacePath) ? "inspection" : "review";
+  if (executable === "sed")
+    return inspectSed(argumentsVector, isWorkspacePath) ? "inspection" : "review";
   if (executable === "git") {
     let subcommandIndex = 0;
     while (
@@ -403,7 +447,7 @@ export function classifyInspectionCommand(words: CommandWords, cwd: string): Ins
         ? GIT_PROFILES[subcommand]
         : undefined;
     if (gitProfile === undefined) return "review";
-    return inspectArguments(argumentsVector.slice(subcommandIndex + 1), gitProfile, cwd)
+    return inspectArguments(argumentsVector.slice(subcommandIndex + 1), gitProfile, isWorkspacePath)
       ? "inspection"
       : "review";
   }

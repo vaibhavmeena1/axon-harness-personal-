@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { parseCommands } from "../src/harnesses/pi/terminal-permissions/command-parser.ts";
-import { classifyInspectionCommand } from "../src/harnesses/pi/terminal-permissions/inspection-commands.ts";
+import {
+  classifyInspectionCommand,
+  createWorkspacePathChecker,
+} from "../src/harnesses/pi/terminal-permissions/inspection-commands.ts";
 
 let directory: string;
 let workspace: string;
@@ -53,11 +56,12 @@ describe("argument-aware inspection profiles", () => {
     "sed -n '1,200p' source.ts",
     "git status --short",
     "git --no-pager status --porcelain=v2",
-    "git diff --stat",
+    "git diff --stat --no-ext-diff --no-textconv",
     "git diff --no-ext-diff --no-textconv HEAD -- source.ts",
     "git log --oneline -n5",
     "git log --format='%h %s' --max-count=5",
-    "git show --stat HEAD",
+    "git log -p --no-ext-diff --no-textconv -n 1",
+    "git show --stat --no-ext-diff --no-textconv HEAD",
     "git ls-files -- source.ts",
     "cat inside-link",
     "cat -- source.ts",
@@ -88,6 +92,15 @@ describe("argument-aware inspection profiles", () => {
     "git diff --output=output",
     "git diff --ext-diff",
     "git show --textconv HEAD",
+    "git diff",
+    "git diff --stat",
+    "git diff --no-ext-diff HEAD",
+    "git diff --no-textconv HEAD",
+    "git show HEAD",
+    "git show --stat --no-textconv HEAD",
+    "git log -p",
+    "git log -pn5",
+    "git log --stat --no-textconv",
     "git log --output output",
     "git log --format",
     "git log --format --output=result",
@@ -143,5 +156,13 @@ describe("argument-aware inspection profiles", () => {
     "pwd\n",
   ])("does not widen the literal shell grammar: %s", (command) => {
     expect(classify(command)).not.toBe("inspection");
+  });
+
+  test("resolves each operand once per workspace path checker", async () => {
+    const isWorkspacePath = createWorkspacePathChecker(workspace);
+    expect(isWorkspacePath("source.ts")).toBe(true);
+    await rm(join(workspace, "source.ts"));
+    expect(isWorkspacePath("source.ts")).toBe(true);
+    expect(createWorkspacePathChecker(workspace)("source.ts")).toBe(false);
   });
 });

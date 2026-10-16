@@ -8,7 +8,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { type CommandWords, parseCommands } from "../../terminal-permissions/command-parser.ts";
-import { classifyInspectionCommand } from "../../terminal-permissions/inspection-commands.ts";
+import {
+  classifyInspectionCommand,
+  createWorkspacePathChecker,
+} from "../../terminal-permissions/inspection-commands.ts";
 
 /**
  * Permission guard for native bash, nested codemode calls, powershell, and !/!!.
@@ -275,7 +278,12 @@ function decide(
   if (requiresApproval) return { action: "approve", reason: "model_requested_approval" };
   if (customShell) return { action: "approve", reason: "shell_configuration" };
   if (yoloMode) return { action: "allow", reason: "yolo_mode" };
-  if (commands.every((words) => classifyInspectionCommand(words, cwd) === "inspection")) {
+  const isWorkspacePath = createWorkspacePathChecker(cwd);
+  if (
+    commands.every(
+      (words) => classifyInspectionCommand(words, cwd, isWorkspacePath) === "inspection",
+    )
+  ) {
     const matchesConfiguredPrefixes = commands.every((words) =>
       config.autoApproveCommands.some((rule) => matchesPrefix(words, rule, false)),
     );
@@ -301,6 +309,8 @@ function registerShellTools(pi: ExtensionAPI): void {
       "Always provide requires_approval. Set it to false only for inspection commands " +
       "with read-only arguments; set it to true for writes, deletion, installs, network " +
       "transfers, privilege changes, arbitrary code execution, or uncertainty. " +
+      "git diff, git show, and git log -p/--stat are inspections only with " +
+      "--no-ext-diff --no-textconv. " +
       "The runtime independently checks safety; false never bypasses permission rules.";
     pi.registerTool({
       ...nativeTool,
