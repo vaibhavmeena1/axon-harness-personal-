@@ -1,0 +1,19 @@
+apps/cli/src/harnesses/pi/telemetry/grafana-metrics-only.json
+  s_9487129398ff48::t_b51e55e1b0735b 19,64,109,154,199,244,289,334,380,425,470,515,560,638,689,739,1066,1113,1160,1230,1268,1271,1342,1401,1404,1700,1703,1747,1750,1796,1853,1893,1945,2029,2032,2076,2079,2125,2182,2232,2282,2385,2425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6db4468aa96c1739aebb704363f4cf08b6191549",
+  "prompts": {},
+  "sessions": {
+    "s_9487129398ff48": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4dc91468-5a2f-4ce1-966f-b99276353e49",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
