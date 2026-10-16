@@ -1,10 +1,23 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import {
+  createBashToolDefinition,
+  createPowerShellToolDefinition,
+  type ExtensionAPI,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+
+import { type CommandWords, parseCommands } from "../../terminal-permissions/command-parser.ts";
+import { classifyInspectionCommand } from "../../terminal-permissions/inspection-commands.ts";
 
 /**
  * Permission guard for native bash, nested codemode calls, powershell, and !/!!.
  * Lists contain literal command prefixes, not regexes/globs. Rules are compared
  * as words: "git status" never grants "git reset". Each pipeline/chain segment
- * is checked independently. This is an approval guard, not an OS sandbox:
+ * is checked independently. Inspection profiles verify arguments before automatic
+ * approval; prefix lists cannot waive unsafe flags or unknown programs. The LLM
+ * must supply requires_approval, which can request review but never waive it.
+ * This is an approval guard, not an OS sandbox:
  * allowed programs/scripts can perform arbitrary work, as can other extensions.
  *
  * PI_TERMINAL_YOLO_MODE=true auto-approves supported commands except restrictions.
@@ -40,9 +53,13 @@ const DECISION_REASONS = {
   unverified_wrapper: "Cannot verify the block list behind a shell or command wrapper",
   shell_wrapper: "Shell or command wrapper requires explicit review",
   required_approval: "Command is on the required-approval list",
+  model_requested_approval: "The model requested approval for this command",
+  invalid_approval_intent: "Terminal tool calls must include a boolean requires_approval",
+  shell_configuration: "A custom shell requires explicit review",
+  inspection_command: "Verified inspection command and arguments",
+  inspection_review: "Command or arguments are not a verified inspection operation",
   yolo_mode: "YOLO mode",
-  auto_approval: "Auto-approval list",
-  unmatched_command: "Command is not auto-approved",
+  auto_approval: "Auto-approval prefix and verified inspection arguments",
 } as const;
 type Decision = {
   readonly action: "allow" | "approve" | "block";
@@ -50,30 +67,9 @@ type Decision = {
 };
 type TerminalShell = "bash" | "powershell";
 type TerminalSource = "tool" | "nested_tool" | "user_bash";
-type CommandWords = readonly string[];
 
 const AUTO_SELECTED_DECISION_SAMPLE_INTERVAL = 100;
 const MAX_QUEUED_APPROVALS = 32;
-
-// Alphabetic Bash control words; time is handled as a command wrapper below.
-const CONTROL_WORDS = new Set([
-  "if",
-  "then",
-  "else",
-  "elif",
-  "fi",
-  "for",
-  "while",
-  "until",
-  "do",
-  "done",
-  "case",
-  "esac",
-  "function",
-  "select",
-  "in",
-  "coproc",
-]);
 // These commands can execute other commands or callbacks that this grammar cannot verify.
 const SHELL_WRAPPERS = new Set([
   "bash",
@@ -121,65 +117,6 @@ function hasControlCharacters(value: string, allowWhitespace = false): boolean {
     if (code < 32 || (code >= 127 && code <= 159)) return true;
   }
   return false;
-}
-
-/** Deliberately small grammar: never infer auto-approval for expansions or shell programs. */
-function parseCommands(command: string): CommandWords[] | undefined {
-  const commands: string[][] = [];
-  let words: string[] = [];
-  let word = "";
-  let wordStarted = false;
-  let quote: "'" | '"' | undefined;
-  const finishWord = () => {
-    if (wordStarted) words.push(word);
-    word = "";
-    wordStarted = false;
-  };
-  const finishCommand = (): boolean => {
-    finishWord();
-    const executable = words[0];
-    if (!executable || !/^[a-zA-Z0-9_./-]+$/.test(executable) || CONTROL_WORDS.has(executable)) {
-      return false;
-    }
-    commands.push(words);
-    words = [];
-    return true;
-  };
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index];
-    if (character === undefined) break;
-    if (quote !== undefined) {
-      if (character === quote) {
-        quote = undefined;
-      } else {
-        if (quote === '"' && /[$`\\]/.test(character)) return undefined;
-        word += character;
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      wordStarted = true;
-    } else if (character === " " || character === "\t") {
-      finishWord();
-    } else if (character === ";" || character === "\n" || character === "|" || character === "&") {
-      if (character === "&" && command[index + 1] !== "&") return undefined;
-      if (!finishCommand()) return undefined;
-      if ((character === "&" || character === "|") && command[index + 1] === character) index += 1;
-    } else {
-      if (!/[a-zA-Z0-9_./:=,@%+-]/.test(character)) return undefined;
-      wordStarted = true;
-      word += character;
-    }
-  }
-  if (quote !== undefined || !finishCommand()) return undefined;
-  return commands;
-}
-
-/** Shared with the launcher so managed policies use the extension's exact grammar. */
-export function isSingleCommandPrefix(command: string): boolean {
-  const parsed = parseCommands(command);
-  return parsed !== undefined && parsed.length === 1;
 }
 
 function commandList(value: unknown, name: string): readonly CommandPrefix[] {
@@ -273,11 +210,25 @@ function readConfig(): TerminalConfig {
 }
 
 function matchesPrefix(words: CommandWords, rule: CommandPrefix, restrict: boolean): boolean {
-  return rule.words.every((word, index) => {
-    const actual = words[index];
-    // Restrictions also catch explicit executable paths, without granting those paths implicitly.
-    return actual === word || (restrict && index === 0 && actual?.split("/").at(-1) === word);
-  });
+  const matches = (candidate: CommandWords): boolean =>
+    rule.words.every((word, index) => {
+      const actual = candidate[index];
+      // Restrictions catch executable paths without granting those paths implicitly.
+      return actual === word || (restrict && index === 0 && actual?.split("/").at(-1) === word);
+    });
+  if (matches(words)) return true;
+  if (!restrict || words[0]?.split("/").at(-1) !== "git") return false;
+  // The inspection profile accepts these global options. They must not hide a
+  // required/blocked Git subcommand behind a harmless presentation option.
+  let subcommandIndex = 1;
+  while (
+    ["--no-pager", "--literal-pathspecs", "--no-optional-locks"].includes(
+      words[subcommandIndex] ?? "",
+    )
+  ) {
+    subcommandIndex += 1;
+  }
+  return matches([words[0], ...words.slice(subcommandIndex)]);
 }
 
 function decide(
@@ -285,6 +236,9 @@ function decide(
   shell: string,
   config: TerminalConfig,
   yoloMode: boolean,
+  cwd: string,
+  requiresApproval: boolean,
+  customShell: boolean,
 ): Decision {
   if (!command.trim() || hasControlCharacters(command, true)) {
     return { action: "block", reason: "invalid_command" };
@@ -318,18 +272,77 @@ function decide(
   ) {
     return { action: "approve", reason: "required_approval" };
   }
-  if (
-    yoloMode ||
-    commands.every((words) =>
+  if (requiresApproval) return { action: "approve", reason: "model_requested_approval" };
+  if (customShell) return { action: "approve", reason: "shell_configuration" };
+  if (yoloMode) return { action: "allow", reason: "yolo_mode" };
+  if (commands.every((words) => classifyInspectionCommand(words, cwd) === "inspection")) {
+    const matchesConfiguredPrefixes = commands.every((words) =>
       config.autoApproveCommands.some((rule) => matchesPrefix(words, rule, false)),
-    )
-  ) {
-    return { action: "allow", reason: yoloMode ? "yolo_mode" : "auto_approval" };
+    );
+    return {
+      action: "allow",
+      reason: matchesConfiguredPrefixes ? "auto_approval" : "inspection_command",
+    };
   }
-  return { action: "approve", reason: "unmatched_command" };
+  // Prefixes are not proof of safety: git diff --output, find -exec, and even
+  // unknown programs matching an old allow rule must still receive review.
+  return { action: "approve", reason: "inspection_review" };
+}
+
+/** Extend the native schema without replacing native rendering or execution semantics. */
+function registerShellTools(pi: ExtensionAPI): void {
+  for (const shell of ["bash", "powershell"] as const) {
+    // Do not inherit a compatibility shim that could synthesize missing approval intent.
+    const { prepareArguments: _nativePrepareArguments, ...nativeTool } =
+      shell === "bash"
+        ? createBashToolDefinition(process.cwd())
+        : createPowerShellToolDefinition(process.cwd());
+    const approvalGuideline =
+      "Always provide requires_approval. Set it to false only for inspection commands " +
+      "with read-only arguments; set it to true for writes, deletion, installs, network " +
+      "transfers, privilege changes, arbitrary code execution, or uncertainty. " +
+      "The runtime independently checks safety; false never bypasses permission rules.";
+    pi.registerTool({
+      ...nativeTool,
+      // Preserve --tools/defaultTools choices, and never activate PowerShell on macOS.
+      defaultActive: false,
+      description: `${nativeTool.description}\n${approvalGuideline}`,
+      promptGuidelines: [...(nativeTool.promptGuidelines ?? []), approvalGuideline],
+      parameters: {
+        ...nativeTool.parameters,
+        properties: {
+          ...nativeTool.parameters.properties,
+          requires_approval: {
+            type: "boolean" as const,
+            description:
+              "Whether the model believes this command needs explicit user approval. When uncertain, use true.",
+          },
+        },
+        required: ["command", "requires_approval"] as const,
+      },
+      execute(toolCallId, parameters, signal, onUpdate, ctx) {
+        const settings = pi.getSettings();
+        const configuredPath = settings.shellPath;
+        const shellPath = configuredPath?.startsWith("~/")
+          ? join(homedir(), configuredPath.slice(2))
+          : configuredPath;
+        const executionTool =
+          shell === "bash"
+            ? createBashToolDefinition(ctx.cwd, {
+                ...(shellPath ? { shellPath } : {}),
+                ...(settings.shellCommandPrefix
+                  ? { commandPrefix: settings.shellCommandPrefix }
+                  : {}),
+              })
+            : nativeTool;
+        return executionTool.execute(toolCallId, parameters, signal, onUpdate, ctx);
+      },
+    });
+  }
 }
 
 export default function terminalPermissions(pi: ExtensionAPI): void {
+  registerShellTools(pi);
   let yoloOverride: boolean | undefined;
   let autoSelectedDecisionSampleIndex = 0;
   // Bound retained requests and serialize confirmation dialogs for concurrent codemode calls.
@@ -391,6 +404,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     cwd: string,
     ctx: ExtensionContext,
     source: TerminalSource,
+    requiresApproval?: unknown,
   ): Promise<string | undefined> => {
     // Pi context getters are live; retain this call's signal while waiting in the queue.
     const signal = ctx.signal;
@@ -406,8 +420,27 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       emit("decision", "blocked", { ...metadata, reason: "invalid_config" });
       return "Terminal execution blocked: invalid permission configuration";
     }
+    if (source !== "user_bash" && typeof requiresApproval !== "boolean") {
+      emit("decision", "blocked", { ...metadata, reason: "invalid_approval_intent" });
+      return DECISION_REASONS.invalid_approval_intent;
+    }
+    const settings = pi.getSettings();
+    const prefix = shell === "bash" ? settings.shellCommandPrefix : undefined;
+    const effectiveCommand = prefix ? `${prefix}\n${command}` : command;
+    const customShell =
+      shell === "bash" &&
+      !!settings.shellPath &&
+      !["/bin/bash", "/bin/sh"].includes(settings.shellPath);
     const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-    const decision = decide(command, shell, config, yoloMode);
+    const decision = decide(
+      effectiveCommand,
+      shell,
+      config,
+      yoloMode,
+      cwd,
+      requiresApproval === true,
+      customShell,
+    );
     if (decision.action === "allow") {
       // Keep the first auto-allowed decision, then one per 100 commands in this session.
       // Sample before the bus to avoid per-command sanitization, spans, and logs.
@@ -487,7 +520,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
         try {
           const approved = await ctx.ui.confirm(
             "Allow terminal command?",
-            `${reason}\nWorking directory: ${cwd}\nShell: ${shell}\n\n${command}`,
+            `${reason}\nWorking directory: ${cwd}\nShell: ${shell}\n\n${effectiveCommand}`,
             {
               timeout: remainingMs,
               ...(signal === undefined ? {} : { signal }),
@@ -552,6 +585,7 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       ctx.cwd,
       ctx,
       event.parentToolCallId ? "nested_tool" : "tool",
+      "requires_approval" in event.input ? event.input["requires_approval"] : undefined,
     );
     return reason === undefined ? undefined : { block: true, reason };
   });
@@ -642,12 +676,14 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       ctx.ui.notify(
         [
           `YOLO: ${yoloLabel}`,
-          `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          "Inspection profiles: on (read-only arguments and workspace file operands)",
+          `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"} (inspection-only)`,
           `Require approval: ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
           `Blocked: ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
           `Approval timeout: ${config.approvalTimeoutMs / 1000}s`,
-          "Unmatched commands require approval unless YOLO is on.",
-          "Lists use literal command prefixes; complex syntax and wrappers require review.",
+          "Unknown commands and unsafe arguments require approval unless YOLO is on.",
+          "Model requires_approval=true always requests review; false never grants permission.",
+          "Lists use literal prefixes; complex syntax and wrappers require review.",
         ].join("\n"),
         "info",
       );

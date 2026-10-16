@@ -49,6 +49,8 @@ afterEach(() => {
 
 function setup(hasUI = true) {
   const handlers = new Map<string, unknown>();
+  const tools = new Map<string, Parameters<ExtensionAPI["registerTool"]>[0]>();
+  const settings: ReturnType<ExtensionAPI["getSettings"]> = {};
   let command: Command | undefined;
   const confirm = mock(
     async (_title: string, _message: string, _options?: ExtensionUIDialogOptions) => true,
@@ -64,6 +66,10 @@ function setup(hasUI = true) {
   } as unknown as ExtensionContext;
   terminalPermissions({
     events: { emit },
+    getSettings: () => settings,
+    registerTool(tool: Parameters<ExtensionAPI["registerTool"]>[0]) {
+      tools.set(tool.name, tool);
+    },
     on(event: string, handler: unknown) {
       handlers.set(event, handler);
       return () => handlers.delete(event);
@@ -78,6 +84,8 @@ function setup(hasUI = true) {
   const sessionHandler = handlers.get("session_start") as SessionHandler;
   return {
     context,
+    tools,
+    settings,
     confirm,
     notify,
     setStatus,
@@ -85,13 +93,18 @@ function setup(hasUI = true) {
       emit.mock.calls
         .filter(([channel]) => channel === TERMINAL_HEADER_CHANNEL)
         .map(([, state]) => state),
-    call(commandText: string, toolName = "bash", parentToolCallId?: string) {
+    call(
+      commandText: string,
+      toolName = "bash",
+      parentToolCallId?: string,
+      requiresApproval: unknown = false,
+    ) {
       return toolHandler(
         {
           type: "tool_call",
           toolName,
           toolCallId: parentToolCallId ? `${parentToolCallId}/1` : "terminal-call",
-          input: { command: commandText },
+          input: { command: commandText, requires_approval: requiresApproval },
           ...(parentToolCallId === undefined ? {} : { parentToolCallId }),
         },
         context,
@@ -146,11 +159,11 @@ describe("terminal approval defaults and command lists", () => {
     expect(harness.setStatus).not.toHaveBeenCalled();
   });
 
-  test("requires confirmation by default and shows the exact command and working directory", async () => {
+  test("requires confirmation for mutations and shows the exact command and working directory", async () => {
     const harness = setup();
-    expect(await harness.call("git status --short")).toBeUndefined();
+    expect(await harness.call("git push origin main")).toBeUndefined();
     expect(harness.confirm).toHaveBeenCalledTimes(1);
-    expect(harness.confirm.mock.calls[0]?.[1]).toContain("git status --short");
+    expect(harness.confirm.mock.calls[0]?.[1]).toContain("git push origin main");
     expect(harness.confirm.mock.calls[0]?.[1]).toContain(harness.context.cwd);
     const dialogTimeout = harness.confirm.mock.calls[0]?.[2]?.timeout;
     expect(dialogTimeout).toBeGreaterThan(0);
@@ -159,7 +172,7 @@ describe("terminal approval defaults and command lists", () => {
 
   test("refuses unapproved commands when no UI is available", async () => {
     const harness = setup(false);
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toMatchObject({ block: true });
     expect(harness.confirm).not.toHaveBeenCalled();
   });
 
@@ -264,29 +277,29 @@ describe("managed settings and session YOLO controls", () => {
     await harness.command("yolo on");
     expect(harness.confirm).not.toHaveBeenCalled();
     harness.confirm.mockResolvedValue(false);
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toMatchObject({ block: true });
   });
 
   test("local false opts out of a managed YOLO default", async () => {
     managedPolicy({ yoloMode: true });
     process.env["PI_TERMINAL_YOLO_MODE"] = "false";
-    expect(await setup(false).call("pwd")).toMatchObject({ block: true });
+    expect(await setup(false).call("git push")).toMatchObject({ block: true });
   });
 
   test("session YOLO requires confirmation, can be disabled, and resets on session start", async () => {
     const harness = setup();
     await harness.command("yolo on");
     expect(harness.confirm).toHaveBeenCalledTimes(1);
-    expect(await harness.call("pwd")).toBeUndefined();
+    expect(await harness.call("git push")).toBeUndefined();
     expect(harness.confirm).toHaveBeenCalledTimes(1);
     await harness.command("yolo off");
     harness.confirm.mockResolvedValue(false);
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toMatchObject({ block: true });
     harness.confirm.mockResolvedValue(true);
     await harness.command("yolo on");
     harness.start();
     harness.confirm.mockResolvedValue(false);
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toMatchObject({ block: true });
     expect(harness.headerStates()).toEqual(["yolo", "approval", "yolo", "approval"]);
     expect(harness.setStatus).not.toHaveBeenCalled();
   });
@@ -336,15 +349,15 @@ describe("terminal approval cancellation and concurrency", () => {
       controller.abort();
       return true;
     });
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toMatchObject({ block: true });
     expect(harness.confirm.mock.calls[0]?.[2]?.signal).toBe(controller.signal);
   });
 
   test("a failed confirmation refuses the command and does not poison the next request", async () => {
     const harness = setup();
     harness.confirm.mockRejectedValueOnce(new Error("UI unavailable"));
-    expect(await harness.call("pwd")).toMatchObject({ block: true });
-    expect(await harness.call("git status")).toBeUndefined();
+    expect(await harness.call("git push")).toMatchObject({ block: true });
+    expect(await harness.call("git push")).toBeUndefined();
   });
 
   test("retains a queued call's cancellation even when the live context signal changes", async () => {
@@ -357,9 +370,9 @@ describe("terminal approval cancellation and concurrency", () => {
           resolveFirst = resolve;
         }),
     );
-    const first = harness.call("pwd");
+    const first = harness.call("git push");
     harness.context.signal = controller.signal;
-    const second = harness.call("git status");
+    const second = harness.call("git reset");
     controller.abort();
     harness.context.signal = undefined;
     await Promise.resolve();
@@ -378,14 +391,129 @@ describe("terminal approval cancellation and concurrency", () => {
           resolveFirst = resolve;
         }),
     );
-    const first = harness.call("pwd");
-    const second = harness.call("git status");
+    const first = harness.call("git push");
+    const second = harness.call("git reset");
     await Promise.resolve();
     expect(harness.confirm).toHaveBeenCalledTimes(1);
     resolveFirst(true);
     expect(await first).toBeUndefined();
     expect(await second).toBeUndefined();
     expect(harness.confirm).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("inspection profiles and model approval intent", () => {
+  test.each(["bash", "powershell"])(
+    "requires model approval intent in the %s schema without activating the tool",
+    (shell) => {
+      const tool = setup().tools.get(shell);
+      expect(tool).toBeDefined();
+      expect(tool?.parameters).toMatchObject({
+        required: expect.arrayContaining(["command", "requires_approval"]),
+        properties: { requires_approval: { type: "boolean" } },
+      });
+      expect(tool?.defaultActive).toBe(false);
+      expect(tool?.renderCall).toBeFunction();
+      expect(tool?.renderResult).toBeFunction();
+    },
+  );
+
+  test.each([
+    "pwd",
+    "git status --short",
+    "git --no-pager log --oneline -n 5",
+    "git diff --stat",
+    "pwd && git status | head -n 20",
+  ])(
+    "automatically allows verified inspection with requires_approval=false: %s",
+    async (command) => {
+      const harness = setup(false);
+      expect(await harness.call(command)).toBeUndefined();
+      expect(harness.confirm).not.toHaveBeenCalled();
+    },
+  );
+
+  test("honors model-requested approval even for inspection commands in YOLO", async () => {
+    process.env["PI_TERMINAL_YOLO_MODE"] = "true";
+    const harness = setup();
+    harness.confirm.mockResolvedValue(false);
+    expect(await harness.call("pwd", "bash", undefined, true)).toMatchObject({ block: true });
+    expect(harness.confirm.mock.calls[0]?.[1]).toContain("model requested approval");
+  });
+
+  test.each([null, "false", 0, {}])("blocks non-boolean approval intent: %j", async (intent) => {
+    const harness = setup();
+    expect(await harness.call("pwd", "bash", undefined, intent)).toMatchObject({ block: true });
+    expect(harness.confirm).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    "rm file",
+    "git push",
+    "git reset --hard",
+    "git diff --output=result",
+    "git diff --ext-diff",
+    "git log --output=result",
+    "git log --format --output=result",
+    "git -c alias.read=status read",
+    "git -C /tmp status",
+    "rg --pre=helper pattern",
+    "rg -L pattern",
+    "find . -exec helper",
+    "find . -delete",
+    "sed -i 's/a/b/' file",
+    "tail -f file",
+    "python3 -c 'print(1)'",
+    "unknown-command",
+    "pwd && git push",
+    "/bin/pwd",
+    "git status > result",
+  ])("false and broad prefix rules cannot waive review: %s", async (command) => {
+    process.env["PI_TERMINAL_AUTO_APPROVE_COMMANDS"] =
+      '["rm","git","rg","find","sed","tail","python3","unknown-command","pwd"]';
+    const harness = setup();
+    harness.confirm.mockResolvedValue(false);
+    expect(await harness.call(command)).toMatchObject({ block: true });
+    expect(harness.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  test("managed approval rules still override the built-in inspection profile", async () => {
+    managedPolicy({ requireApprovalCommands: ["git status"] });
+    expect(await setup(false).call("git status")).toMatchObject({ block: true });
+    expect(await setup(false).call("git --no-pager status")).toMatchObject({ block: true });
+  });
+
+  test("supported Git global flags cannot bypass a blocked inspection subcommand", async () => {
+    managedPolicy({ blockedCommands: ["git status"] });
+    const harness = setup();
+    expect(await harness.call("git --no-pager status")).toMatchObject({ block: true });
+    expect(harness.confirm).not.toHaveBeenCalled();
+  });
+
+  test("checks nested inspection requests and user commands with the same profiles", async () => {
+    const harness = setup(false);
+    expect(await harness.call("git status", "bash", "codemode-parent")).toBeUndefined();
+    expect(await harness.userBash("git status")).toBeUndefined();
+    await expect(harness.userBash("git push")).rejects.toThrow("approval is unavailable");
+  });
+
+  test("checks configured command prefixes and shows the effective command", async () => {
+    const harness = setup();
+    harness.settings.shellCommandPrefix = "echo setup";
+    harness.confirm.mockResolvedValue(false);
+    expect(await harness.call("pwd")).toMatchObject({ block: true });
+    expect(harness.confirm.mock.calls[0]?.[1]).toContain("echo setup\npwd");
+    managedPolicy({ blockedCommands: ["rm"] });
+    const blocked = setup();
+    blocked.settings.shellCommandPrefix = "rm file";
+    expect(await blocked.call("pwd")).toMatchObject({ block: true });
+    expect(blocked.confirm).not.toHaveBeenCalled();
+  });
+
+  test("does not infer inspection safety for a custom shell", async () => {
+    const harness = setup(false);
+    harness.settings.shellPath = "/custom/bash";
+    expect(await harness.call("pwd")).toMatchObject({ block: true });
   });
 });
 
