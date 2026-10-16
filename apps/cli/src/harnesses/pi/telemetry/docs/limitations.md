@@ -12,7 +12,7 @@ Current public-event limitations:
 - provider hooks vary by transport: unhooked/unknown/ambiguously correlated requests use INTERNAL `pi.assistant.lifecycle`, not fabricated CLIENT operations; headers/status/request IDs may be absent;
 - response model and completion ID are exported only when Pi supplies `responseModel` / `responseId`; requested model and gateway request ID are never substituted;
 - provider-only cache warming is excluded from inference spans and usage totals, including warming during long tools. Overlapping hooks lack request IDs on events, so uncertain correlation is conservative and may undercount direct inference;
-- finalized top-level tool usage includes descendants in pinned Pi 1.2.0; usage omitted by tools/providers is not estimated. Independently exported subagents can overlap parent-reported cost in organization-wide sums, so choose a single accounting boundary;
+- finalized top-level tool usage includes descendants in pinned Pi 1.3.0; usage omitted by tools/providers is not estimated. Independently exported subagents can overlap parent-reported cost in organization-wide sums, so choose a single accounting boundary;
 - streaming chunks, first-token latency, shell process execution, skills, workflows, plans, and private harness spans are not observed or inferred;
 - `user_bash` exposes command start/interception but no passive completion event;
 - UI prompt events do not identify the tool that opened the prompt, so wait spans attach to the active turn rather than a specific parallel tool;

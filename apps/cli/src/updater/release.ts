@@ -12,6 +12,7 @@ const BINARY = "axon-darwin-arm64";
 export interface ReleaseClient {
   readonly baseUrl: string;
   readonly fetcher?: typeof fetch;
+  readonly metadataTimeoutMs?: number;
 }
 
 export function assertReleaseVersion(version: string): void {
@@ -24,6 +25,7 @@ async function request(
   client: ReleaseClient,
   url: string,
   followRedirect: boolean,
+  timeoutMs = 60_000,
 ): Promise<Response> {
   const fetcher = client.fetcher ?? fetch;
   let current = url;
@@ -31,7 +33,7 @@ async function request(
     const response = await fetcher(current, {
       cache: "no-store",
       redirect: "manual",
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (followRedirect && response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -65,7 +67,12 @@ async function request(
 }
 
 async function smallText(client: ReleaseClient, path: string): Promise<string> {
-  const response = await request(client, `${client.baseUrl}/${path}`, false);
+  const response = await request(
+    client,
+    `${client.baseUrl}/${path}`,
+    false,
+    client.metadataTimeoutMs,
+  );
   if (!response.body) throw new Error("release metadata has no body");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];

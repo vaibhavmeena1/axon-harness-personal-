@@ -11,6 +11,7 @@ import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { launchRegisteredHarness } from "../launcher/launch-harness.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
+import { runStartupUpdate } from "../updater/startup.ts";
 import { runBackgroundUpdate } from "../updater/update.ts";
 import { ensureAuthenticatedSession } from "./auth/ensure-session.ts";
 import { runLauncherProgram } from "./launcher-program.ts";
@@ -53,6 +54,7 @@ export async function dispatch(argumentsVector: readonly string[]): Promise<void
         },
       );
     }
+    await runStartupUpdate(harnessArguments);
     const paths = resolveAxonPaths();
     const invocationKind = classifyPiInvocation(harnessArguments);
     // No Pi command may resolve, install, or launch its executable before verification.

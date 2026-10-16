@@ -20,7 +20,7 @@ This is a clean-install rename: previous product installations are not automatic
 - Standalone web search through the existing authenticated LiteLLM relay, with grounding, session attribution, and tool usage/cost reporting
 - Pi-only setup checks, including append-only organization MCP defaults at `~/.config/mcp/mcp.json`, requested only for interactive online launches and throttled locally
 - Pi agent/session isolation under `${AXON_HOME}/pi`, with Pi version checks disabled and every Pi-documented provider API key removed from Pi only (LiteLLM variables are kept)
-- Exact Pi 1.2.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
+- Exact Pi 1.3.0 pin: Axon uses only its isolated executable under `${AXON_HOME}/pi-runtime`, installed from Pi's release API with `npm ci`; the user's PATH Pi is never used or changed
 - Content-addressed, checksum-verified Axon Pi resources injected through explicit Pi flags that reference the immutable runtime directory
 - Embedded required-package policy with exact, minimum, and Pi/user-managed floating versions
 - Locked package reconciliation, last-known-good exact fallback, and local-only warm checks
@@ -31,7 +31,7 @@ This is a clean-install rename: previous product installations are not automatic
 - `harnesses`, `paths`, basic `doctor`, and guarded `uninstall` commands
 - Launcher-core tests for registry behavior, environment isolation, argv passthrough, and reserved exit statuses
 - Verified, atomic installer for the native Apple Silicon binary
-- S3/CloudFront release discovery, manual `axon update`, and throttled background updates after interactive Pi sessions
+- S3/CloudFront release discovery, manual `axon update`, and automatic latest-version updates before interactive online Pi sessions
 
 ### Deferred
 
@@ -42,7 +42,7 @@ This is a clean-install rename: previous product installations are not automatic
 
 ## Installation
 
-The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.2.0 release on first use, independently of any user-installed Pi.
+The initial `0.1.x` releases support Apple Silicon macOS only. The launcher does not bundle Pi. The installer checks for Node.js 22.19 or newer and npm before installing `axon`; if either is unavailable, it offers to install or upgrade Node.js with Homebrew in an interactive terminal. Non-interactive installations require Node.js and npm to be installed first. `axon pi` installs and uses its own exact Pi 1.3.0 release on first use, independently of any user-installed Pi.
 
 Once the backend serves the public `/install.sh` endpoint (rendered from this repository's [`install.sh`](install.sh) using its configured release URL), install with:
 
@@ -66,7 +66,7 @@ axon doctor
 
 > **macOS trust limitation:** the MVP binary is explicitly ad-hoc signed, not Apple Developer ID signed or notarized. The verified terminal installer does not disable Gatekeeper. A browser-downloaded copy may receive a quarantine attribute and trigger an unidentified-developer warning. After independently checking its published checksum and signature, remove only that file's quarantine attribute if necessary: `xattr -d com.apple.quarantine ~/.axon/bin/axon`. Never disable Gatekeeper globally.
 
-`axon update --check` reports whether the backend has a newer macOS arm64 release. `axon update` downloads it through CloudFront, checks both SHA-256 hashes, signature, and version, and atomically replaces **only the managed binary** while keeping `axon.prev`. Interactive Pi sessions schedule a best-effort, silent check **after the session exits**, at most once every 24 hours after success (one-hour retry after a failure); the worker installs a verified newer version for the next invocation. Set `AXON_NO_UPDATE=1` to disable background work without disabling explicit updates. CI and non-interactive commands do not schedule it. Updates never downgrade and never fetch on the ordinary launch path.
+`axon update --check` reports whether the backend has a newer macOS arm64 release. `axon update` downloads it through CloudFront, checks both SHA-256 hashes, signature, and version, and atomically replaces **only the managed binary** while keeping `axon.prev`. Every interactive online Pi session (`axon` or `axon pi ...`) checks the published latest version **before starting Pi**, without a 24-hour throttle. If newer, Axon installs it and automatically continues in the updated launcher with the same Pi arguments, cwd, environment, and terminal. Metadata requests time out after three seconds; downloads retain their longer timeout. Check/install/relaunch failures warn and allow the current launcher to continue. Set `AXON_NO_UPDATE=1` to skip automatic updates without disabling explicit updates. Offline (`--offline`/`PI_OFFLINE`), CI, non-interactive, and administrative/help/version invocations skip the startup check. Source/dev builds do not self-update. Updates never downgrade. This behavior applies after installing a release containing the startup updater; older clients retain their existing update behavior.
 
 The checksums and URLs come from the same backend; they detect corruption but are **not independent proof of provenance** if the backend itself is compromised. The current release is ad-hoc signed, not Developer ID signed or notarized. Separately signed distribution manifests remain future work.
 
@@ -158,7 +158,7 @@ all settings. `PI_WEB_SEARCH_MODE` and `PI_WEB_SEARCH_SEARCH_TOOL` are obsolete.
 
 ### Pi installation bootstrap
 
-`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.2.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
+`axon pi` uses **only** the Axon-managed executable at `${AXON_HOME}/pi-runtime/1.3.0/node_modules/.bin/pi`. It verifies the installed package and reported executable version, installs that exact version on demand if missing, and never reads or modifies `pi` on `PATH`, regardless of its version. This also applies to forwarded Pi administration (`install`, `auth`, `mcp`, etc.). `axon pi update` (including `--extensions`) is blocked before launching Pi; use `pi update` directly for a separate global installation. Axon's own required-package reconciliation still works through its pinned executable.
 
 The official `https://pi.dev/install.sh` cannot pin a version, requires an interactive terminal, and may edit shell profiles, so Axon does not run it. Instead it follows the same steps as Pi's own managed `pi update`: it downloads `package.json` and `package-lock.json` for the exact version from `https://pi.dev/api/installer/releases/<version>/`, plus the release metadata from `https://pi.dev/api/installer/releases/<version>`, validates that all three describe `@earendil-works/pi-coding-agent@<version>`, merges the first-party tarball SHA-512 hashes from the metadata into the lockfile (the published lockfile omits them) so that every resolved tarball is integrity-checked, runs `npm ci --ignore-scripts --omit=dev --include=optional` in a staging directory under a same-user lock, verifies the installed package version and launcher, and atomically renames the tree into place. Shell profiles and `PATH` are never modified.
 
