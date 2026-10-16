@@ -1,0 +1,35 @@
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  e0f67f7540d4bf80 1-7,10-11,17-20,56-60,62,213,215-229,231,239-241,275-279,281,284-340,345,407,423-425,427-433,436,439-442,523,588,679-680,684-686
+apps/cli/src/harnesses/pi/terminal-permissions/command-parser.ts
+  e0f67f7540d4bf80 1-80
+apps/cli/src/cli/client-config.ts
+  e0f67f7540d4bf80 3
+apps/cli/tests/terminal-inspection-commands.test.ts
+  e0f67f7540d4bf80 1-147
+apps/cli/scripts/build-terminal-permissions.ts
+  e0f67f7540d4bf80 4-5
+apps/cli/src/harnesses/pi/terminal-permissions/inspection-commands.ts
+  e0f67f7540d4bf80 1-411
+apps/cli/tests/terminal-permissions.test.ts
+  e0f67f7540d4bf80 52-53,69-72,87-88,99-100,107,162,164,166,175,280,286,293,297,302,352,359-360,373,375,394-395,405-516
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "6d697662356507066b989bec7456017c81f3743b",
+  "prompts": {
+    "e0f67f7540d4bf80": {
+      "agent_id": {
+        "tool": "DeputyDev",
+        "id": "493133",
+        "model": "OPENROUTER_GPT_6_POINT_1_SOL"
+      },
+      "human_author": "Pratham verma <pratham.verma@1mg.com>",
+      "messages": [],
+      "total_additions": 1020,
+      "total_deletions": 218,
+      "accepted_lines": 911,
+      "overriden_lines": 0
+    }
+  }
+}
