@@ -10,7 +10,7 @@
     },
     "apps/cli": {
       "name": "axon-cli",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "bin": {
         "axon": "src/index.ts",
       },
@@ -44,7 +44,7 @@
         "@opentelemetry/semantic-conventions": "1.43.0",
         "@types/bun": "^1.4.0",
         "@types/proper-lockfile": "4.1.4",
-        "pi-provider-litellm": "4.2.0",
+        "pi-provider-litellm": "4.3.1",
         "typescript": "^7.0.2",
       },
     },
@@ -380,7 +380,7 @@
 
     "path-key": ["path-key@3.1.1", "", {}, "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="],
 
-    "pi-provider-litellm": ["pi-provider-litellm@4.2.0", "", { "peerDependencies": { "@earendil-works/pi-ai": ">=0.99.2", "@earendil-works/pi-coding-agent": ">=0.99.2" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"] }, "sha512-qLS7Ri4eceYR/0fiZGcoZrtIhFKqcd/IE4Fu52/sRhsw49V6P++jl0dd6CPE8Q+RDDl7e0tvPMmJxydVVfOiiA=="],
+    "pi-provider-litellm": ["pi-provider-litellm@4.3.1", "", { "peerDependencies": { "@earendil-works/pi-ai": ">=0.99.2", "@earendil-works/pi-coding-agent": ">=0.99.2" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"] }, "sha512-Uf37mAxDlE09B8csukSJEu5295QXk+/xAqnQgxoCLRXZU6PCbknX41yT0n9bpG7MyQslm9ArVprCUwgWfs5R+g=="],
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 

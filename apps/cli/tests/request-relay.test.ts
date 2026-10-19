@@ -142,6 +142,70 @@ test("deployment base paths reach auth, config, backups and upstream relay reque
   );
 });
 
+test("pinned LiteLLM image discovery and generation use the authenticated relay and preserve cost", async () => {
+  await runRelayScript(
+    `
+    const { discoverModels } = await import("pi-provider-litellm/src/discover.ts");
+    const { createLiteLLMProvider, toNativeImageModels } = await import("pi-provider-litellm/src/provider.ts");
+    const root = relay.origin + "/litellm";
+    const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1kAAAAASUVORK5CYII=";
+    const calls = [];
+    upstream = async (request) => {
+      const path = new URL(request.url).pathname;
+      calls.push(path);
+      assert.equal(request.headers.get("authorization"), "Bearer initial-session");
+      assert.equal(request.headers.get("x-harness-id"), "pi");
+      if (path === "/axon/litellm/model/info") return Response.json({
+        data: [{
+          model_name: "axon-image",
+          litellm_params: { model: "openai/gpt-image-1" },
+          model_info: { id: "image", mode: "image_generation" },
+        }],
+      });
+      if (path !== "/axon/litellm/v1/images/generations")
+        return new Response(null, { status: 404 });
+      assert.equal(request.method, "POST");
+      assert.deepEqual(await request.json(), { model: "axon-image", prompt: "A red fox", n: 1 });
+      return Response.json({ data: [{ b64_json: imageData }] }, {
+        headers: { "x-litellm-response-cost": "0.04", "x-session-refresh-token": "image-rotation" },
+      });
+    };
+    const discovered = await discoverModels(root, relay.capability, {
+      modelsDev: false, timeoutMs: 1000,
+    });
+    assert.deepEqual(discovered.models, []);
+    const images = toNativeImageModels("litellm", root, discovered.imageModels);
+    assert.equal(images.length, 1);
+    const model = images[0];
+    assert.equal(model.baseUrl, root + "/v1");
+    const provider = createLiteLLMProvider({
+      id: "litellm", name: "Axon AI Gateway", baseUrl: root, models: images,
+      auth: { apiKey: { name: "API key", resolve: async () => ({ auth: { apiKey: relay.capability } }) } },
+      resolveCredentialRoot: () => root,
+      discover: async () => discovered,
+    });
+    const context = { input: [{ type: "text", text: "A red fox" }] };
+    const result = await provider.generateImages(model, context, { apiKey: relay.capability });
+    assert.equal(result.stopReason, "stop", result.errorMessage);
+    assert.deepEqual(result.output, [{ type: "image", data: imageData, mimeType: "image/png" }]);
+    assert.equal(result.usage.cost.total, 0.04);
+    assert.equal(await sessions.loadEncryptedSession(paths), "image-rotation");
+    const beforeStaleRequest = calls.length;
+    const rejected = await provider.generateImages({
+      ...model, baseUrl: "http://127.0.0.1:1/litellm/v1",
+    }, context, { apiKey: relay.capability });
+    assert.equal(rejected.stopReason, "error");
+    assert.match(rejected.errorMessage, /stale LiteLLM model root/);
+    assert.equal(calls.length, beforeStaleRequest);
+    assert.ok(calls.includes("/axon/litellm/model/info"));
+    assert.ok(calls.includes("/axon/litellm/v1/images/generations"));
+    `,
+    "",
+    false,
+    "/axon",
+  );
+});
+
 test("browser login starts and polls under the deployment base path", async () => {
   await runRelayScript(
     `

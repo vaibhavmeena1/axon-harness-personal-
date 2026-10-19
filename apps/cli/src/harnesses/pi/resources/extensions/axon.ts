@@ -25,7 +25,7 @@ type BackupHeaderState = keyof typeof BACKUP_LABELS;
 // Keep this bus contract in sync with terminal-permissions.ts; this extension ships standalone.
 const TERMINAL_HEADER_CHANNEL = "axon:terminal-status";
 const TERMINAL_LABELS = {
-  approval: "approval",
+  standard: "standard",
   yolo: "YOLO",
   blocked: "blocked (invalid config)",
 } as const;

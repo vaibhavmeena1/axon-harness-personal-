@@ -137,7 +137,7 @@ export function createSessionRecovery(paths: AxonPaths): SessionRecovery {
         const session = await loadEncryptedSession(paths);
         authenticated =
           session !== undefined &&
-          (await verifyEncryptedSession(session)) === "VERIFIED" &&
+          (await verifyEncryptedSession(session, paths)) === "VERIFIED" &&
           !signal.aborted;
       } catch {
         // Keep credentials, browser URLs, and upstream errors out of Pi's transcript.

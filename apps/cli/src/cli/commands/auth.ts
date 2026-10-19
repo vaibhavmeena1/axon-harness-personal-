@@ -206,7 +206,7 @@ export async function runAuthStatus(paths: AxonPaths): Promise<void> {
       console.log("No saved Axon browser session. Run axon auth login to sign in.");
       return;
     }
-    const status = await verifyEncryptedSession(encryptedSession);
+    const status = await verifyEncryptedSession(encryptedSession, paths);
     console.log(
       status === "VERIFIED"
         ? "Axon session is valid."

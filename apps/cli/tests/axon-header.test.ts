@@ -213,7 +213,7 @@ describe("Axon startup header", () => {
   test("shows live terminal permissions beside backup and refreshes on mode changes", () => {
     const { setHeader, emitBackup, emitTerminal } = setup();
     emitBackup("saved");
-    emitTerminal("approval");
+    emitTerminal("standard");
     const requestRender = mock(() => {});
     const component = setHeader.mock.calls[0]?.[0]?.(
       { requestRender } as unknown as Parameters<HeaderFactory>[0],
@@ -221,11 +221,11 @@ describe("Axon startup header", () => {
     ) as Header;
     const lineCount = component.render(100).length;
     expect(stripVTControlCharacters(component.render(100)[1] ?? "")).toContain(
-      "● Backup: saved · ● Terminal: approval",
+      "● Backup: saved · ● Terminal: standard",
     );
     for (const [state, label, color] of [
       ["yolo", "YOLO", "warning"],
-      ["approval", "approval", "success"],
+      ["standard", "standard", "success"],
       ["blocked", "blocked (invalid config)", "error"],
     ] as const) {
       emitTerminal(state);
@@ -242,7 +242,7 @@ describe("Axon startup header", () => {
 
   test("stacks terminal status when both badges cannot fit beside the wordmark", () => {
     process.env["PI_AXON_CLI_VERSION"] = `1.0.0-${"a".repeat(65)}`;
-    for (const state of ["approval", "yolo", "blocked"]) {
+    for (const state of ["standard", "yolo", "blocked"]) {
       const component = header(undefined, "checking", "/srv/app", state);
       for (const expanded of [false, true]) {
         component.setExpanded(expanded);
@@ -262,7 +262,7 @@ describe("Axon startup header", () => {
 
   test("ignores untrusted terminal states and clears status on session shutdown", () => {
     const { setHeader, emitTerminal, handlers } = setup();
-    emitTerminal("approval");
+    emitTerminal("standard");
     const requestRender = mock(() => {});
     const component = setHeader.mock.calls[0]?.[0]?.(
       { requestRender } as unknown as Parameters<HeaderFactory>[0],
@@ -271,7 +271,7 @@ describe("Axon startup header", () => {
     for (const value of ["__proto__", "private-name secret-token", null, { state: "yolo" }])
       emitTerminal(value);
     expect(requestRender).not.toHaveBeenCalled();
-    expect(text(component)).toContain("Terminal: approval");
+    expect(text(component)).toContain("Terminal: standard");
     expect(text(component)).not.toContain("secret-token");
     handlers.get("session_shutdown")?.({}, {} as ExtensionContext);
     expect(text(component)).not.toContain("Terminal:");

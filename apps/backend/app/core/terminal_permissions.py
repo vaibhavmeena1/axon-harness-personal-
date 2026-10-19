@@ -93,9 +93,8 @@ CommandPrefix = Annotated[
 class CliTerminalPermissionsConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
+    # Eligibility only: users must explicitly toggle /yolo in each session.
     yolo_mode: bool = Field(alias="yoloMode")
-    allow_yolo_mode: bool = Field(alias="allowYoloMode")
-    auto_approve_commands: tuple[str, ...] = Field(alias="autoApproveCommands")
     require_approval_commands: tuple[str, ...] = Field(alias="requireApprovalCommands")
     blocked_commands: tuple[str, ...] = Field(alias="blockedCommands")
     approval_timeout_ms: int = Field(alias="approvalTimeoutMs")
@@ -104,11 +103,8 @@ class CliTerminalPermissionsConfig(BaseModel):
 class TerminalPermissionsSettings(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
+    # Grants access to /yolo; never activates autonomous execution by default.
     yolo_mode: bool = Field(default=False, alias="YOLO_MODE")
-    allow_yolo_mode: bool = Field(default=True, alias="ALLOW_YOLO_MODE")
-    auto_approve_commands: list[CommandPrefix] = Field(
-        default_factory=list, alias="AUTO_APPROVE_COMMANDS", max_length=32
-    )
     require_approval_commands: list[CommandPrefix] = Field(
         default_factory=list, alias="REQUIRE_APPROVAL_COMMANDS", max_length=32
     )
@@ -117,9 +113,7 @@ class TerminalPermissionsSettings(BaseModel):
 
     def cli_config(self) -> CliTerminalPermissionsConfig:
         return CliTerminalPermissionsConfig(
-            yolo_mode=self.yolo_mode and self.allow_yolo_mode,
-            allow_yolo_mode=self.allow_yolo_mode,
-            auto_approve_commands=tuple(self.auto_approve_commands),
+            yolo_mode=self.yolo_mode,
             require_approval_commands=tuple(self.require_approval_commands),
             blocked_commands=tuple(self.blocked_commands),
             approval_timeout_ms=self.approval_timeout_seconds * 1000,

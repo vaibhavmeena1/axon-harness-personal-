@@ -18,7 +18,6 @@ def test_defaults_match_the_configuration_template() -> None:
     settings = parse_terminal_permissions(template)
     assert settings == TerminalPermissionsSettings()
     assert settings.yolo_mode is False
-    assert settings.allow_yolo_mode is True
     assert settings.approval_timeout_seconds == 60
     assert parse_terminal_permissions({}) is None
 
@@ -27,7 +26,6 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
     policy = TerminalPermissionsSettings.model_validate(
         {
             "YOLO_MODE": True,
-            "AUTO_APPROVE_COMMANDS": ["pwd", "git status"],
             "REQUIRE_APPROVAL_COMMANDS": ["git push"],
             "BLOCKED_COMMANDS": ["rm"],
             "APPROVAL_TIMEOUT_SECONDS": 10,
@@ -49,8 +47,6 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
     public = response.model_dump(by_alias=True, mode="json", exclude_none=True)
     assert public["terminalPermissions"] == {
         "yoloMode": True,
-        "allowYoloMode": True,
-        "autoApproveCommands": ["pwd", "git status"],
         "requireApprovalCommands": ["git push"],
         "blockedCommands": ["rm"],
         "approvalTimeoutMs": 10000,
@@ -59,20 +55,22 @@ def test_terminal_preferences_are_projected_into_the_cli_response() -> None:
     assert "auth_data" not in public
 
 
-def test_yolo_prohibition_overrides_the_backend_yolo_default() -> None:
-    settings = parse_terminal_permissions({"TERMINAL_PERMISSIONS": {"YOLO_MODE": True, "ALLOW_YOLO_MODE": False}})
+@pytest.mark.parametrize("eligible", [False, True])
+def test_yolo_setting_only_projects_session_toggle_eligibility(eligible: bool) -> None:
+    settings = parse_terminal_permissions({"TERMINAL_PERMISSIONS": {"YOLO_MODE": eligible}})
     assert settings is not None
-    assert settings.cli_config().yolo_mode is False
-    assert settings.cli_config().allow_yolo_mode is False
+    assert settings.cli_config().yolo_mode is eligible
+    assert "allowYoloMode" not in settings.cli_config().model_dump(by_alias=True)
 
 
 @pytest.mark.parametrize(
     "patch",
     [
         {"YOLO_MODE": "true"},
-        {"ALLOW_YOLO_MODE": 1},
-        {"AUTO_APPROVE_COMMANDS": [""]},
-        {"AUTO_APPROVE_COMMANDS": [" "]},
+        {"ALLOW_YOLO_MODE": True},
+        {"AUTO_APPROVE_COMMANDS": []},
+        {"REQUIRE_APPROVAL_COMMANDS": [""]},
+        {"REQUIRE_APPROVAL_COMMANDS": [" "]},
         {"REQUIRE_APPROVAL_COMMANDS": ["rm\n"]},
         {"BLOCKED_COMMANDS": ["rm\u001b"]},
         {"BLOCKED_COMMANDS": ["rm\u0085"]},

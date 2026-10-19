@@ -8,31 +8,23 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { type CommandWords, parseCommands } from "../../terminal-permissions/command-parser.ts";
-import {
-  classifyInspectionCommand,
-  createWorkspacePathChecker,
-} from "../../terminal-permissions/inspection-commands.ts";
 
 /**
- * Permission guard for native bash, nested codemode calls, powershell, and !/!!.
- * Lists contain literal command prefixes, not regexes/globs. Rules are compared
- * as words: "git status" never grants "git reset". Each pipeline/chain segment
- * is checked independently. Inspection profiles verify arguments before automatic
- * approval; prefix lists cannot waive unsafe flags or unknown programs. The LLM
- * must supply requires_approval, which can request review but never waive it.
- * This is an approval guard, not an OS sandbox:
- * allowed programs/scripts can perform arbitrary work, as can other extensions.
+ * Standard auto-runs supported commands unless the model or policy requests review.
+ * YOLO skips review, including for wrappers and complex shell syntax. Backend
+ * yoloMode only grants eligibility; /yolo explicitly toggles it for this session.
+ * Literal-prefix blocklists are best-effort, not an OS sandbox: scripts, wrappers,
+ * and other extensions can perform arbitrary work.
  *
- * PI_TERMINAL_YOLO_MODE=true auto-approves supported commands except restrictions.
- * PI_TERMINAL_AUTO_APPROVE_COMMANDS='["ls","git status"]'
  * PI_TERMINAL_REQUIRE_APPROVAL_COMMANDS='["rm","sudo"]'
  * PI_TERMINAL_BLOCKED_COMMANDS='["git reset --hard"]'
  * PI_TERMINAL_APPROVAL_TIMEOUT_MS=60000
  * PI_TERMINAL_MANAGED_CONFIG is reserved for the Axon launcher's backend policy.
+ * Environment variables cannot grant eligibility or activate YOLO.
  */
 // Keep this bus contract in sync with axon.ts; both extensions ship standalone.
 export const TERMINAL_HEADER_CHANNEL = "axon:terminal-status";
-type TerminalHeaderState = "approval" | "yolo" | "blocked";
+type TerminalHeaderState = "standard" | "yolo" | "blocked";
 
 interface CommandPrefix {
   readonly text: string;
@@ -40,9 +32,7 @@ interface CommandPrefix {
 }
 
 interface TerminalConfig {
-  readonly yoloMode: boolean;
-  readonly allowYoloMode: boolean;
-  readonly autoApproveCommands: readonly CommandPrefix[];
+  readonly yoloAvailable: boolean;
   readonly requireApprovalCommands: readonly CommandPrefix[];
   readonly blockedCommands: readonly CommandPrefix[];
   readonly approvalTimeoutMs: number;
@@ -59,10 +49,8 @@ const DECISION_REASONS = {
   model_requested_approval: "The model requested approval for this command",
   invalid_approval_intent: "Terminal tool calls must include a boolean requires_approval",
   shell_configuration: "A custom shell requires explicit review",
-  inspection_command: "Verified inspection command and arguments",
-  inspection_review: "Command or arguments are not a verified inspection operation",
+  standard_mode: "Standard mode",
   yolo_mode: "YOLO mode",
-  auto_approval: "Auto-approval prefix and verified inspection arguments",
 } as const;
 type Decision = {
   readonly action: "allow" | "approve" | "block";
@@ -149,14 +137,6 @@ function booleanSetting(value: unknown, name: string): boolean {
   return value;
 }
 
-function environmentBoolean(name: string, fallback: boolean): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
-  if (value === undefined) return fallback;
-  if (["true", "1", "yes", "on"].includes(value)) return true;
-  if (["false", "0", "no", "off"].includes(value)) return false;
-  throw new Error(`${name} must be a boolean`);
-}
-
 function readConfig(): TerminalConfig {
   const managed = process.env["PI_TERMINAL_MANAGED_CONFIG"];
   const value: unknown = managed === undefined ? {} : JSON.parse(managed);
@@ -166,8 +146,6 @@ function readConfig(): TerminalConfig {
   const policy = value as Record<string, unknown>;
   const supportedKeys = [
     "yoloMode",
-    "allowYoloMode",
-    "autoApproveCommands",
     "requireApprovalCommands",
     "blockedCommands",
     "approvalTimeoutMs",
@@ -181,9 +159,8 @@ function readConfig(): TerminalConfig {
       managed === undefined ? (local === undefined ? [] : JSON.parse(local)) : policy[key];
     return commandList(configured, key);
   };
-  const allowYoloMode =
-    managed === undefined ? true : booleanSetting(policy["allowYoloMode"], "allowYoloMode");
-  const yoloMode = managed === undefined ? false : booleanSetting(policy["yoloMode"], "yoloMode");
+  const yoloAvailable =
+    managed === undefined ? false : booleanSetting(policy["yoloMode"], "yoloMode");
   const timeout =
     managed === undefined
       ? Number(process.env["PI_TERMINAL_APPROVAL_TIMEOUT_MS"] ?? 60_000)
@@ -199,10 +176,7 @@ function readConfig(): TerminalConfig {
     );
   }
   return {
-    // Local preferences cannot override an admin's YOLO prohibition.
-    yoloMode: allowYoloMode && environmentBoolean("PI_TERMINAL_YOLO_MODE", yoloMode),
-    allowYoloMode,
-    autoApproveCommands: list("autoApproveCommands", "PI_TERMINAL_AUTO_APPROVE_COMMANDS"),
+    yoloAvailable,
     requireApprovalCommands: list(
       "requireApprovalCommands",
       "PI_TERMINAL_REQUIRE_APPROVAL_COMMANDS",
@@ -212,17 +186,16 @@ function readConfig(): TerminalConfig {
   };
 }
 
-function matchesPrefix(words: CommandWords, rule: CommandPrefix, restrict: boolean): boolean {
+function matchesPrefix(words: CommandWords, rule: CommandPrefix): boolean {
   const matches = (candidate: CommandWords): boolean =>
     rule.words.every((word, index) => {
       const actual = candidate[index];
       // Restrictions catch executable paths without granting those paths implicitly.
-      return actual === word || (restrict && index === 0 && actual?.split("/").at(-1) === word);
+      return actual === word || (index === 0 && actual?.split("/").at(-1) === word);
     });
   if (matches(words)) return true;
-  if (!restrict || words[0]?.split("/").at(-1) !== "git") return false;
-  // The inspection profile accepts these global options. They must not hide a
-  // required/blocked Git subcommand behind a harmless presentation option.
+  if (words[0]?.split("/").at(-1) !== "git") return false;
+  // Harmless Git global options must not hide a required/blocked subcommand.
   let subcommandIndex = 1;
   while (
     ["--no-pager", "--literal-pathspecs", "--no-optional-locks"].includes(
@@ -236,65 +209,46 @@ function matchesPrefix(words: CommandWords, rule: CommandPrefix, restrict: boole
 
 function decide(
   command: string,
-  shell: string,
+  shell: TerminalShell,
   config: TerminalConfig,
   yoloMode: boolean,
-  cwd: string,
   requiresApproval: boolean,
   customShell: boolean,
 ): Decision {
   if (!command.trim() || hasControlCharacters(command, true)) {
     return { action: "block", reason: "invalid_command" };
   }
-  const commands = shell === "bash" ? parseCommands(command) : undefined;
-  if (commands === undefined) {
-    // Do not let expansions, wrappers, or a different shell hide a blocked command.
+  // Attempt literal matching for simple PowerShell commands too, but do not use
+  // this Bash grammar to infer PowerShell safety in Standard mode.
+  const commands = parseCommands(command);
+  if (
+    commands?.some((words) => config.blockedCommands.some((rule) => matchesPrefix(words, rule)))
+  ) {
+    return { action: "block", reason: "blocked_command" };
+  }
+  // YOLO deliberately allows unknown syntax and wrappers, even when blocked
+  // work could be hidden behind them. This check is best-effort, not a sandbox.
+  if (yoloMode) return { action: "allow", reason: "yolo_mode" };
+  if (shell !== "bash" || commands === undefined) {
     return config.blockedCommands.length > 0
       ? { action: "block", reason: "unverified_syntax" }
       : { action: "approve", reason: "shell_syntax" };
   }
-  if (
-    commands.some((words) =>
-      config.blockedCommands.some((rule) => matchesPrefix(words, rule, true)),
-    )
-  ) {
-    return { action: "block", reason: "blocked_command" };
-  }
   if (commands.some((words) => SHELL_WRAPPERS.has(words[0]?.split("/").at(-1) ?? ""))) {
     return config.blockedCommands.length > 0
-      ? {
-          action: "block",
-          reason: "unverified_wrapper",
-        }
+      ? { action: "block", reason: "unverified_wrapper" }
       : { action: "approve", reason: "shell_wrapper" };
   }
   if (
     commands.some((words) =>
-      config.requireApprovalCommands.some((rule) => matchesPrefix(words, rule, true)),
+      config.requireApprovalCommands.some((rule) => matchesPrefix(words, rule)),
     )
   ) {
     return { action: "approve", reason: "required_approval" };
   }
   if (requiresApproval) return { action: "approve", reason: "model_requested_approval" };
   if (customShell) return { action: "approve", reason: "shell_configuration" };
-  if (yoloMode) return { action: "allow", reason: "yolo_mode" };
-  const isWorkspacePath = createWorkspacePathChecker(cwd);
-  if (
-    commands.every(
-      (words) => classifyInspectionCommand(words, cwd, isWorkspacePath) === "inspection",
-    )
-  ) {
-    const matchesConfiguredPrefixes = commands.every((words) =>
-      config.autoApproveCommands.some((rule) => matchesPrefix(words, rule, false)),
-    );
-    return {
-      action: "allow",
-      reason: matchesConfiguredPrefixes ? "auto_approval" : "inspection_command",
-    };
-  }
-  // Prefixes are not proof of safety: git diff --output, find -exec, and even
-  // unknown programs matching an old allow rule must still receive review.
-  return { action: "approve", reason: "inspection_review" };
+  return { action: "allow", reason: "standard_mode" };
 }
 
 /** Extend the native schema without replacing native rendering or execution semantics. */
@@ -306,12 +260,8 @@ function registerShellTools(pi: ExtensionAPI): void {
         ? createBashToolDefinition(process.cwd())
         : createPowerShellToolDefinition(process.cwd());
     const approvalGuideline =
-      "Always provide requires_approval. Set it to false only for inspection commands " +
-      "with read-only arguments; set it to true for writes, deletion, installs, network " +
-      "transfers, privilege changes, arbitrary code execution, or uncertainty. " +
-      "git diff, git show, and git log -p/--stat are inspections only with " +
-      "--no-ext-diff --no-textconv. " +
-      "The runtime independently checks safety; false never bypasses permission rules.";
+      "Set requires_approval=true for destructive, privileged, or externally impactful commands; " +
+      "false for routine local work, including reads, edits, builds, and tests. Ignored in YOLO mode.";
     pi.registerTool({
       ...nativeTool,
       // Preserve --tools/defaultTools choices, and never activate PowerShell on macOS.
@@ -325,7 +275,7 @@ function registerShellTools(pi: ExtensionAPI): void {
           requires_approval: {
             type: "boolean" as const,
             description:
-              "Whether the model believes this command needs explicit user approval. When uncertain, use true.",
+              "Request review in Standard mode; false for routine local work. Ignored in YOLO mode.",
           },
         },
         required: ["command", "requires_approval"] as const,
@@ -353,7 +303,7 @@ function registerShellTools(pi: ExtensionAPI): void {
 
 export default function terminalPermissions(pi: ExtensionAPI): void {
   registerShellTools(pi);
-  let yoloOverride: boolean | undefined;
+  let yoloEnabled = false;
   let autoSelectedDecisionSampleIndex = 0;
   // Bound retained requests and serialize confirmation dialogs for concurrent codemode calls.
   const approvalQueue: (() => Promise<void>)[] = [];
@@ -404,9 +354,8 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       /* Header rendering must never affect terminal permissions. */
     }
   };
-  const updateStatus = (config: TerminalConfig): void => {
-    const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-    publishStatus(yoloMode ? "yolo" : "approval");
+  const updateStatus = (): void => {
+    publishStatus(yoloEnabled ? "yolo" : "standard");
   };
   const authorize = async (
     command: unknown,
@@ -441,13 +390,12 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
       shell === "bash" &&
       !!settings.shellPath &&
       !["/bin/bash", "/bin/sh"].includes(settings.shellPath);
-    const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
+    const yoloMode = config.yoloAvailable && yoloEnabled;
     const decision = decide(
       effectiveCommand,
       shell,
       config,
       yoloMode,
-      cwd,
       requiresApproval === true,
       customShell,
     );
@@ -569,12 +517,12 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
   };
 
   pi.on("session_start", (_event, ctx) => {
-    yoloOverride = undefined;
+    yoloEnabled = false;
     autoSelectedDecisionSampleIndex = 0;
     try {
-      const config = getConfig();
-      updateStatus(config);
-      emit("policy", "success", { yoloMode: config.yoloMode });
+      getConfig();
+      updateStatus();
+      emit("policy", "success", { yoloMode: false });
     } catch {
       publishStatus("blocked");
       emit("policy", "failed", { reason: "invalid_config" });
@@ -607,93 +555,73 @@ export default function terminalPermissions(pi: ExtensionAPI): void {
     return undefined;
   });
 
-  pi.registerCommand("terminal-permissions", {
-    description: "Inspect terminal permissions or set YOLO mode: status | yolo on | yolo off",
+  pi.on("session_shutdown", () => {
+    yoloEnabled = false;
+  });
+
+  pi.registerCommand("yolo", {
+    description: "Toggle fully autonomous terminal execution for this session (if backend permits)",
     handler: async (args, ctx) => {
-      const action = args.trim().toLowerCase();
-      const startedAt = Date.now();
+      if (args.trim()) {
+        ctx.ui.notify("Usage: /yolo (toggles on/off for this session)", "warning");
+        return;
+      }
       let config: TerminalConfig;
       try {
         config = getConfig();
       } catch {
-        emit("policy", "failed", {
-          reason: "invalid_config",
-          durationMs: Date.now() - startedAt,
-        });
+        emit("policy", "failed", { reason: "invalid_config" });
         ctx.ui.notify(
           "Invalid terminal permission configuration; terminal execution is blocked.",
           "error",
         );
         return;
       }
-
-      if (action === "yolo off") {
-        yoloOverride = false;
-        emit("yolo", "success", { reason: "yolo_disabled", yoloMode: false });
-      } else if (action === "yolo on") {
-        const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-        if (!config.allowYoloMode) {
-          emit("yolo", "blocked", { reason: "policy_disabled", yoloMode });
-          ctx.ui.notify("YOLO mode is disabled by the managed terminal policy.", "warning");
-          return;
-        }
-        if (!ctx.hasUI) {
-          emit("yolo", "blocked", { reason: "approval_unavailable", yoloMode });
-          return;
-        }
-        const signal = ctx.signal;
-        emit("yolo", "pending", { reason: "yolo_enabled", yoloMode });
-        let approved: boolean;
-        try {
-          approved = await ctx.ui.confirm(
-            "Enable YOLO mode?",
-            "Supported terminal commands will run without approval. Required-approval and blocked commands still apply.",
-            {
-              timeout: config.approvalTimeoutMs,
-              ...(signal === undefined ? {} : { signal }),
-            },
-          );
-        } catch {
-          emit("yolo", "failed", {
-            reason: "approval_failed",
-            yoloMode,
-            durationMs: Date.now() - startedAt,
-          });
-          ctx.ui.notify("Terminal approval failed; YOLO mode was not changed.", "error");
-          return;
-        }
-        if (approved !== true || signal?.aborted) {
-          emit("yolo", signal?.aborted ? "cancelled" : "dismissed", {
-            reason: signal?.aborted ? "cancelled" : "not_approved",
-            yoloMode,
-            durationMs: Date.now() - startedAt,
-          });
-          return;
-        }
-        yoloOverride = true;
-        emit("yolo", "success", {
-          reason: "yolo_enabled",
-          yoloMode: true,
-          durationMs: Date.now() - startedAt,
-        });
-      } else if (action !== "" && action !== "status") {
-        ctx.ui.notify("Usage: /terminal-permissions [status | yolo on | yolo off]", "warning");
+      if (!yoloEnabled && !config.yoloAvailable) {
+        emit("yolo", "blocked", { reason: "policy_disabled", yoloMode: false });
+        ctx.ui.notify("YOLO is unavailable: backend policy does not permit it.", "warning");
         return;
       }
-      updateStatus(config);
-      const yoloMode = config.allowYoloMode && (yoloOverride ?? config.yoloMode);
-      const yoloLabel = `${yoloMode ? "on" : "off"}${config.allowYoloMode ? "" : " (disabled by policy)"}`;
+      if (!yoloEnabled && !ctx.hasUI) {
+        emit("yolo", "blocked", { reason: "approval_unavailable", yoloMode: false });
+        return;
+      }
+      if (ctx.signal?.aborted) return;
+      yoloEnabled = !yoloEnabled;
+      emit("yolo", "success", {
+        reason: yoloEnabled ? "yolo_enabled" : "yolo_disabled",
+        yoloMode: yoloEnabled,
+      });
+      updateStatus();
+      ctx.ui.notify(
+        yoloEnabled
+          ? "YOLO on for this session: terminal commands run without approval. Blocklists are best-effort, not a sandbox. Run /yolo to turn off."
+          : "YOLO off: Standard mode restored.",
+        yoloEnabled ? "warning" : "info",
+      );
+    },
+  });
+
+  pi.registerCommand("terminal-permissions", {
+    description: "Show terminal mode, YOLO availability, and command restrictions",
+    handler: async (_args, ctx) => {
+      let config: TerminalConfig;
+      try {
+        config = getConfig();
+      } catch {
+        ctx.ui.notify(
+          "Invalid terminal permission configuration; terminal execution is blocked.",
+          "error",
+        );
+        return;
+      }
       ctx.ui.notify(
         [
-          `YOLO: ${yoloLabel}`,
-          "Inspection profiles: on (read-only arguments and workspace file operands)",
-          `Auto-approve: ${config.autoApproveCommands.map((rule) => rule.text).join(", ") || "none"} (inspection-only)`,
-          `Require approval: ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
-          `Blocked: ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          `Mode: ${yoloEnabled ? "YOLO" : "Standard"}`,
+          `YOLO available: ${config.yoloAvailable ? "yes — toggle with /yolo" : "no (backend policy)"}`,
+          `Require approval (Standard only): ${config.requireApprovalCommands.map((rule) => rule.text).join(", ") || "none"}`,
+          `Blocked (best-effort): ${config.blockedCommands.map((rule) => rule.text).join(", ") || "none"}`,
           `Approval timeout: ${config.approvalTimeoutMs / 1000}s`,
-          "Unknown commands and unsafe arguments require approval unless YOLO is on.",
-          "Model requires_approval=true always requests review; false never grants permission.",
-          "Lists use literal prefixes; complex syntax and wrappers require review.",
         ].join("\n"),
         "info",
       );

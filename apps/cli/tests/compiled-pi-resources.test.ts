@@ -31,8 +31,6 @@ test.each(["unminified", "minified"] as const)(
     const paths = resolveAxonPaths({ AXON_HOME: join(root, "home"), HOME: root });
     const policy = {
       yoloMode: false,
-      allowYoloMode: true,
-      autoApproveCommands: ["git status"],
       requireApprovalCommands: [],
       blockedCommands: ["rm"],
       approvalTimeoutMs: 60_000,
