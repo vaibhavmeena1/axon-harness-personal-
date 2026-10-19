@@ -1,0 +1,150 @@
+apps/cli/src/product/manifest.ts
+  s_514458c0400518::t_a2ab8502101dc8 107,121
+apps/backend/tests/test_terminal_permissions.py
+  s_0a19ec0c54204f::t_194011609f96b1 58-60,62-63,70-73
+apps/cli/docs/plans/backend-compaction-config.md
+  s_514458c0400518::t_ca7fe5fa3b2378 147
+apps/backend/pyproject.toml
+  s_c5c6913bf0785a::t_a149879a7dd989 3
+apps/cli/tests/axon-header.test.ts
+  s_0a19ec0c54204f::t_b57f96e5e0b294 216,224,228,245,265,274
+apps/cli/src/index.ts
+  s_cc1d1116a9159d::t_0f0ade608c0c1a 5,28-29
+apps/cli/tests/certificates.test.ts
+  s_cc1d1116a9159d::t_9a4ae1351b76f0 2,122
+  s_cc1d1116a9159d::t_69657caa539a4b 42,253,273,364-370,407-408,428-429
+  s_cc1d1116a9159d::t_f5ab2b59ed28e9 1,13-16,18-27,29-41,43-68,70-75,80-93,95-121,123-173,175-252,254-272,274-284,304-309,329-330,332,335,343-344,347-351,355-363,373-376,388,393-395,405-406,418,424-427,430,432,436,475-481
+  s_cc1d1116a9159d::t_eee201913713ef 69,174
+  s_cc1d1116a9159d::t_41327d4184ebe3 444
+  s_cc1d1116a9159d::t_bda00cb04496a0 17,76-79,94,331,336-342,437-443,445-474
+  s_cc1d1116a9159d::t_93f84e13702b7e 3-12,285-303,310-328,333-334,345-346,352-354,371-372,377-387,389-392,396-404,409-417,419-423,433-435
+  s_cc1d1116a9159d::t_9d365010056aeb 28,431
+apps/cli/tests/pi-package-setup.test.ts
+  s_514458c0400518::t_f39daa122b25df 158,160
+apps/cli/src/cli/auth/session-recovery.ts
+  s_d94f1a6268a8df::t_daae60c835023a 140
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.ts
+  s_0a19ec0c54204f::t_80580087ca2315 13-17,23,27,35,52,162-163,179,189,194,197-198,212,221-223,229-236,239,251,263-264,278,306,357-358,393,520,523-525,558-563,565-568,573,580-603,605-611,620-623
+  s_0a19ec0c54204f::t_ab9c6676c1a044 225,244,612-615
+apps/backend/app/clients/auth_service.py
+  s_d94f1a6268a8df::t_89d97176f82f6e 7,52-59,135-138,143,146
+apps/cli/src/launcher/certificates.ts
+  s_cc1d1116a9159d::t_fd15c407173d18 2,62-65
+  s_cc1d1116a9159d::t_87332790b69a0d 1,3-44,46-61,66-113,117-132,135-170,178-200
+  s_cc1d1116a9159d::t_843744e5c4d788 133-134
+  s_cc1d1116a9159d::t_93f84e13702b7e 45,114-116,171-177
+apps/cli/src/cli/client-config.ts
+  s_0a19ec0c54204f::t_de88cadde2ef95 52
+apps/cli/src/cli/auth/verification.ts
+  s_d94f1a6268a8df::t_0811244572be79 5,7,11,14,18-86,90-93,96,98-99,107
+apps/cli/tests/litellm-client-provider.test.ts
+  s_514458c0400518::t_237256ce4debfe 9-16,35,101-133,137-159,161-172
+  s_514458c0400518::t_925c597139adb1 134-136,160
+  s_514458c0400518::t_48be42bb0f94b5 173-175
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_0a19ec0c54204f::t_7c25c90a9d2bf5 60
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_0a19ec0c54204f::t_7c25c90a9d2bf5 264
+apps/backend/app/routers/browser_login.py
+  s_d94f1a6268a8df::t_2c64f12d1d1394 36-39,52-54,60-64
+apps/cli/tests/pi-model-cache.test.ts
+  s_514458c0400518::t_b379e96124e3a5 31,80-90,94,124
+  s_514458c0400518::t_7be571f0d6c4f6 11-21,91-93,96-123,125
+  s_514458c0400518::t_fed45fa99c4a1a 95
+  s_514458c0400518::t_bf0cb9fe6bdfe8 126
+apps/cli/tests/request-relay.test.ts
+  s_514458c0400518::t_42a59c0f946725 145-208
+apps/backend/tests/test_cli_session_verification.py
+  s_d94f1a6268a8df::t_106dc3b5900b5b 1-102
+apps/cli/tests/terminal-command-parser.test.ts
+  s_0a19ec0c54204f::t_2ead4a4f0640d2 1-10,16-21,33-38,41-45,48-51
+  s_0a19ec0c54204f::t_ab9c6676c1a044 11-15,22-32,39-40,46-47
+apps/backend/app/main.py
+  s_c5c6913bf0785a::t_4001e8440aaf8a 20
+apps/cli/tests/pi-environment.test.ts
+  s_514458c0400518::t_35f67e61a5466a 17-46
+apps/cli/tests/startup-session-refresh.test.ts
+  s_d94f1a6268a8df::t_2164fb000e3db9 1-194
+apps/cli/tests/terminal-permissions.test.ts
+  s_0a19ec0c54204f::t_bbd7353b7e4fc1 54,78-79,84-95,103,108,121,123,128,130-135,151-153,156,158-161,164,177,179-180,183,185,187,190-191,194,196,200,204,206,210,212-214,217-219,221-223,231-233,236-243,246-247,249-250,254-264,268,295-296,298-306,308-309,312,314-321,324-328,331-342,345,352-358,363,366,371,377-380,382-388,401,407-428,451-456,465,478,482,485-486,489,499,501,520-521,531,578
+  s_0a19ec0c54204f::t_ab9c6676c1a044 110,115-118,165-176,201,224-229,269-279,281-293,346-350,389-400,402-406,429-450,457-464,533,541,544-547,557-569
+  s_0a19ec0c54204f::t_01e4d8cc069455 230
+  s_0a19ec0c54204f::t_d4bdf8febfa38c 294
+apps/cli/src/telemetry/product-events.ts
+  s_0a19ec0c54204f::t_0873e4aa4f6834 116-119
+apps/cli/src/cli/commands/auth.ts
+  s_d94f1a6268a8df::t_0f0b85ad0555ed 209
+apps/cli/src/harnesses/pi/resources/extensions/axon.ts
+  s_0a19ec0c54204f::t_3b29a75fafe8c2 28
+apps/backend/app/core/terminal_permissions.py
+  s_0a19ec0c54204f::t_022b5dbb82fd8e 96,106,116
+apps/cli/tests/terminal-permissions-environment.test.ts
+  s_0a19ec0c54204f::t_cff909818f79c2 31,36-37,42-45
+apps/cli/README.md
+  s_cc1d1116a9159d::t_1c40beb3383f4a 169-189
+  s_0a19ec0c54204f::t_2ef5b83433b6ee 334-362
+  s_514458c0400518::t_743a68e402e059 225-230,264,292
+apps/backend/README.md
+  s_0a19ec0c54204f::t_3eaaf886df1042 22-36
+  s_d94f1a6268a8df::t_1eeac4b617a7b3 324-325
+apps/cli/package.json
+  s_514458c0400518::t_3fea342abad399 65
+  s_c5c6913bf0785a::t_4a570fed53b789 3
+apps/cli/src/cli/auth/ensure-session.ts
+  s_d94f1a6268a8df::t_63541ccec19ddc 31,49-52
+apps/cli/src/harnesses/pi/resources/extensions/terminal-permissions.mjs
+  s_0a19ec0c54204f::t_7c25c90a9d2bf5 2-7,9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "93d18ea1e8c886b29c6a849b14a3e02d2a457e89",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_0a19ec0c54204f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a153b1-2038-76ab-85d8-df1bbb812a33",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_514458c0400518": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a152e8-dd5b-77e7-baf6-c13c4c3ed6a6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_c5c6913bf0785a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15412-57ca-77b0-9d3b-62e376f537c1",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_cc1d1116a9159d": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1538f-bc2d-7781-a9c0-cf4a67f9328b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_d94f1a6268a8df": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a14ad9-82f7-7509-8bb6-ce671612380f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
