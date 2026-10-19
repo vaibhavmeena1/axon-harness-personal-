@@ -17,7 +17,7 @@ app = FastAPI(
     debug=settings.debug,
     lifespan=lifespan,
     description="Centralized management API for Axon CLI installations",
-    version="0.1.4",
+    version="0.1.6",
 )
 app.add_middleware(SessionRefreshResponseMiddleware)
 for router in ROUTERS:

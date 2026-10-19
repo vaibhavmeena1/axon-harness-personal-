@@ -144,7 +144,7 @@ Every field in the three new sections is optional. Do not insert validator defau
 - `discoveryTimeoutMs` must be an integer in `0..300000`. Preserve `0` as the provider's discovery-disable value, not absence/fallback. It also affects provider integrations such as MCP, not just one model-list request.
 - `defaultContextWindow` must be an integer in `1..2147483647`. It applies only when authoritative LiteLLM/catalog metadata is missing; it must not replace known per-model context windows, model output limits, or Pi settings. Prefer publishing correct `/model/info` metadata over a global fallback.
 - Numeric validation must reject strings, booleans, fractions, and non-finite numbers, with equivalent integral-JSON-number semantics in Python and JavaScript as described for compaction below.
-- Keep provider behavior version-pinned and validate against `pi-provider-litellm@4.2.0`. A changed fallback cannot be promised to rewrite all cached metadata when discovery is disabled. Test the provider's real fallback/cache behavior rather than silently overriding cached authoritative limits.
+- Keep provider behavior version-pinned and validate against `pi-provider-litellm@4.3.1`. A changed fallback cannot be promised to rewrite all cached metadata when discovery is disabled. Test the provider's real fallback/cache behavior rather than silently overriding cached authoritative limits.
 
 ### Nulls, empty objects, and templates
 

@@ -8,6 +8,17 @@ import { FileModelsStore } from "../node_modules/@earendil-works/pi-coding-agent
 import { invalidateStalePiRelayModels } from "../src/harnesses/pi/model-cache.ts";
 import { type AxonPaths, resolveAxonPaths } from "../src/product/paths.ts";
 
+// Exercise the published provider's startup reader without typechecking third-party source.
+const { readStoredModels } = (await import(
+  Bun.resolveSync("pi-provider-litellm/src/models-store.ts", import.meta.dir)
+)) as {
+  readStoredModels: (options: {
+    agentDir: string;
+    provider: string;
+    baseUrl: string;
+  }) => Promise<unknown[] | undefined>;
+};
+
 let root: string;
 let paths: AxonPaths;
 let cachePath: string;
@@ -17,7 +28,7 @@ const model = (baseUrl = staleUrl, id = "test-model") => ({
   id,
   provider: "litellm",
   baseUrl,
-  litellmDiscoveryVersion: 6,
+  litellmDiscoveryVersion: 7,
 });
 
 beforeEach(async () => {
@@ -64,6 +75,53 @@ describe("managed Pi relay model cache", () => {
       oldRelay.stop(true);
       newRelay.stop(true);
     }
+  });
+
+  test("removes stale image models while preserving current-relay image models", async () => {
+    const image = (baseUrl: string) => ({
+      ...model(baseUrl, "axon-image"),
+      type: "image",
+      api: "litellm-images",
+    });
+    const currentImage = image(`${relayOrigin}/litellm/v1`);
+    await writeCache({
+      litellm: { models: [image(staleUrl), currentImage], checkedAt: Date.now() },
+    });
+
+    const options = { agentDir: paths.pi, provider: "litellm", baseUrl: `${relayOrigin}/litellm` };
+    // Even a recent catalog cannot be reused while any model points at an old relay.
+    expect(await readStoredModels(options)).toBeUndefined();
+    expect(await invalidateStalePiRelayModels(paths, relayOrigin)).toBe(1);
+    expect((await new FileModelsStore(cachePath).read("litellm"))?.models).toEqual([currentImage]);
+    expect(await readStoredModels(options)).toEqual([currentImage]);
+    await expectNoArtifacts();
+  });
+
+  test.each([
+    { name: "previous discovery version", version: 6, ageMs: 0 },
+    { name: "expired four-hour catalog", version: 7, ageMs: 4 * 60 * 60 * 1000 + 1 },
+  ])("does not reuse a $name at startup", async ({ version, ageMs }) => {
+    await writeCache({
+      litellm: {
+        models: [
+          {
+            ...model(`${relayOrigin}/litellm/v1`, "axon-image"),
+            type: "image",
+            api: "litellm-images",
+            litellmDiscoveryVersion: version,
+          },
+        ],
+        checkedAt: Date.now() - ageMs,
+      },
+    });
+    expect(
+      await readStoredModels({
+        agentDir: paths.pi,
+        provider: "litellm",
+        baseUrl: `${relayOrigin}/litellm`,
+      }),
+    ).toBeUndefined();
+    await expectNoArtifacts();
   });
 
   test("preserves current relay models, custom endpoints, aliases, and unrelated metadata", async () => {

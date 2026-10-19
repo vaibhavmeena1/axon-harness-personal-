@@ -4,7 +4,7 @@ from typing import Literal
 
 import httpx
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.config import AuthServiceSettings
 
@@ -47,6 +47,14 @@ class AuthDataResponse(BaseModel):
 
 class AuthSessionVerification(BaseModel):
     status: Literal["VERIFIED", "NOT_VERIFIED", "EXPIRED"]
+
+
+class AuthSessionVerificationResult(AuthSessionVerification):
+    """Private auth-service response; credentials must never enter the public JSON body."""
+
+    encrypted_session_data: str | None = Field(
+        default=None, exclude=True, repr=False, min_length=1, max_length=1024 * 1024 - 1, pattern=r"^[!-~]+$"
+    )
 
 
 class AuthServiceClient:
@@ -124,16 +132,18 @@ class AuthServiceClient:
             raise AuthServiceError("Authentication failed", status_code=401)
         return payload
 
-    async def verify_auth_token(self, authorization: str) -> AuthSessionVerification:
-        """Check startup credentials without refreshing an expired session."""
+    async def verify_auth_token(
+        self, authorization: str, *, refresh_expired: bool = False
+    ) -> AuthSessionVerificationResult:
+        """Verify a session, optionally refreshing expired access tokens for startup."""
         try:
             response = await self._client.post(
                 "v2/verify-auth-token",
                 headers={"Authorization": authorization},
-                params={"refresh_expired": "false"},
+                params={"refresh_expired": str(refresh_expired).lower()},
             )
             response.raise_for_status()
-            return AuthSessionVerification.model_validate(response.json())
+            return AuthSessionVerificationResult.model_validate(response.json())
         except httpx.HTTPStatusError as exc:
             status_code = exc.response.status_code if exc.response.status_code in {401, 403} else 503
             raise AuthServiceError("Session verification failed", status_code=status_code) from exc

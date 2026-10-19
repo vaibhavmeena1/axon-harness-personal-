@@ -33,8 +33,6 @@ let litellmMcpEnabled = true;
 const projectRoot = resolve(import.meta.dir, "..");
 const terminalPolicy = {
   yoloMode: false,
-  allowYoloMode: true,
-  autoApproveCommands: ["pwd", "git status"],
   requireApprovalCommands: ["git push"],
   blockedCommands: ["rm"],
   approvalTimeoutMs: 60_000,

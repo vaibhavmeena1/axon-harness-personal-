@@ -28,7 +28,7 @@ export async function ensureAuthenticatedSession(
   }
 
   if (encryptedSession !== undefined) {
-    const status = await verifyEncryptedSession(encryptedSession);
+    const status = await verifyEncryptedSession(encryptedSession, paths);
     if (status === "VERIFIED") return true;
     console.error(
       status === "EXPIRED" ? "Your Axon session has expired." : "Your Axon session is invalid.",
@@ -46,7 +46,10 @@ export async function ensureAuthenticatedSession(
   // runAuthLogin presents a choice; it never opens a browser until selected.
   if (!(await runAuthLogin(paths, {}))) return false;
   const savedSession = await loadEncryptedSession(paths);
-  if (savedSession !== undefined && (await verifyEncryptedSession(savedSession)) === "VERIFIED") {
+  if (
+    savedSession !== undefined &&
+    (await verifyEncryptedSession(savedSession, paths)) === "VERIFIED"
+  ) {
     return true;
   }
   throw new LauncherError(

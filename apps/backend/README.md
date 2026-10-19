@@ -19,6 +19,21 @@ make install
 
 The backend loads `config.json` from this directory and validates it before serving requests. The Vortex audit in [`VORTEX_REFERENCE.md`](VORTEX_REFERENCE.md) describes the former stack and is not current implementation guidance.
 
+## Terminal execution policy
+
+`TERMINAL_PERMISSIONS.YOLO_MODE` grants eligibility for the CLI's session-local `/yolo`
+toggle. It never enables autonomous execution by default: every session starts in Standard
+mode. Set it to `false` to prohibit YOLO for all users; missing policy also prohibits it.
+`REQUIRE_APPROVAL_COMMANDS` applies only in Standard, while `BLOCKED_COMMANDS` is a
+best-effort literal-prefix list in both modes, not a sandbox. YOLO allows wrappers and
+complex syntax even when the blocklist cannot verify their contents.
+
+The supported settings are `YOLO_MODE`, `REQUIRE_APPROVAL_COMMANDS`, `BLOCKED_COMMANDS`,
+and `APPROVAL_TIMEOUT_SECONDS`; see `config_template.json`. Remove the obsolete
+`ALLOW_YOLO_MODE` and `AUTO_APPROVE_COMMANDS` keys from private deployment configuration
+before upgrading. Unknown settings fail validation. Policy changes take effect on the next
+CLI launch after the backend restarts, not in already-running sessions.
+
 ## Local LiteLLM
 
 To use LiteLLM running on the host at port 4000, set these fields in the ignored `config.json` (keep the other connection-pool settings):
@@ -305,6 +320,8 @@ own actual model permissions, budgets, and rate limits. Routing and credentials 
 through search config. Restart the backend after editing `config.json`; relaunch Pi to receive changes.
 
 ### CLI client configuration
+
+`POST /api/v1/auth/verify-auth-token?refresh_expired=true` verifies startup credentials through the auth service’s `v2/verify-auth-token` endpoint and opts into silent access-token refresh. A successfully refreshed auth-service `EXPIRED` response is exposed as `VERIFIED`, with the rotated encrypted session only in `x-session-refresh-token`, never in the JSON body. The CLI must save that header before continuing. Omitted/false `refresh_expired` keeps identity probes read-only. Missing/invalid/unrefreshable sessions require login; service outages do not. Verification responses use `Cache-Control: no-store`.
 
 `GET /api/v1/cli/config` requires `Authorization: Bearer <Axon encrypted session>` and uses the shared auth-service guard. It returns only schema-versioned telemetry, web-search, terminal permissions, Pi defaults, and partial compaction/recommender/provider preferences, never private backend config, auth data, or credentials in the JSON body. Auth errors and successful responses use `Cache-Control: no-store`; auth-service refresh tokens remain response headers. Browser-login start/poll stay on their existing `/api/v1/auth/browser-login` routes. No public bootstrap endpoint is added.
 

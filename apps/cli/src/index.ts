@@ -2,6 +2,7 @@
 
 import { dispatch } from "./cli/dispatch.ts";
 import { isPiOffline } from "./harnesses/pi/setup/packages/invocation.ts";
+import { bootstrapCertificates } from "./launcher/certificates.ts";
 import { isTrue } from "./launcher/debug-preview.ts";
 import { LauncherError } from "./launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "./launcher/exit-status.ts";
@@ -23,8 +24,9 @@ function printUnexpectedError(error: unknown): void {
 export async function main(
   argumentsVector: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
-  beginProductTelemetryInvocation();
   try {
+    await bootstrapCertificates(argumentsVector);
+    beginProductTelemetryInvocation();
     await dispatch(argumentsVector);
   } catch (error) {
     if (error instanceof LauncherError) {

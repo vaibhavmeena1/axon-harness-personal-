@@ -14,6 +14,36 @@ describe("Pi remote clipboard", () => {
   });
 });
 
+describe("Pi LiteLLM provider configuration", () => {
+  test("preserves explicit alias configuration without replacing managed relay overrides", () => {
+    const inheritedEnvironment = {
+      LITELLM_PROVIDERS: "team-a",
+      LITELLM_PROVIDERS_JSON: JSON.stringify({ "team-b": { baseUrl: "https://b.example" } }),
+      LITELLM_PROVIDER_TEAM_A_BASE_URL: "https://a.example",
+      LITELLM_PROVIDER_TEAM_A_API_KEY: "team-a-key",
+      LITELLM_BASE_URL: "https://ambient.example",
+      LITELLM_API_KEY: "ambient-key",
+    };
+    const original = { ...inheritedEnvironment };
+    const environment = createPiEnvironment(inheritedEnvironment, paths, {
+      LITELLM_BASE_URL: "http://127.0.0.1:12345/litellm",
+      LITELLM_API_KEY: "relay-capability",
+    });
+
+    for (const name of [
+      "LITELLM_PROVIDERS",
+      "LITELLM_PROVIDERS_JSON",
+      "LITELLM_PROVIDER_TEAM_A_BASE_URL",
+      "LITELLM_PROVIDER_TEAM_A_API_KEY",
+    ]) {
+      expect(environment[name]).toBe(Reflect.get(inheritedEnvironment, name));
+    }
+    expect(environment["LITELLM_BASE_URL"]).toBe("http://127.0.0.1:12345/litellm");
+    expect(environment["LITELLM_API_KEY"]).toBe("relay-capability");
+    expect(inheritedEnvironment).toEqual(original);
+  });
+});
+
 describe("Pi provider display name", () => {
   test.each([{}, { LITELLM_DISPLAY_NAME: undefined }])(
     "supplies a product-derived default when the display name is unset: %j",

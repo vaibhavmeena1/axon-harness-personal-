@@ -6,7 +6,14 @@ import { createLiteLLMClientOverrides } from "../src/harnesses/pi/launch-prefere
 
 // Load published TS at runtime: it does not use Axon's stricter tsconfig flags.
 // Keep the checked projection narrow without typechecking/forking third-party source.
-type MetadataModel = { id: string; contextWindow: number; maxTokens: number };
+type MetadataModel = {
+  id: string;
+  contextWindow: number;
+  maxTokens: number;
+  litellmBackendFamily?: string;
+  compat?: { maxTokensField?: string; supportsStrictMode?: boolean };
+  litellmPolicy?: { normalizeStrictToolMessages?: boolean };
+};
 const { discoverModels, enrichCachedModel } = (await import(
   Bun.resolveSync("pi-provider-litellm/src/discover.ts", import.meta.dir)
 )) as {
@@ -25,7 +32,7 @@ const { toNativeModels } = (await import(
 
 // Exercise the exact installed provider, not a reimplementation of its fallback rules.
 test("pinned LiteLLM fallback respects authoritative metadata and does not promise to rewrite arbitrary cached windows", async () => {
-  expect(providerPackage.version).toBe("4.2.0");
+  expect(providerPackage.version).toBe("4.3.1");
   let modelInfoAvailable = true;
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -88,6 +95,81 @@ test("pinned LiteLLM fallback respects authoritative metadata and does not promi
   } finally {
     if (previous === undefined) delete process.env["LITELLM_DEFAULT_CONTEXT_WINDOW"];
     else process.env["LITELLM_DEFAULT_CONTEXT_WINDOW"] = previous;
+    server.stop(true);
+  }
+});
+
+test.each(["openai", "openai_like", "custom_openai", "azure"])(
+  "generic %s routing preserves vendor family compatibility",
+  async (adapter) => {
+    const families = [
+      { family: "kimi", model: "kimi-k3" },
+      { family: "deepseek", model: "deepseek-v4.1-flash" },
+      { family: "claude", model: "claude-sonnet-4-6" },
+      { family: "gemini", model: "gemini-2.5-flash" },
+    ];
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        expect(request.headers.get("authorization")).toBe("Bearer test-key");
+        if (new URL(request.url).pathname !== "/model/info")
+          return new Response(null, { status: 404 });
+        return Response.json({
+          data: families.map(({ family, model }) => ({
+            model_name: `axon-${family}`,
+            litellm_params: { model: `openai/${model}`, custom_llm_provider: adapter },
+            model_info: { id: family, mode: "chat" },
+          })),
+        });
+      },
+    });
+    try {
+      const result = await discoverModels(server.url.origin, "test-key", {
+        modelsDev: false,
+        timeoutMs: 1000,
+      });
+      expect(result.models).toHaveLength(families.length);
+      for (const { family } of families) {
+        expect(
+          result.models.find((model) => model.id === `axon-${family}`)?.litellmBackendFamily,
+        ).toBe(family);
+      }
+      const kimi = result.models.find((model) => model.id === "axon-kimi");
+      expect(kimi?.compat).toMatchObject({
+        maxTokensField: "max_tokens",
+        supportsStrictMode: false,
+      });
+      expect(kimi?.litellmPolicy?.normalizeStrictToolMessages).toBe(true);
+    } finally {
+      server.stop(true);
+    }
+  },
+);
+
+test("empty model info falls back to the virtual key's model list", async () => {
+  const requests: string[] = [];
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      expect(request.headers.get("authorization")).toBe("Bearer test-key");
+      const path = new URL(request.url).pathname;
+      requests.push(path);
+      if (path === "/model/info") return Response.json({ data: [] });
+      if (path === "/v1/models") return Response.json({ data: [{ id: "axon-opaque-key-model" }] });
+      return new Response(null, { status: 404 });
+    },
+  });
+  try {
+    const result = await discoverModels(server.url.origin, "test-key", {
+      modelsDev: false,
+      timeoutMs: 1000,
+    });
+    expect(result.models.map((model) => model.id)).toEqual(["axon-opaque-key-model"]);
+    expect(requests).toContain("/v1/models");
+    expect(requests.indexOf("/model/info")).toBeLessThan(requests.indexOf("/v1/models"));
+  } finally {
     server.stop(true);
   }
 });

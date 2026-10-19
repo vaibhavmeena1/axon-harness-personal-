@@ -33,8 +33,10 @@ class BrowserLoginSession(BaseModel):
 
 
 @router.post("/verify-auth-token", response_model=AuthSessionVerification)
-async def verify_cli_session(request: Request, response: Response) -> AuthSessionVerification:
-    """Forward CLI startup verification without exposing identity or refresh credentials."""
+async def verify_cli_session(
+    request: Request, response: Response, refresh_expired: bool = False
+) -> AuthSessionVerification:
+    """Verify CLI sessions; return opted-in rotations only in the private refresh header."""
     credentials = request.headers.getlist("authorization")
     if len(credentials) != 1:
         raise HTTPException(401, "Authentication required", headers={"Cache-Control": "no-store"})
@@ -47,13 +49,19 @@ async def verify_cli_session(request: Request, response: Response) -> AuthSessio
     ):
         raise HTTPException(401, "Authentication required", headers={"Cache-Control": "no-store"})
     try:
-        result = await get_auth_service_client(request).verify_auth_token(credentials[0])
+        result = await get_auth_service_client(request).verify_auth_token(
+            credentials[0], refresh_expired=refresh_expired
+        )
     except (AuthServiceError, RuntimeError) as exc:
         status_code = exc.status_code if isinstance(exc, AuthServiceError) else 503
         detail = "Authentication required" if status_code in {401, 403} else "Auth service is unavailable"
         raise HTTPException(status_code, detail, headers={"Cache-Control": "no-store"}) from exc
     response.headers["Cache-Control"] = "no-store"
-    return result
+    if refresh_expired and result.encrypted_session_data and result.status in {"VERIFIED", "EXPIRED"}:
+        # axon-auth reports EXPIRED even when it successfully refreshed the session.
+        response.headers["x-session-refresh-token"] = result.encrypted_session_data
+        return AuthSessionVerification(status="VERIFIED")
+    return AuthSessionVerification(status=result.status)
 
 
 @router.post("/browser-login", response_model=BrowserLoginStart)

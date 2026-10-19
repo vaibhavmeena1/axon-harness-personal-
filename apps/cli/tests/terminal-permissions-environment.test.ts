@@ -6,8 +6,6 @@ import { createHarnessEnvironment } from "../src/launcher/environment.ts";
 
 const policy = {
   yoloMode: false,
-  allowYoloMode: true,
-  autoApproveCommands: ["pwd", "git status"],
   requireApprovalCommands: ["git push"],
   blockedCommands: ["rm"],
   approvalTimeoutMs: 60_000,
@@ -30,21 +28,21 @@ describe("managed terminal permissions configuration", () => {
     const environment = createHarnessEnvironment(
       {
         PI_TERMINAL_MANAGED_CONFIG: "untrusted-marker",
-        PI_TERMINAL_YOLO_MODE: "false",
-        PI_TERMINAL_AUTO_APPROVE_COMMANDS: '["pwd"]',
+        PI_TERMINAL_YOLO_MODE: "true",
       },
       createTerminalPermissionsOverrides(),
     );
     expect(environment["PI_TERMINAL_MANAGED_CONFIG"]).toBeUndefined();
-    expect(environment["PI_TERMINAL_AUTO_APPROVE_COMMANDS"]).toBe('["pwd"]');
-    expect(environment["PI_TERMINAL_YOLO_MODE"]).toBe("false");
+    // Inherited preferences cannot activate YOLO; only a fetched policy grants eligibility.
+    expect(environment["PI_TERMINAL_YOLO_MODE"]).toBe("true");
   });
 
   test.each([
     { yoloMode: "true" },
-    { allowYoloMode: 1 },
-    { autoApproveCommands: [""] },
-    { autoApproveCommands: [" "] },
+    { allowYoloMode: true },
+    { autoApproveCommands: [] },
+    { requireApprovalCommands: [""] },
+    { requireApprovalCommands: [" "] },
     { requireApprovalCommands: ["rm\n"] },
     { blockedCommands: ["rm\u001b"] },
     { blockedCommands: Array(33).fill("rm") },
