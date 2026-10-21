@@ -44,6 +44,9 @@ async function buildBundle(repositoryRoot: string): Promise<string> {
     const result = await Bun.build({
       entrypoints: [join(repositoryRoot, TELEMETRY_ENTRY)],
       external: ["@earendil-works/pi-coding-agent"],
+      // Bun otherwise embeds absolute build-machine paths for CommonJS dependencies.
+      // Resolve relative to the deployed ESM bundle, not the developer/CI checkout.
+      define: { __dirname: "import.meta.dirname" },
       format: "esm",
       minify: true,
       outdir: temporaryDirectory,

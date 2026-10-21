@@ -29,6 +29,8 @@ describe("embedded Pi telemetry bundle", () => {
     expect(source).toContain(PI_ORG_TELEMETRY_VERSION);
     expect(source).not.toContain('from"@opentelemetry/');
     expect(source).not.toContain("node_modules/@opentelemetry");
+    expect(source).not.toContain(repositoryRoot);
+    expect(source).not.toMatch(/var __dirname\s*=\s*["']/);
 
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "axon-telemetry-import-"));
     const stubDirectory = join(
