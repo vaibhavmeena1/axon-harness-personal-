@@ -1,0 +1,23 @@
+apps/cli/src/harnesses/pi/resources/extensions/pi-org-telemetry.mjs
+  s_2cba24f0ecab29::t_8355bf7fbed2c4 245,251
+apps/cli/tests/pi-telemetry-bundle.test.ts
+  s_2cba24f0ecab29::t_0139dfd8e7a547 32-33
+apps/cli/scripts/build-pi-telemetry.ts
+  s_2cba24f0ecab29::t_ed91abceab60af 47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "743a83a227fb94d215e0d72875c6a236517ee8c0",
+  "prompts": {},
+  "sessions": {
+    "s_2cba24f0ecab29": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a16040-3e16-74b6-aa23-85ef0384ebcb",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
