@@ -1,0 +1,30 @@
+apps/frontend/README.md
+  s_4370d99693b58e::t_d1ddd897795123 16,21,42,44,46-50
+apps/backend/README.md
+  s_4370d99693b58e::t_3b5ea34b510ee1 282
+README.md
+  s_4370d99693b58e::t_cb74e28605076b 59-60
+apps/frontend/src/App.tsx
+  s_4370d99693b58e::t_a51207fa24fa20 2-4,6-16,19-23,25-29
+  s_4370d99693b58e::t_dba2dd4a23923b 17-18,24
+apps/frontend/config_template.json
+  s_4370d99693b58e::t_bb1d853eb73efa 6-7
+apps/frontend/index.html
+  s_4370d99693b58e::t_1ae1625839fb3c 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c54916ba62e838f65aa66ef7387d48eabcff1c7c",
+  "prompts": {},
+  "sessions": {
+    "s_4370d99693b58e": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a16015-2c14-759c-b208-7c446cfbc3c5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
