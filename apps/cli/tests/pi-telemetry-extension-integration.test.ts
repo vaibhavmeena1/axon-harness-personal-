@@ -19,6 +19,10 @@ const telemetryExtension = join(
   "pi-org-telemetry.mjs",
 );
 const temporaryDirectories: string[] = [];
+// Native Node/Pi cold starts can exceed Bun's default 5s on Intel CI runners.
+// Keep subprocess deadlines inside the test deadline, leaving time for cleanup.
+const subprocessTimeoutMs = 10_000;
+const integrationTimeoutMs = 20_000;
 
 async function listen(server: ReturnType<typeof createServer>): Promise<number> {
   return new Promise((resolvePort, reject) => {
@@ -68,6 +72,7 @@ async function runPi(
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
+      timeout: subprocessTimeoutMs,
     },
   );
   const [exitCode, stdout, stderr] = await Promise.all([
@@ -87,25 +92,30 @@ afterEach(async () => {
 });
 
 describe("Pi telemetry extension integration", () => {
-  test("standalone bundle exports authenticated telemetry under native Node", async () => {
-    const home = await mkdtemp(join(tmpdir(), "axon-native-otel-"));
-    temporaryDirectories.push(home);
-    await saveEncryptedSession(resolveAxonPaths({ AXON_HOME: home, HOME: home }), "native-session");
-    const seen: Array<{ path: string; auth: string | undefined; body: Buffer }> = [];
-    const server = createServer((request, response) => {
-      const chunks: Buffer[] = [];
-      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-      request.on("end", () => {
-        seen.push({
-          path: request.url ?? "",
-          auth: request.headers.authorization,
-          body: Buffer.concat(chunks),
+  test(
+    "standalone bundle exports authenticated telemetry under native Node",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "axon-native-otel-"));
+      temporaryDirectories.push(home);
+      await saveEncryptedSession(
+        resolveAxonPaths({ AXON_HOME: home, HOME: home }),
+        "native-session",
+      );
+      const seen: Array<{ path: string; auth: string | undefined; body: Buffer }> = [];
+      const server = createServer((request, response) => {
+        const chunks: Buffer[] = [];
+        request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        request.on("end", () => {
+          seen.push({
+            path: request.url ?? "",
+            auth: request.headers.authorization,
+            body: Buffer.concat(chunks),
+          });
+          response.writeHead(200, { "content-type": "application/x-protobuf" }).end();
         });
-        response.writeHead(200, { "content-type": "application/x-protobuf" }).end();
       });
-    });
-    const port = await listen(server);
-    const script = `
+      const port = await listen(server);
+      const script = `
       const {default: extension} = await import(${JSON.stringify(telemetryExtension)});
       const handlers = new Map();
       extension({on: (name,handler) => {handlers.set(name,handler); return () => {};}});
@@ -124,67 +134,82 @@ describe("Pi telemetry extension integration", () => {
       }
       await handlers.get("session_shutdown")({reason:"quit"},ctx);
     `;
-    try {
-      const child = Bun.spawn(["node", "--input-type=module", "--eval", script], {
-        cwd: repositoryRoot,
-        env: {
-          HOME: home,
-          PATH: Reflect.get(process.env, "PATH") ?? "",
-          PI_OFFLINE: "1",
-          PI_SKIP_VERSION_CHECK: "1",
-          PI_ORG_OTEL_DIAGNOSTICS: "true",
-          PI_ORG_OTEL_MANAGED_HOME: home,
-          PI_ORG_OTEL_MANAGED_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
-          OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
-        },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        timeout: 10000,
-      });
-      const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
-      expect(stderr).toBe("");
-      expect(code).toBe(0);
-      expect(new Set(seen.map((request) => request.path))).toEqual(
-        new Set(["/api/v1/otel/v1/traces", "/api/v1/otel/v1/metrics", "/api/v1/otel/v1/logs"]),
-      );
-      for (const request of seen) {
-        expect(request.auth).toBe("Bearer native-session");
-        expect(request.body.includes(Buffer.from("native-session"))).toBe(false);
-        expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
-        expect(request.body.includes(Buffer.from("private-user-content"))).toBe(false);
-        expect(request.body.includes(Buffer.from("private-custom-content"))).toBe(false);
-        expect(request.body.includes(Buffer.from("pi.telemetry.dropped"))).toBe(false);
+      let child: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
+      try {
+        child = Bun.spawn(["node", "--input-type=module", "--eval", script], {
+          cwd: repositoryRoot,
+          env: {
+            HOME: home,
+            PATH: Reflect.get(process.env, "PATH") ?? "",
+            PI_OFFLINE: "1",
+            PI_SKIP_VERSION_CHECK: "1",
+            PI_ORG_OTEL_DIAGNOSTICS: "true",
+            PI_ORG_OTEL_MANAGED_HOME: home,
+            PI_ORG_OTEL_MANAGED_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
+            OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${port}/api/v1/otel`,
+          },
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+          timeout: subprocessTimeoutMs,
+        });
+        const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+        expect(stderr).toBe("");
+        expect(code).toBe(0);
+        expect(new Set(seen.map((request) => request.path))).toEqual(
+          new Set(["/api/v1/otel/v1/traces", "/api/v1/otel/v1/metrics", "/api/v1/otel/v1/logs"]),
+        );
+        for (const request of seen) {
+          expect(request.auth).toBe("Bearer native-session");
+          expect(request.body.includes(Buffer.from("native-session"))).toBe(false);
+          expect(request.body.includes(Buffer.from("axon_auth"))).toBe(true);
+          expect(request.body.includes(Buffer.from("private-user-content"))).toBe(false);
+          expect(request.body.includes(Buffer.from("private-custom-content"))).toBe(false);
+          expect(request.body.includes(Buffer.from("pi.telemetry.dropped"))).toBe(false);
+        }
+      } finally {
+        if (child) {
+          child.kill();
+          await child.exited;
+        }
+        await close(server);
       }
-    } finally {
-      await close(server);
-    }
-  });
+    },
+    integrationTimeoutMs,
+  );
 
-  test("loads in the managed Pi version without an OTLP endpoint", async () => {
-    const result = await runPi();
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout.length).toBeGreaterThan(0);
-  });
-
-  test("does no OTLP network work when no endpoint is configured", async () => {
-    let requests = 0;
-    const server = createServer((request, response) => {
-      requests += 1;
-      request.resume();
-      response.writeHead(200).end();
-    });
-    const port = await listen(server);
-    try {
-      const result = await runPi({
-        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${port}/v1/traces`,
-      });
+  test(
+    "loads in the managed Pi version without an OTLP endpoint",
+    async () => {
+      const result = await runPi();
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
-      expect(requests).toBe(0);
-    } finally {
-      await close(server);
-    }
-  });
+      expect(result.stdout.length).toBeGreaterThan(0);
+    },
+    integrationTimeoutMs,
+  );
+
+  test(
+    "does no OTLP network work when no endpoint is configured",
+    async () => {
+      let requests = 0;
+      const server = createServer((request, response) => {
+        requests += 1;
+        request.resume();
+        response.writeHead(200).end();
+      });
+      const port = await listen(server);
+      try {
+        const result = await runPi({
+          OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `http://127.0.0.1:${port}/v1/traces`,
+        });
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(requests).toBe(0);
+      } finally {
+        await close(server);
+      }
+    },
+    integrationTimeoutMs,
+  );
 });
