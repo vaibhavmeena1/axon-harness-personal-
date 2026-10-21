@@ -56,6 +56,8 @@ cp apps/frontend/config_template.json apps/frontend/config.json
 make -C apps/backend install
 ```
 
+For root-based local frontend development, set `VITE_BASE_PATH` to `/` and `BASE_API_URL` to `""` in `apps/frontend/config.json`; the checked-in template defaults to the production `/axon/` mount.
+
 These local configuration files are git-ignored. Do not overwrite existing configuration or commit credentials. Before starting the backend, set its database connection in `apps/backend/config.json`; configure the auth service and LiteLLM connections for sign-in and model access. See the [backend guide](apps/backend/README.md) for details.
 
 The CLI's `.env` points at `http://localhost:3000` by default. Compiled release binaries use their build-time service origin rather than loading this file.

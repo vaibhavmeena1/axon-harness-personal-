@@ -279,7 +279,7 @@ Ingress must strip `/axon` before forwarding to this app: `/axon/install.sh` bec
 
 Restart the backend after changing its ignored `config.json` and rebuild the CLI with the prefixed service base. `CLI_RELEASES.KEY_PREFIX` controls S3 object keys independently; do not change CloudFront's distribution origin to a URL containing `/axon`.
 
-Frontend console base-path support is deferred; the Dockerfile retains its root-based frontend build and needs no custom frontend build argument. See the [frontend follow-up note](../frontend/README.md#deferred-frontend-deployment-under-a-path-prefix). This does not block CLI or backend API deployment under `/axon`.
+The Dockerfile builds the console using `apps/frontend/config_template.json`, which sets `VITE_BASE_PATH` to `/axon/` and `BASE_API_URL` to `/axon`. Asset requests such as `/axon/assets/index-….js` must also have `/axon` stripped by ingress. No custom frontend build arguments are needed; change the template and rebuild the image for root hosting or another prefix. See [frontend build-time deployment paths](../frontend/README.md#build-time-deployment-paths).
 
 The current console is a scaffold, not the external-auth application. Only use `https://deputydev.ai/axon/external-auth` for `BROWSER_LOGIN_URL` if your deployment actually serves the login page there. The separate MCP catalog must likewise be available as JSON at `https://deputydev.ai/axon/v1/cli/pi/mcp.json`; the SPA fallback is not a catalog implementation.
 
