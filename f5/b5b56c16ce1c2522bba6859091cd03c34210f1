@@ -1,0 +1,341 @@
+apps/cli/tests/sessions-menu.test.ts
+  s_2039f6520a1ff7::t_505af64558b6b5 372
+apps/backend/tests/test_otel_proxy.py
+  s_2039f6520a1ff7::t_068507701af033 61-69
+  s_2039f6520a1ff7::t_2b8a1581885c1e 31,150-151
+apps/cli/README.md
+  s_76dd3d6a312ab8::t_a542b2a381771f 227-230
+  s_2039f6520a1ff7::t_7eec2f5445aaac 301
+  s_ffceb7e0b28faf::t_ac53b8ae26e54c 428
+  s_e5bd120124b708::t_ff72542c301bdc 15,33,45,69,430-431,433
+  s_76dd3d6a312ab8::t_74d7365bb9f29b 237-243,264
+apps/cli/src/cli/client-config.ts
+  s_76dd3d6a312ab8::t_47ec9259826f49 84
+apps/backend/tests/test_litellm_identity.py
+  s_2039f6520a1ff7::t_be96ed0f23b522 178,189,213,238,312
+  s_2039f6520a1ff7::t_068507701af033 294
+  s_2039f6520a1ff7::t_b71ce6aec41ca6 194,267,269-271,296-297,299
+apps/backend/db/migrations/20261002140000_create_sessions.sql
+  s_2039f6520a1ff7::t_e08e1747688951 4-5,31,86
+apps/backend/app/core/cli_config.py
+  s_76dd3d6a312ab8::t_1c6a0924fb61d2 30,69,78
+apps/cli/src/sessions/api.ts
+  s_2039f6520a1ff7::t_706027c802e61c 19,101
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  s_2039f6520a1ff7::t_6ff54bcef84682 17
+apps/cli/tests/release-base-path.test.ts
+  s_e5bd120124b708::t_8d7df640d9f75a 31,35,42-45,49,55,60-78,80-125
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  s_2039f6520a1ff7::t_14b46d23659d10 2,6,56,58-60,62-65
+apps/backend/tests/test_cli_releases.py
+  s_e5bd120124b708::t_30b14f5f811ca2 32-38,58-63,94-96,98-109,112-124,169-183,185-186,199,223-226,229,240-245,265-268,284
+docs/github-actions-core-ci.md
+  s_ffceb7e0b28faf::t_5c3749dc57050b 1-2,6-34,36-102,104-107,111-182,188,192-194,197,200,203-212,234-246
+  s_ffceb7e0b28faf::t_064bebee5b37a6 103,108-110
+  s_ffceb7e0b28faf::t_f7d55b52b436cf 228-229
+  s_ffceb7e0b28faf::t_63f4abbeb05640 3-5,35,183-187,189-191,195-196,198-199,201-202,213-227,230-233
+apps/cli/src/cli/launcher-program.ts
+  s_7d48d5e85951a2::t_10f8dcdbc25064 130-132,145-147
+  s_7d48d5e85951a2::t_5f0e985bc9b326 10-11
+  s_e5bd120124b708::t_8aff0efeed9dde 125
+apps/backend/app/services/sessions/service.py
+  s_2039f6520a1ff7::t_068507701af033 215
+  s_2039f6520a1ff7::t_38799295492765 69,99,102
+apps/cli/scripts/prepare-s3-release.ts
+  s_e5bd120124b708::t_c4e7567d2012c9 55-63
+  s_e5bd120124b708::t_18c5d97154f692 5-13,24-34,43,52-54,64-104,127-132,134-136,143-152,162,165-179,187
+apps/backend/deployment/run_migrations.sh
+  s_0f531254f46a0b::t_05ea38f78f41ab 4-15
+apps/backend/tests/test_product_telemetry.py
+  s_2039f6520a1ff7::t_dbed9cced4d431 146,148,152,168,173,183,185
+  s_2039f6520a1ff7::t_068507701af033 153-154
+apps/cli/tests/client-config.test.ts
+  s_76dd3d6a312ab8::t_962594dc25de70 68-84
+apps/backend/tests/test_build_backend_image.py
+  s_0f531254f46a0b::t_d83448b7901233 66,69,71-72,74,88,90
+apps/backend/deployment/generate_session_schema.py
+  s_0f531254f46a0b::t_d6b9a4cdf81e17 9,24-35
+  s_2039f6520a1ff7::t_44b87165d618a4 1
+  s_2039f6520a1ff7::t_66b1a74ca8e970 52
+apps/cli/src/cli/commands/doctor.ts
+  s_e5bd120124b708::t_8aff0efeed9dde 22,31-44,347-348,353-354,357,359-367
+docs/user-id-cutover.md
+  s_0f531254f46a0b::t_8beb456c41a5dc 39,41-43,45-48,51-53,56-67
+  s_2039f6520a1ff7::t_072506f699b5ac 1-38,40,44,49-50,54-55,68-83
+apps/cli/src/cli/auth/request-relay.ts
+  s_76dd3d6a312ab8::t_73d8ccacec035d 14-15,191,365
+apps/backend/app/routers/cli_releases.py
+  s_e5bd120124b708::t_96a7621a346a65 10-11,26-27,47,71,73,76-87,90,93,98
+apps/frontend/package.json
+  s_8a52138bb08287::t_b93a815a10dc01 44
+README.md
+  s_0376630f9d4a53::t_b1ea38a782f122 9-10
+  s_e5bd120124b708::t_ff72542c301bdc 5,112,118,121
+  s_ffceb7e0b28faf::t_3371de0e228fa0 107-111,113-116
+apps/backend/app/models/session_backup.py
+  s_2039f6520a1ff7::t_10ec106525a04d 3,16,45
+  s_2039f6520a1ff7::t_4048d0fcd56637 4
+apps/cli/src/updater/update.ts
+  s_e5bd120124b708::t_c06c7b8067eb94 21-25,64-68,70-71,134,169,178,206
+  s_7d48d5e85951a2::t_96f6030cc900d8 39-43,142,173,179
+  s_7d48d5e85951a2::t_eb830a240ff450 50
+apps/backend/app/clients/auth_service.py
+  s_2039f6520a1ff7::t_fcad5c3665325f 25-26,28-30,37
+apps/cli/scripts/publish-s3-release.ts
+  s_e5bd120124b708::t_247ce377aad605 4-9,13-17,65-67,70,73-80,84,111-113,117,119-142,146-169,172-173,176-177,179
+  s_e5bd120124b708::t_abdd0f006be21f 143-145
+  s_e5bd120124b708::t_f3cdb51185a988 170-171,174-175
+docs/user-guide.md
+  s_e5bd120124b708::t_ff72542c301bdc 13
+  s_0376630f9d4a53::t_1e9de5b6d2bf26 19
+  s_0376630f9d4a53::t_ed4319dc6e106f 38,40-41,58,211,223
+  s_0376630f9d4a53::t_66645a71ed52a9 47-48
+  s_0376630f9d4a53::t_492e18a73746dd 79,81-115,139,151,170,218-220,222
+  s_0376630f9d4a53::t_5cca453632323a 149
+  s_0376630f9d4a53::t_9a09d78c569269 1-12,14,16-18,20-37,39,42-46,49-57,59-78,80,116-138,140-148,150,152-169,171-193,195,202-210,212-213,215-217
+  h_cbc19accedcd8a 15
+  s_0376630f9d4a53::t_f13218fdd93dcd 194,196-201,214
+  s_0376630f9d4a53::t_678770b819398c 221
+apps/cli/tests/session-backup-recovery.test.ts
+  s_2039f6520a1ff7::t_505af64558b6b5 119-134,166-170
+  s_2039f6520a1ff7::t_40cf1c11570c37 114-118,135-147,158,160-164,171-173
+  s_2039f6520a1ff7::t_7d178be03d75bd 36,370,412
+  s_2039f6520a1ff7::t_b24b04b104a84f 159,165
+  s_2039f6520a1ff7::t_931c6d54711a02 148-157
+apps/backend/tests/test_session_database.py
+  s_0f531254f46a0b::t_9b993a443fb8a9 6-7,97,101,125-132,135-153,157,159-169,176-177,185-187,189-242,268
+  s_2039f6520a1ff7::t_068507701af033 294
+  s_2039f6520a1ff7::t_4f5b5dd4694998 103,106-107,109,118,292,295
+  s_2039f6520a1ff7::t_e36a553f21d681 92-93,98
+  s_2039f6520a1ff7::t_4a9d0262ec9b3a 282,293,296
+  s_0f531254f46a0b::t_5657644eed253d 26,249-259,261,263-266
+  s_2039f6520a1ff7::t_548198ffe8196c 99-100
+  s_0f531254f46a0b::t_984a0e38b777bd 133-134
+.github/workflows/ci.yml
+  s_ffceb7e0b28faf::t_280bdfd3f2a1cc 91
+  s_ffceb7e0b28faf::t_d22dc2e6206928 37,93-160
+  s_e5bd120124b708::t_389edab7c2812f 41-54,69-70,92
+apps/backend/tests/test_cli_launch_preferences.py
+  s_76dd3d6a312ab8::t_381af38668a228 75-79
+apps/cli/docs/plans/cli-client-config.md
+  s_76dd3d6a312ab8::t_e4db26032bb78c 41-42,77-80
+apps/cli/tests/installer/install.test.ts
+  s_e5bd120124b708::t_2215e72044969b 65,67,71-74,84-87,192,195-216,397,406-408,411
+apps/cli/src/harnesses/pi/telemetry/docs/data-policy.md
+  s_2039f6520a1ff7::t_2817802974e579 21
+apps/backend/tests/test_litellm_proxy.py
+  s_2039f6520a1ff7::t_902577badf1c63 282
+  s_2039f6520a1ff7::t_db84f2fe9c8953 201-215
+apps/cli/src/sessions/backup.ts
+  s_2039f6520a1ff7::t_505af64558b6b5 186
+  s_2039f6520a1ff7::t_8a045c6fd16c80 190
+  s_2039f6520a1ff7::t_78889fa99a8b60 117
+  s_2039f6520a1ff7::t_15b1a2d4707368 106-108
+apps/cli/scripts/generate-release-metadata.ts
+  s_e5bd120124b708::t_f19d8c94ef1270 1-2,4-10,36,41-44,65-66,68-78,80,85-96,102-106,113-116,118
+apps/backend/tests/test_cli_config.py
+  s_2039f6520a1ff7::t_885c8220b0991a 45
+  s_76dd3d6a312ab8::t_5dfdc78054b09e 90,219,233,264,268-304,315,324
+.github/workflows/release.yml
+  s_e5bd120124b708::t_cc2e26c5de11d2 6-9,44-45,47-59,67-69,83-84,145,158,164-237,244-252,259-269,271,273,276,280-282
+apps/backend/app/core/config.py
+  s_e5bd120124b708::t_96a7621a346a65 137-141,160-161,350-366,368,373-388
+  s_2039f6520a1ff7::t_a2577955bca182 250,257-260,568
+  s_2039f6520a1ff7::t_395ce2cb294887 576
+apps/cli/tests/update.test.ts
+  s_e5bd120124b708::t_0981c6ef72f662 9-14,16,28-30,71-72,74,85,358,370-371,414-423,441-442
+  s_e5bd120124b708::t_abdd0f006be21f 443-468
+  s_7d48d5e85951a2::t_12fe6e22b38109 331-334,338,348
+  s_7d48d5e85951a2::t_3121edf1bfc257 15,108-115,132,175-196,208,320-330,335-337,339-347,349-350
+  s_e5bd120124b708::t_3f7308bc52ab1e 351-352,469
+apps/backend/tests/test_litellm_metadata_routes.py
+  s_2039f6520a1ff7::t_3b2c3ae708c0b8 52,85,107-112
+  s_2039f6520a1ff7::t_d2ad229004582f 39,61,97,143
+apps/backend/config_template.json
+  s_76dd3d6a312ab8::t_0514231e72265b 58
+  s_2039f6520a1ff7::t_b3bf1616fc06f0 133
+apps/cli/src/updater/progress.ts
+  s_7d48d5e85951a2::t_1bf510959655bf 1-19,22-48
+  s_7d48d5e85951a2::t_4211313f9930d2 20-21
+apps/backend/app/telemetry.py
+  s_2039f6520a1ff7::t_b2fc9998259e02 143
+apps/cli/src/product/release-targets.ts
+  s_e5bd120124b708::t_41deb11d8d6e1d 1-57
+apps/cli/docs/shipplan.md
+  s_e5bd120124b708::t_ff72542c301bdc 3,24,28,31,33
+  s_ffceb7e0b28faf::t_c0759f80dad0b8 30
+apps/backend/tests/test_storage_lifecycle.py
+  s_2039f6520a1ff7::t_0baa95d0f2f873 71
+apps/backend/app/routers/sessions.py
+  s_2039f6520a1ff7::t_fce5987897592d 97,102,115-116,131,154-155,165-166,175,184
+apps/cli/package.json
+  s_e5bd120124b708::t_bf91e889da1d7a 17
+apps/backend/app/services/cli_releases.py
+  s_e5bd120124b708::t_96a7621a346a65 7,12-27
+apps/backend/README.md
+  s_e5bd120124b708::t_ff72542c301bdc 266,586,588,592
+  s_0f531254f46a0b::t_6e4d3c27fffebb 661-664,666,669-673
+  s_2039f6520a1ff7::t_5892c30a84cb3a 58,171,175-177,196-197,365
+  s_76dd3d6a312ab8::t_03c42d3a336b44 373,380,388,398,406-410
+  h_cbc19accedcd8a 656,658
+  s_6a9aa9d70caa57::t_2018b7fcfbd7b5 614,617,636,640,648-649,652
+  s_e5bd120124b708::t_374a5410b58570 653,657
+apps/cli/src/updater/release.ts
+  s_e5bd120124b708::t_c06c7b8067eb94 4-5,115-120,124,127-128,131-133,177,180-183,186
+apps/frontend/pnpm-workspace.yaml
+  s_8a52138bb08287::t_3da52749bf0bc5 2,6
+  s_8a52138bb08287::t_5c6d3446b0c522 3-5
+Dockerfile
+  s_6a9aa9d70caa57::t_06000f59f8315c 2,4-5,17-18,20,22,24-26,28,30-31,33-35,37,39-41,43-45,47,50-51
+apps/backend/tests/test_litellm_decisions.py
+  s_2039f6520a1ff7::t_12563966384a4e 291,293-294,416-417,425,428,432-434,448
+apps/backend/db/schema.sql
+  s_2039f6520a1ff7::t_c225a598dd3169 1
+  s_2039f6520a1ff7::t_d302950a33564b 32,80,94
+apps/cli/scripts/build-release.ts
+  s_e5bd120124b708::t_4cf5c73fa6c0e4 4-10,21-36,38,40,50-51,56,67-69,73,88,116-117
+apps/backend/app/proxies/otel.py
+  s_2039f6520a1ff7::t_006c7b64bbffbd 70,73,82,280
+apps/backend/tests/test_session_routes.py
+  s_2039f6520a1ff7::t_66b1a74ca8e970 117
+  s_2039f6520a1ff7::t_1bfc420be2d512 3,7-8,13-14,105-108,112-116,118-134,136-139,142-149,151-154
+  s_2039f6520a1ff7::t_e32ea1061f7140 42,76,80,92,135,150
+  s_2039f6520a1ff7::t_317f2f0e5f935f 109-111,140-141
+  s_2039f6520a1ff7::t_b5052e552a5d94 155-156
+apps/backend/app/proxies/litellm.py
+  s_2039f6520a1ff7::t_33455fa560a8c5 78
+apps/backend/tests/test_dbmate.py
+  s_0f531254f46a0b::t_6ca826baa55091 1-79
+apps/cli/tests/request-relay.test.ts
+  s_76dd3d6a312ab8::t_48b80eb052816c 209-240
+  s_76dd3d6a312ab8::t_59813baf3f86ee 600,610
+  s_2039f6520a1ff7::t_b96070ce725551 102
+package.json
+  s_6a9aa9d70caa57::t_219ba1eeaad9c2 28
+apps/cli/tests/pi-settings-defaults.test.ts
+  s_76dd3d6a312ab8::t_ba63ae68ef7d2b 33,51,56-75,129,153,207
+apps/cli/src/updater/startup.ts
+  s_7d48d5e85951a2::t_10f8dcdbc25064 10,19,45-53
+  s_e5bd120124b708::t_c06c7b8067eb94 9,32
+docs/session-backup-and-restore.md
+  s_0f531254f46a0b::t_ebbb6eb0233dad 181,185-186,189,191,201
+  s_0f531254f46a0b::t_f51fed39217aea 198
+  s_2039f6520a1ff7::t_f7f58a5ff617d4 354
+  s_2039f6520a1ff7::t_48e29f98476033 17,53,113,125,167,179
+  s_2039f6520a1ff7::t_360b8e6b878e7c 82-89,93-94,169
+  s_2039f6520a1ff7::t_695b6ff932d05f 190
+  s_2039f6520a1ff7::t_6cd4ef42fb4104 168
+apps/backend/tests/test_litellm_streaming.py
+  s_2039f6520a1ff7::t_ad6be3a1ea533f 40
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  s_76dd3d6a312ab8::t_a3e8fb67497541 78
+apps/backend/tests/test_litellm_email_identity.py
+  s_2039f6520a1ff7::t_068507701af033 108-111,119
+  s_2039f6520a1ff7::t_fbc06c82b8b165 5-6,83-107,112-118,120-143
+  s_2039f6520a1ff7::t_9052be9c04d37d 1,20,50-51,54-57,65,67-68,74,76-79,265,270-272
+  s_2039f6520a1ff7::t_738613b35c5b2c 40,43,310,343
+  s_2039f6520a1ff7::t_2781bbe2648dbe 144-145
+apps/cli/tests/session-backups.test.ts
+  s_2039f6520a1ff7::t_19d27b5036ece8 472,525,633,807
+apps/cli/tests/pi-client-config.test.ts
+  s_76dd3d6a312ab8::t_d3570fd2ed3da3 33,78,254,326-336
+  s_76dd3d6a312ab8::t_ba6912bc4dc3f6 337-339
+apps/cli/src/harnesses/pi/telemetry/docs/deployment.md
+  s_2039f6520a1ff7::t_7f378fc35d192b 95
+apps/backend/app/clients/litellm/identity.py
+  s_2039f6520a1ff7::t_c11e2714dac166 27,42,184-185,203,206,209,212-213,217-220,222-225,227-228,236,243,245,286-293,319,327,338,342-348,351-352,357,375,382,410
+  s_2039f6520a1ff7::t_068507701af033 214-216
+apps/backend/tests/test_litellm_logging.py
+  s_2039f6520a1ff7::t_c0f5bb478652e0 47,239
+apps/cli/install.sh
+  s_e5bd120124b708::t_8ea630c7546350 114,200-214,272
+apps/backend/uv.lock
+  s_8a52138bb08287::t_08704f91c6a8bd 2,137,139,141
+apps/frontend/pnpm-lock.yaml
+  s_8a52138bb08287::t_f9df61471d9663 7-9,19,62,91-92,368-369,1061-1062,1067-1068,1073-1074,1079-1080,1085-1086,1091-1092,1097-1098,1104-1105,1111-1112,1118-1119,1125-1126,1132-1133,1139-1140,1145-1146,1151-1152,2356-2360,2508-2511,2691-2692,2780-2781,2953-2954,3404,4153,4156,4159,4162,4165,4168,4171,4174,4177,4180,4183,4186,4189,4192,4195,4211,4265,4270,4389,4392,5263-5264,5406-5412,5578,5580,5583-5597,5738,5876,5880-5881
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5b5b56c16ce1c2522bba6859091cd03c34210f1",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  },
+  "sessions": {
+    "s_0376630f9d4a53": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15da3-4189-75a1-84ad-8133484320a7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_0f531254f46a0b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15f8c-bf31-76a2-90e2-18fdabbd1264",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_2039f6520a1ff7": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15d59-e643-7320-b120-c02b865586a8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_6a9aa9d70caa57": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15d58-5e4d-76a2-90e2-18fbd77f0e8b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_76dd3d6a312ab8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15e3f-a8fc-749b-bfbb-5cc077acc661",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    },
+    "s_7d48d5e85951a2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6127eca9-4a5d-453e-9c19-06e4aa964286",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    },
+    "s_8a52138bb08287": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a1600e-5c6f-73e3-ac8e-c944bd117e68",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_e5bd120124b708": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f17b2bb-1043-420e-a492-e1e736b9ef22",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    },
+    "s_ffceb7e0b28faf": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a15fd4-b2c4-7691-9e15-9ff44250d53f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": null
+    }
+  }
+}
