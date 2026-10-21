@@ -1,0 +1,187 @@
+apps/backend/README.md
+  h_cbc19accedcd8a 58,171,175,177,196-197,266,282,365,373,380,388,398,406-410,586,588,592,617,636,640,648-649,652,656,658,661-664,666,669-671,673
+  h_cbc19accedcd8a 176,614,653,672
+.github/workflows/ci.yml
+  h_cbc19accedcd8a 37,41-54,69-70,91-160
+.github/workflows/release.yml
+  h_cbc19accedcd8a 6-9,44-45,47-59,67-69,83-84,145,158,164-237,244-252,259-269,271,273,276,280-282
+Dockerfile
+  h_cbc19accedcd8a 2,4-5,17-18,20,22,24-26,28,30-31,33-35,37,39-41,43-45,47,50-51
+README.md
+  h_cbc19accedcd8a 5,9-10,59-60,109-118,120,123
+apps/backend/app/clients/auth_service.py
+  h_cbc19accedcd8a 25-26,28-30,37
+apps/backend/app/clients/litellm/identity.py
+  h_cbc19accedcd8a 27,42,184-185,203,206,209,212-220,222-225,227-228,236,243,245,286-293,319,327,338,342-348,351-352,357,375,382,410
+apps/backend/app/core/cli_config.py
+  h_cbc19accedcd8a 30,69,78
+apps/backend/app/core/config.py
+  h_cbc19accedcd8a 137-141,160-161,250,257-260,350-366,368,373-388,568,576
+apps/backend/app/models/session_backup.py
+  h_cbc19accedcd8a 3-4,16,45
+apps/backend/app/proxies/litellm.py
+  h_cbc19accedcd8a 78
+apps/backend/app/proxies/otel.py
+  h_cbc19accedcd8a 70,73,82,280
+apps/backend/app/routers/cli_releases.py
+  h_cbc19accedcd8a 10-11,26-27,47,71,73,76-87,90,93,98
+apps/backend/app/routers/sessions.py
+  h_cbc19accedcd8a 97,102,115-116,131,154-155,165-166,175,184
+apps/backend/app/services/cli_releases.py
+  h_cbc19accedcd8a 7,12-27
+apps/backend/app/services/sessions/service.py
+  h_cbc19accedcd8a 69,99,102,215
+apps/backend/app/telemetry.py
+  h_cbc19accedcd8a 143
+apps/backend/config_template.json
+  h_cbc19accedcd8a 58,133
+apps/backend/db/migrations/20261002140000_create_sessions.sql
+  h_cbc19accedcd8a 4-5,31,86
+apps/backend/db/schema.sql
+  h_cbc19accedcd8a 1,32,80,94
+apps/backend/deployment/generate_session_schema.py
+  h_cbc19accedcd8a 1,9,24-35,52
+apps/backend/deployment/run_migrations.sh
+  h_cbc19accedcd8a 4-15
+apps/backend/tests/test_build_backend_image.py
+  h_cbc19accedcd8a 66,69,71-72,74,88,90
+apps/backend/tests/test_cli_config.py
+  h_cbc19accedcd8a 45,90,219,233,264,268-304,315,324
+apps/backend/tests/test_cli_launch_preferences.py
+  h_cbc19accedcd8a 75-79
+apps/backend/tests/test_cli_releases.py
+  h_cbc19accedcd8a 32-38,58-63,94-96,98-109,112-124,169-183,185-186,199,223-226,229,240-245,265-268,284
+apps/backend/tests/test_dbmate.py
+  h_cbc19accedcd8a 1,3-6,11-12,15-48,51-59,62-70,73-79
+apps/backend/tests/test_litellm_decisions.py
+  h_cbc19accedcd8a 291,293-294,416-417,425,428,432-434,448
+apps/backend/tests/test_litellm_email_identity.py
+  h_cbc19accedcd8a 1,5-6,20,40,43,50-51,54-57,65,67-68,74,76-79,83-145,265,270-272,310,343
+apps/backend/tests/test_litellm_identity.py
+  h_cbc19accedcd8a 178,189,194,213,238,267,269-271,294,296-297,299,312
+apps/backend/tests/test_litellm_logging.py
+  h_cbc19accedcd8a 47,239
+apps/backend/tests/test_litellm_metadata_routes.py
+  h_cbc19accedcd8a 39,52,61,85,97,107-112,143
+apps/backend/tests/test_litellm_proxy.py
+  h_cbc19accedcd8a 201-215,282
+apps/backend/tests/test_litellm_streaming.py
+  h_cbc19accedcd8a 40
+apps/backend/tests/test_otel_proxy.py
+  h_cbc19accedcd8a 31,61-69,150-151
+apps/backend/tests/test_product_telemetry.py
+  h_cbc19accedcd8a 146,148,152-154,168,173,183,185
+apps/backend/tests/test_session_database.py
+  h_cbc19accedcd8a 6-7,26,92-93,97-101,103,106-107,109,118,125-153,157,159-169,176-177,185-187,189-242,249-259,261,263-266,268,282,292-296
+apps/backend/tests/test_session_routes.py
+  h_cbc19accedcd8a 3,7-8,13-14,42,76,80,92,105-156
+apps/backend/tests/test_storage_lifecycle.py
+  h_cbc19accedcd8a 71
+apps/backend/uv.lock
+  h_cbc19accedcd8a 2,137,139,141
+apps/cli/README.md
+  h_cbc19accedcd8a 15,33,45,69,227-230,237-243,264,301,428,430-431,433
+apps/cli/docs/plans/cli-client-config.md
+  h_cbc19accedcd8a 41-42,77-80
+apps/cli/docs/shipplan.md
+  h_cbc19accedcd8a 3,24,28,30-31,33
+apps/cli/install.sh
+  h_cbc19accedcd8a 114,200-214,272
+apps/cli/package.json
+  h_cbc19accedcd8a 17
+apps/cli/scripts/build-release.ts
+  h_cbc19accedcd8a 4-10,21-36,38,40,50-51,56,67-69,73,88,116-117
+apps/cli/scripts/generate-release-metadata.ts
+  h_cbc19accedcd8a 1-2,4-10,36,41-44,65-66,68-78,80,85-96,102-106,113-116,118
+apps/cli/scripts/prepare-s3-release.ts
+  h_cbc19accedcd8a 5-13,24-34,43,52-104,127-132,134-136,143-152,162,165-179,187
+apps/cli/scripts/publish-s3-release.ts
+  h_cbc19accedcd8a 4-9,13-17,65-67,70,73-80,84,111-113,117,119-177,179
+apps/cli/src/cli/auth/request-relay.ts
+  h_cbc19accedcd8a 14-15,191,365
+apps/cli/src/cli/client-config.ts
+  h_cbc19accedcd8a 84
+apps/cli/src/cli/commands/doctor.ts
+  h_cbc19accedcd8a 22,31-44,347-348,353-354,357,359-367
+apps/cli/src/cli/launcher-program.ts
+  h_cbc19accedcd8a 10-11,125,130-132,145-147
+apps/cli/src/harnesses/pi/resources/extensions/session-backup.mjs
+  h_cbc19accedcd8a 2,6,56,58-60,62-65
+apps/cli/src/harnesses/pi/settings-defaults.ts
+  h_cbc19accedcd8a 78
+apps/cli/src/harnesses/pi/telemetry/docs/data-policy.md
+  h_cbc19accedcd8a 21
+apps/cli/src/harnesses/pi/telemetry/docs/deployment.md
+  h_cbc19accedcd8a 95
+apps/cli/src/harnesses/pi/telemetry/docs/telemetry-schema.md
+  h_cbc19accedcd8a 17
+apps/cli/src/product/release-targets.ts
+  h_cbc19accedcd8a 1-57
+apps/cli/src/sessions/api.ts
+  h_cbc19accedcd8a 19,101
+apps/cli/src/sessions/backup.ts
+  h_cbc19accedcd8a 106-108,117,186,190
+apps/cli/src/updater/progress.ts
+  h_cbc19accedcd8a 1-48
+apps/cli/src/updater/release.ts
+  h_cbc19accedcd8a 4-5,115-120,124,127-128,131-133,177,180-183,186
+apps/cli/src/updater/startup.ts
+  h_cbc19accedcd8a 9-10,19,32,45-53
+apps/cli/src/updater/update.ts
+  h_cbc19accedcd8a 21-25,39-43,50,64-68,70-71,134,142,169,173,178-179,206
+apps/cli/tests/client-config.test.ts
+  h_cbc19accedcd8a 68-84
+apps/cli/tests/installer/install.test.ts
+  h_cbc19accedcd8a 65,67,71-74,84-87,192,195-216,397,406-408,411
+apps/cli/tests/pi-client-config.test.ts
+  h_cbc19accedcd8a 33,78,254,326-339
+apps/cli/tests/pi-settings-defaults.test.ts
+  h_cbc19accedcd8a 33,51,56-75,129,153,207
+apps/cli/tests/release-base-path.test.ts
+  h_cbc19accedcd8a 31,35,42-45,49,55,60-78,80-125
+apps/cli/tests/request-relay.test.ts
+  h_cbc19accedcd8a 102,209-240,600,610
+apps/cli/tests/session-backup-recovery.test.ts
+  h_cbc19accedcd8a 36,114-173,370,412
+apps/cli/tests/session-backups.test.ts
+  h_cbc19accedcd8a 472,525,633,807
+apps/cli/tests/sessions-menu.test.ts
+  h_cbc19accedcd8a 372
+apps/cli/tests/update.test.ts
+  h_cbc19accedcd8a 9-16,28-30,71-72,74,85,108-115,132,175-196,208,320-352,358,370-371,414-423,441-469
+apps/frontend/README.md
+  h_cbc19accedcd8a 16,21,42,44,46-50
+apps/frontend/config_template.json
+  h_cbc19accedcd8a 6-7
+apps/frontend/index.html
+  h_cbc19accedcd8a 7
+apps/frontend/package.json
+  h_cbc19accedcd8a 44
+apps/frontend/pnpm-lock.yaml
+  h_cbc19accedcd8a 7-9,19,62,91-92,368-369,1061-1062,1067-1068,1073-1074,1079-1080,1085-1086,1091-1092,1097-1098,1104-1105,1111-1112,1118-1119,1125-1126,1132-1133,1139-1140,1145-1146,1151-1152,2356-2360,2508-2511,2691-2692,2780-2781,2953-2954,3404,4153,4156,4159,4162,4165,4168,4171,4174,4177,4180,4183,4186,4189,4192,4195,4211,4265,4270,4389,4392,5263-5264,5406-5412,5578,5580,5583-5597,5738,5876,5880-5881
+apps/frontend/pnpm-workspace.yaml
+  h_cbc19accedcd8a 2-6
+apps/frontend/src/App.tsx
+  h_cbc19accedcd8a 2-4,6-29
+docs/github-actions-core-ci.md
+  h_cbc19accedcd8a 1-246
+docs/session-backup-and-restore.md
+  h_cbc19accedcd8a 17,53,82-89,93-94,113,125,167-169,179,181,185-186,189-191,198,201,354
+docs/user-guide.md
+  h_cbc19accedcd8a 1-223
+docs/user-id-cutover.md
+  h_cbc19accedcd8a 1-83
+package.json
+  h_cbc19accedcd8a 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22a6392a786fefe71a12fb262964573ddae5d099",
+  "prompts": {},
+  "humans": {
+    "h_cbc19accedcd8a": {
+      "author": "Vaibhav Meena <vaibhav.meena@1mg.com>"
+    }
+  }
+}
