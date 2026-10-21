@@ -140,7 +140,7 @@ async def verified_telemetry_identity(request: Request) -> dict[str, str]:
 
     auth = getattr(request.state, "auth_data", None)
     data = auth.model_dump() if auth is not None else {}
-    identity = {"axon.user_team_id": str(data["user_team_id"])} if data.get("user_team_id") else {}
+    identity = {"axon.user_id": str(auth.user_id), "user.id": str(auth.user_id)} if auth is not None else {}
     email = data.get("user_email")
     if not email and getattr(request.app.state, "product_telemetry", None) is not None:
         try:
@@ -173,10 +173,6 @@ async def verified_telemetry_identity(request: Request) -> dict[str, str]:
         and not any(ord(c) < 32 or ord(c) == 127 for c in email)
     ):
         identity["user.email"] = email.strip()
-    if isinstance(data.get("user_id"), int) and not isinstance(data["user_id"], bool) and data["user_id"] > 0:
-        identity["user.id"] = str(data["user_id"])
-    elif "user.email" in identity:
-        identity["user.id"] = identity["user.email"]
     return identity
 
 

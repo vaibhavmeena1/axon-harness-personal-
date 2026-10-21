@@ -22,22 +22,20 @@ class AuthServiceError(Exception):
 class AuthData(BaseModel):
     """Fields guaranteed by the auth-service contract used by the extension backend."""
 
-    model_config = ConfigDict(extra="allow")
+    # Auth may return membership/team fields, but Axon does not consume them.
+    model_config = ConfigDict(extra="ignore")
 
-    user_team_id: int
+    user_id: int = Field(strict=True, gt=0, le=9223372036854775807)
+    user_email: str | None = None
+    user_name: str | None = None
     session_refresh_token: str | None = None
 
 
 class AuthenticatedUser(AuthData):
     """Verified identity; email resolves a LiteLLM-generated native user ID."""
 
-    # Axon IDs remain attribution references, not native LiteLLM user IDs.
-    user_id: int | None = None
-    team_id: int
+    # The inherited auth user_id is not the native LiteLLM user ID.
     user_email: str
-    user_name: str | None = None
-    organization_name: str
-    role: str
 
 
 class AuthDataResponse(BaseModel):

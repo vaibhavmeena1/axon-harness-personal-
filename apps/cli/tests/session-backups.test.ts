@@ -469,7 +469,7 @@ class FakeBackend {
       return new Response(null, { status: 200 });
     }
     if (url.pathname.endsWith("/status"))
-      return Response.json({ enabled: this.enabled, owner_user_team_id: this.owner });
+      return Response.json({ enabled: this.enabled, owner_user_id: this.owner });
     if (url.pathname === "/api/v1/sessions") return Response.json(this.remote);
     if (url.pathname.endsWith("backup-upload")) {
       if (!init?.body) throw new Error("Missing backup request body");
@@ -522,7 +522,7 @@ test("native backup bundle captures after final environment filtering using the 
       const path = new URL(input).pathname;
       calls.push(path);
       return path.endsWith('/status')
-        ? Response.json({ enabled: true, owner_user_team_id: '1' })
+        ? Response.json({ enabled: true, owner_user_id: '1' })
         : Response.json({}, { status: 503 });
     };
     const { default: extension } = await import(${JSON.stringify(url)});
@@ -630,7 +630,7 @@ test("CLI lists readable titles, local backup times and sizes across pages", asy
     const url = new URL(String(input));
     requests.push(url);
     if (url.pathname.endsWith("/status"))
-      return Response.json({ enabled: true, owner_user_team_id: "1" });
+      return Response.json({ enabled: true, owner_user_id: "1" });
     return url.searchParams.has("before")
       ? Response.json({ sessions: [unnamed], next: null })
       : Response.json({ sessions: [named], next: cursor });
@@ -804,7 +804,7 @@ describe("Owner-bound extension queue", () => {
         return new Response(compressed);
       }
       if (url.pathname.endsWith("/status"))
-        return Response.json({ enabled: true, owner_user_team_id: "1" });
+        return Response.json({ enabled: true, owner_user_id: "1" });
       return Response.json({
         session,
         object_id: "synthetic-object",

@@ -27,6 +27,7 @@ class CliPiConfig(BaseModel):
 
     codemode_enabled: bool = Field(alias="codemodeEnabled", strict=True)
     litellm_mcp_enabled: bool = Field(alias="litellmMcpEnabled", strict=True)
+    show_cache_miss_notices: bool = Field(default=True, alias="showCacheMissNotices", strict=True)
     # Pi only uses a saved default when both are set, so they are managed as a pair.
     default_provider: str | None = Field(default=None, alias="defaultProvider", strict=True, max_length=256)
     default_model: str | None = Field(default=None, alias="defaultModel", strict=True, max_length=256)
@@ -65,6 +66,7 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
     if not isinstance(pi, dict) or set(pi) - {
         "CODEMODE_ENABLED",
         "LITELLM_MCP_ENABLED",
+        "SHOW_CACHE_MISS_NOTICES",
         "DEFAULT_PROVIDER",
         "DEFAULT_MODEL",
     }:
@@ -73,6 +75,7 @@ def parse_cli_pi(raw: dict[str, object]) -> CliPiConfig | None:
         {
             "codemodeEnabled": pi.get("CODEMODE_ENABLED"),
             "litellmMcpEnabled": pi.get("LITELLM_MCP_ENABLED"),
+            "showCacheMissNotices": pi.get("SHOW_CACHE_MISS_NOTICES", True),
             "defaultProvider": pi.get("DEFAULT_PROVIDER"),
             "defaultModel": pi.get("DEFAULT_MODEL"),
         }

@@ -38,7 +38,8 @@ Example response:
   "schemaVersion": 1,
   "pi": {
     "codemodeEnabled": true,
-    "litellmMcpEnabled": true
+    "litellmMcpEnabled": true,
+    "showCacheMissNotices": true
   },
   "telemetry": {
     "enabled": true,
@@ -73,7 +74,10 @@ Example response:
 
 `CLI_CLIENT_CONFIG.PI` independently controls `CODEMODE_ENABLED` and `LITELLM_MCP_ENABLED`;
 both must be JSON booleans when the section is present. They project as `pi.codemodeEnabled` and
-`pi.litellmMcpEnabled`. Optional `DEFAULT_PROVIDER`/`DEFAULT_MODEL` project as `pi.defaultProvider`/`pi.defaultModel`
+`pi.litellmMcpEnabled`. `SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and persists
+Pi's `showCacheMissNotices`; it defaults to true when omitted and accepts only explicit JSON booleans.
+Managed launches and `/reload` reapply it alongside the other Pi defaults.
+Optional `DEFAULT_PROVIDER`/`DEFAULT_MODEL` project as `pi.defaultProvider`/`pi.defaultModel`
 and are written to Pi's `defaultProvider`/`defaultModel` as a pair; empty or null values are not sent and
 leave the local model untouched. The launcher persists the tool-selection default and
 `litellm.mcp.enabled` in its managed Pi settings before startup, preserving unrelated settings and

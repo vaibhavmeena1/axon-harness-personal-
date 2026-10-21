@@ -16,7 +16,7 @@ export class BackupApiError extends Error {
 
 export const statusSchema = z.object({
   enabled: z.boolean(),
-  owner_user_team_id: z.string().regex(/^[1-9][0-9]*$/),
+  owner_user_id: z.string().regex(/^[1-9][0-9]*$/),
 });
 
 export class BackupApi {
@@ -98,7 +98,7 @@ export class BackupApi {
   async owner(signal?: AbortSignal): Promise<string> {
     const result = await this.policy(signal);
     if (!result.enabled) throw new BackupApiError(503);
-    return result.owner_user_team_id;
+    return result.owner_user_id;
   }
 
   credentialFingerprint(): string {

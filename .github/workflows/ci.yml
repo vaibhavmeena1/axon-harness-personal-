@@ -34,12 +34,24 @@ jobs:
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
 
-      - name: Check formatting and lint across every app
+      - name: Check formatting and lint in the Biome workspace
         run: bunx biome ci .
 
   cli:
-    name: CLI checks (apps/cli)
-    runs-on: macos-26
+    name: CLI checks (apps/cli, ${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-26
+            host: Darwin-arm64
+            lipo_arch: arm64
+          - target: darwin-x64
+            runner: macos-26-intel
+            host: Darwin-x86_64
+            lipo_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     defaults:
       run:
@@ -54,8 +66,8 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Verify Apple Silicon runner
-        run: test "$(uname -s)-$(uname -m)" = "Darwin-arm64"
+      - name: Verify native ${{ matrix.target }} runner
+        run: test "$(uname -s)-$(uname -m)" = "${{ matrix.host }}"
 
       - name: Install workspace dependencies
         working-directory: .
@@ -76,5 +88,73 @@ jobs:
       - name: Smoke-test compiled binary
         run: |
           test "$(./dist/axon --version)" = "0.1.0-dev"
-          ./dist/axon harnesses
-          test "$(lipo -archs ./dist/axon)" = "arm64"
+          ./dist/axon harnesses --help
+          test "$(lipo -archs ./dist/axon)" = "${{ matrix.lipo_arch }}"
+
+  backend:
+    name: Backend checks (apps/backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.7"
+          enable-cache: false
+
+      - name: Install backend dependencies
+        run: make install
+
+      - name: Check backend formatting, lint, and tests
+        run: make check
+
+  frontend:
+    name: Frontend checks (apps/frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/frontend/package.json
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare frontend build configuration
+        run: cp config_template.json config.json
+
+      - name: Check frontend lint
+        run: pnpm lint
+
+      - name: Check frontend formatting
+        run: pnpm format:check
+
+      - name: Build frontend
+        run: pnpm build

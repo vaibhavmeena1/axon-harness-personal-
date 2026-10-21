@@ -68,7 +68,7 @@ def app_for(settings: SimpleNamespace) -> FastAPI:
     app.include_router(release_router)
     app.include_router(session_router)
     app.dependency_overrides[get_settings] = lambda: settings
-    app.dependency_overrides[require_authenticated_user] = lambda: AuthData(user_team_id=123)
+    app.dependency_overrides[require_authenticated_user] = lambda: AuthData(user_id=123)
     return app
 
 

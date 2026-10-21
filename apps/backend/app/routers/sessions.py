@@ -94,12 +94,12 @@ async def status(
     settings: Settings = Depends(get_settings),
 ) -> dict:
     if settings.session_backups is None:
-        return {"enabled": False, "owner_user_team_id": str(auth.user_team_id)}
+        return {"enabled": False, "owner_user_id": str(auth.user_id)}
     # Enabled policy is advertised only after private storage is ready.
     await get_backup_service(request, settings)
     return {
         "enabled": True,
-        "owner_user_team_id": str(auth.user_team_id),
+        "owner_user_id": str(auth.user_id),
         "max_raw_size_bytes": 104857600,
         "max_stored_size_bytes": 105906176,
         "formats": [{"harness": "pi", "session_format": "pi-jsonl", "versions": ["3"]}],
@@ -112,8 +112,8 @@ async def register(
     auth: AuthData = Depends(require_authenticated_user),
     backups: BackupService = Depends(get_backup_service),
 ) -> dict:
-    rate_limit(auth.user_team_id)
-    return await run(backups.register(auth.user_team_id, body))
+    rate_limit(auth.user_id)
+    return await run(backups.register(auth.user_id, body))
 
 
 @router.get("")
@@ -128,7 +128,7 @@ async def list_sessions(
         raise HTTPException(
             422, "Pagination requires a timestamp with timezone and session ID", headers={"Cache-Control": "no-store"}
         )
-    query = SessionBackup.filter(owner_user_team_id=auth.user_team_id, deleted_at=None, object_key__not_isnull=True)
+    query = SessionBackup.filter(owner_user_id=auth.user_id, deleted_at=None, object_key__not_isnull=True)
     if before is not None:
         query = query.filter(Q(updated_at__lt=before) | Q(updated_at=before, id__lt=before_id))
     rows = await query.order_by("-updated_at", "-id").limit(limit + 1)
@@ -151,8 +151,8 @@ async def upload(
     auth: AuthData = Depends(require_authenticated_user),
     backups: BackupService = Depends(get_backup_service),
 ) -> dict:
-    rate_limit(auth.user_team_id)
-    return await run(backups.reserve(session_id, auth.user_team_id, body))
+    rate_limit(auth.user_id)
+    return await run(backups.reserve(session_id, auth.user_id, body))
 
 
 @router.post("/{session_id}/backup-finalize")
@@ -162,8 +162,8 @@ async def finalize(
     auth: AuthData = Depends(require_authenticated_user),
     backups: BackupService = Depends(get_backup_service),
 ) -> dict:
-    rate_limit(auth.user_team_id)
-    return await run(backups.finalize(session_id, auth.user_team_id, body.request_id))
+    rate_limit(auth.user_id)
+    return await run(backups.finalize(session_id, auth.user_id, body.request_id))
 
 
 @router.get("/{session_id}/backup-download")
@@ -172,7 +172,7 @@ async def download(
     auth: AuthData = Depends(require_authenticated_user),
     backups: BackupService = Depends(get_backup_service),
 ) -> dict:
-    return await run(backups.download(session_id, auth.user_team_id))
+    return await run(backups.download(session_id, auth.user_id))
 
 
 @router.delete("/{session_id}", status_code=204)
@@ -181,5 +181,5 @@ async def delete(
     auth: AuthData = Depends(require_authenticated_user),
     backups: BackupService = Depends(get_backup_service),
 ) -> Response:
-    await run(backups.delete(session_id, auth.user_team_id))
+    await run(backups.delete(session_id, auth.user_id))
     return Response(status_code=204, headers={"Cache-Control": "no-store"})

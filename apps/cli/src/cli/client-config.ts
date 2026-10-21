@@ -81,6 +81,7 @@ const piSchema = z
   .strictObject({
     codemodeEnabled: z.boolean(),
     litellmMcpEnabled: z.boolean(),
+    showCacheMissNotices: z.boolean().optional(),
     defaultProvider: piDefaultText,
     defaultModel: piDefaultText,
   })

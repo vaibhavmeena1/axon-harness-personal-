@@ -65,6 +65,23 @@ describe("protected client config", () => {
     expect(parseClientConfig({ schemaVersion: 1, pi }).pi).toEqual(pi);
   });
 
+  test("accepts boolean cache notice defaults and isolates invalid values", () => {
+    const base = { codemodeEnabled: true, litellmMcpEnabled: false };
+    for (const showCacheMissNotices of [true, false]) {
+      const pi = { ...base, showCacheMissNotices };
+      expect(parseClientConfig({ schemaVersion: 1, pi }).pi).toEqual(pi);
+    }
+    for (const showCacheMissNotices of [null, "true", 0, 1, [], {}]) {
+      expect(
+        parseClientConfig({
+          schemaVersion: 1,
+          pi: { ...base, showCacheMissNotices },
+          telemetry: policy,
+        }),
+      ).toEqual({ schemaVersion: 1, telemetry: policy });
+    }
+  });
+
   test("validates optional Pi defaults without accepting arbitrary settings", () => {
     for (const codemodeEnabled of [true, false]) {
       for (const litellmMcpEnabled of [true, false]) {

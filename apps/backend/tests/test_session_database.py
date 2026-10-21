@@ -3,6 +3,8 @@
 import asyncio
 import io
 import os
+import shutil
+import subprocess
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,7 +23,7 @@ from app.services.sessions.adapters import Adapter, InvalidSessionError
 from app.services.sessions.contracts import Registration, Snapshot, UploadRequest
 from app.services.sessions.integrity import verify_chunks
 from app.services.sessions.service import BackupService, now
-from deployment.run_migrations import LEDGER, run_migrations
+from deployment.generate_session_schema import generate
 from tests.test_session_backups import declaration, named_payload, payload
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,13 +44,6 @@ def disposable_db() -> Iterator[str]:
             await connection.execute(f'CREATE DATABASE "{name}"')
         finally:
             await connection.close()
-        db = await asyncpg.connect(dsn)
-        try:
-            await db.execute(
-                "CREATE TABLE public.user_teams(id BIGINT PRIMARY KEY); INSERT INTO user_teams VALUES (1),(2); CREATE TABLE public.schema_migrations(version TEXT PRIMARY KEY); INSERT INTO schema_migrations VALUES ('legacy-sentinel'); CREATE TABLE session_chats(id BIGINT); INSERT INTO session_chats VALUES (99);"
-            )
-        finally:
-            await db.close()
 
     try:
         asyncio.run(setup())
@@ -94,18 +89,24 @@ class MemoryStore:
         return iter([(key, value[1]) for key, value in self.data.items()])
 
 
-def test_migration_exact_fk_constraints_and_legacy_safety(disposable_db: str) -> None:
+@pytest.mark.parametrize("sql", [UP, (ROOT / "db/schema.sql").read_text()], ids=["migration", "schema"])
+def test_migration_without_auth_tables_preserves_constraints_and_legacy_data(disposable_db: str, sql: str) -> None:
     async def test() -> None:
         db = await asyncpg.connect(disposable_db)
         try:
-            await db.execute(UP)
-            assert await db.fetchval("SELECT count(*) FROM schema_migrations WHERE version='legacy-sentinel'") == 1
+            await db.execute("CREATE TABLE session_chats(id BIGINT); INSERT INTO session_chats VALUES (99)")
+            await db.execute(sql)
+            # pg_dump clears search_path; restore it before querying application tables.
+            await db.execute("SET search_path TO public")
+            assert await db.fetchval("SELECT to_regclass('public.schema_migrations')") is None
             assert await db.fetchval("SELECT id FROM session_chats") == 99
+            assert await db.fetchval("SELECT to_regclass('public.user_teams')") is None
             assert (
                 await db.fetchval(
-                    "SELECT confrelid::regclass::text FROM pg_constraint WHERE conname='META_HARNESS_sessions_owner_fk'"
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE conrelid='\"META_HARNESS_sessions\"'::regclass AND contype='f'"
                 )
-                == "user_teams"
+                == 0
             )
             names = await db.fetch(
                 "SELECT conname FROM pg_constraint WHERE conrelid='\"META_HARNESS_sessions\"'::regclass"
@@ -114,65 +115,157 @@ def test_migration_exact_fk_constraints_and_legacy_safety(disposable_db: str) ->
             await db.execute(DOWN)
             await db.execute(UP)
             assert await db.fetchval("SELECT id FROM session_chats") == 99
-            await db.execute('DROP TABLE "META_HARNESS_sessions"; DROP TABLE user_teams')
-            with pytest.raises(asyncpg.RaiseError, match="require existing public.user_teams"):
-                await db.execute(UP)
+            assert await db.fetchval("SELECT to_regclass('public.user_teams')") is None
         finally:
             await db.close()
 
     asyncio.run(test())
 
 
-def test_python_migrations_separate_ledger_up_down_up(disposable_db: str) -> None:
+async def run_dbmate(
+    dsn: str, operation: str, *, directory: Path = ROOT / "db/migrations"
+) -> subprocess.CompletedProcess[str]:
+    if shutil.which("dbmate") is None:
+        pytest.skip("Install dbmate to exercise migrations against disposable Postgres")
+    # Never inherit application credentials or migration overrides from the caller.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("DBMATE_")}
+    env["DATABASE_URL"] = dsn
+    # Match asyncpg's default for local test servers; explicit DSN TLS options win.
+    env["PGSSLMODE"] = "prefer"
+    return await asyncio.to_thread(
+        subprocess.run,
+        [
+            "dbmate",
+            "--env-file",
+            os.devnull,
+            "--migrations-dir",
+            str(directory),
+            "--no-dump-schema",
+            operation,
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+
+def test_dbmate_default_ledger_up_down_up(disposable_db: str) -> None:
     async def check() -> None:
         db = await asyncpg.connect(disposable_db)
         try:
+            assert await db.fetchval("SELECT to_regclass('public.schema_migrations')") is None
             for operation in ["up", "up", "down", "up"]:
-                await run_migrations(db, operation=operation)
-                assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == (0 if operation == "down" else 1)
-            assert await db.fetchval("SELECT version FROM schema_migrations") == "legacy-sentinel"
-            assert await db.fetchval("SELECT id FROM session_chats") == 99
+                result = await run_dbmate(disposable_db, operation)
+                assert result.returncode == 0, result.stdout + result.stderr
+                assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == (
+                    0 if operation == "down" else 1
+                )
+                assert await db.fetchval("SELECT to_regclass('public.\"META_HARNESS_sessions\"')") == (
+                    None if operation == "down" else '"META_HARNESS_sessions"'
+                )
+            assert await db.fetchval("SELECT version FROM public.schema_migrations") == "20261002140000"
+            assert await db.fetchval("SELECT to_regclass('public.\"META_HARNESS_schema_migrations\"')") is None
+            assert await db.fetchval("SELECT to_regclass('public.user_teams')") is None
         finally:
             await db.close()
 
     asyncio.run(check())
 
 
-def test_python_migration_failure_rolls_back_and_releases_lock(disposable_db: str, tmp_path: Path) -> None:
-    migration = tmp_path / "20261002140000_failure.sql"
-    migration.write_text(
+def test_dbmate_migration_failure_rolls_back(disposable_db: str, tmp_path: Path) -> None:
+    (tmp_path / "20261002140000_failure.sql").write_text(
         "-- migrate:up\nCREATE TABLE migration_failure (id INT); SELECT 1/0;\n"
         "-- migrate:down\nDROP TABLE migration_failure;\n"
     )
 
     async def check() -> None:
         db = await asyncpg.connect(disposable_db)
-        other = await asyncpg.connect(disposable_db)
         try:
-            with pytest.raises(asyncpg.DivisionByZeroError):
-                await run_migrations(db, tmp_path)
+            result = await run_dbmate(disposable_db, "migrate", directory=tmp_path)
+            assert result.returncode != 0
+            assert "division by zero" in result.stdout + result.stderr
             assert await db.fetchval("SELECT to_regclass('public.migration_failure')") is None
-            assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == 0
-            # A different connection must be able to acquire the released lock.
-            await asyncio.wait_for(run_migrations(other), timeout=5)
-            assert await db.fetchval(f"SELECT count(*) FROM {LEDGER}") == 1
+            assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 0
+            result = await run_dbmate(disposable_db, "migrate")
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 1
         finally:
             await db.close()
-            await other.close()
 
     asyncio.run(check())
 
 
-def test_python_migrations_serialize_concurrent_runners(disposable_db: str) -> None:
+@pytest.mark.parametrize("pointer", ["current", "pending"])
+def test_dbmate_rollback_requires_storage_cleanup(disposable_db: str, pointer: str) -> None:
     async def check() -> None:
-        first = await asyncpg.connect(disposable_db)
-        second = await asyncpg.connect(disposable_db)
+        result = await run_dbmate(disposable_db, "migrate")
+        assert result.returncode == 0, result.stdout + result.stderr
+        db = await asyncpg.connect(disposable_db)
         try:
-            await asyncio.wait_for(asyncio.gather(run_migrations(first), run_migrations(second)), timeout=5)
-            assert await first.fetchval(f"SELECT count(*) FROM {LEDGER}") == 1
+            await db.execute(
+                'INSERT INTO "META_HARNESS_sessions" '
+                "(id, owner_user_id, client_session_key, device_id, harness, session_format, update_token) "
+                "VALUES ($1, 1, $2, $3, 'pi', 'pi-jsonl', $4)",
+                uuid4(),
+                uuid4(),
+                uuid4(),
+                uuid4(),
+            )
+            if pointer == "pending":
+                await db.execute(
+                    "UPDATE \"META_HARNESS_sessions\" SET pending_request_id=$1, pending_object_key='test', "
+                    "pending_expected_token=update_token, pending_expires_at=now() + interval '5 minutes', "
+                    "pending_snapshot=$2::jsonb",
+                    uuid4(),
+                    declaration(payload()).model_dump_json(),
+                )
+            else:
+                await db.execute(
+                    "UPDATE \"META_HARNESS_sessions\" SET object_key='test', "
+                    "raw_sha256=repeat('a', 64), stored_sha256=repeat('a', 64), "
+                    "raw_size_bytes=1, stored_size_bytes=1, encoding='identity', session_format_version='3', "
+                    "resume_metadata='{}'::jsonb, last_committed_request_id=$1, last_backup_at=now()",
+                    uuid4(),
+                )
+            result = await run_dbmate(disposable_db, "down")
+            assert result.returncode != 0
+            assert (
+                "Clean up session objects and pending reservations before rolling back" in result.stdout + result.stderr
+            )
+            assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 1
+            assert await db.fetchval('SELECT count(*) FROM "META_HARNESS_sessions"') == 1
+            # Synthetic metadata only: no real storage objects exist in this test.
+            await db.execute('DELETE FROM "META_HARNESS_sessions"')
+            result = await run_dbmate(disposable_db, "down")
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert await db.fetchval("SELECT count(*) FROM public.schema_migrations") == 0
         finally:
-            await first.close()
-            await second.close()
+            await db.close()
+
+    asyncio.run(check())
+
+
+def test_schema_generation_uses_dbmate_without_dumping_its_ledger(
+    disposable_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if shutil.which("dbmate") is None or shutil.which("pg_dump") is None:
+        pytest.skip("Install dbmate and pg_dump to exercise disposable schema generation")
+    monkeypatch.setenv("PGSSLMODE", "prefer")
+    sql = asyncio.run(generate(disposable_db))
+    assert 'CREATE TABLE public."META_HARNESS_sessions"' in sql
+    assert "owner_user_id bigint NOT NULL" in sql
+    assert "schema_migrations" not in sql
+
+    async def check() -> None:
+        db = await asyncpg.connect(disposable_db)
+        try:
+            # Generation migrated a separate database, not the supplied admin database.
+            assert await db.fetchval("SELECT to_regclass('public.schema_migrations')") is None
+            assert await db.fetchval("SELECT to_regclass('public.\"META_HARNESS_sessions\"')") is None
+            await db.execute(sql)
+        finally:
+            await db.close()
 
     asyncio.run(check())
 
@@ -186,7 +279,7 @@ def test_database_all_or_none_and_pending_metadata_constraints(disposable_db: st
             await db.execute(UP)
             sid, key, device, token = uuid4(), uuid4(), uuid4(), uuid4()
             await db.execute(
-                "INSERT INTO \"META_HARNESS_sessions\" (id, owner_user_team_id, client_session_key, device_id, harness, session_format, update_token) VALUES ($1, 1, $2, $3, 'other-harness', 'other-jsonl', $4)",
+                "INSERT INTO \"META_HARNESS_sessions\" (id, owner_user_id, client_session_key, device_id, harness, session_format, update_token) VALUES ($1, 1, $2, $3, 'other-harness', 'other-jsonl', $4)",
                 sid,
                 key,
                 device,
@@ -196,8 +289,11 @@ def test_database_all_or_none_and_pending_metadata_constraints(disposable_db: st
                 await db.execute("UPDATE \"META_HARNESS_sessions\" SET object_key='incomplete' WHERE id=$1", sid)
             with pytest.raises(asyncpg.CheckViolationError):
                 await db.execute('UPDATE "META_HARNESS_sessions" SET display_name=$2 WHERE id=$1', sid, "Uncommitted")
-            with pytest.raises(asyncpg.ForeignKeyViolationError):
-                await db.execute('UPDATE "META_HARNESS_sessions" SET owner_user_team_id=999 WHERE id=$1', sid)
+            # Ownership is an external auth-service ID, not a local FK.
+            await db.execute('UPDATE "META_HARNESS_sessions" SET owner_user_id=9876543210 WHERE id=$1', sid)
+            assert await db.fetchval('SELECT owner_user_id FROM "META_HARNESS_sessions" WHERE id=$1', sid) == 9876543210
+            with pytest.raises(asyncpg.NotNullViolationError):
+                await db.execute('UPDATE "META_HARNESS_sessions" SET owner_user_id=NULL WHERE id=$1', sid)
             base = declaration(payload()).model_dump()
             base["session_format_version"] = "opaque-alpha"
             base["resume_metadata"] = {}

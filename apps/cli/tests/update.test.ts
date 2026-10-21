@@ -6,7 +6,14 @@ import { join } from "node:path";
 import { BUILD_INFO } from "../src/build-info.ts";
 import { LAUNCHER_EXIT_STATUS } from "../src/launcher/exit-status.ts";
 import { resolveAxonPaths } from "../src/product/paths.ts";
-import { latestReleaseVersion } from "../src/updater/release.ts";
+import {
+  formatReleaseChecksums,
+  hostReleaseTarget,
+  RELEASE_TARGETS,
+  releaseAssetNames,
+} from "../src/product/release-targets.ts";
+import { type UpdateProgressView, withUpdateProgress } from "../src/updater/progress.ts";
+import { latestReleaseVersion, releaseHashes } from "../src/updater/release.ts";
 import { runStartupUpdate } from "../src/updater/startup.ts";
 import {
   checkForUpdate,
@@ -18,6 +25,9 @@ import {
 const roots: string[] = [];
 const servers: Bun.Server<undefined>[] = [];
 const version = "0.2.0";
+// Updates install only the host's native target, so Intel CI exercises darwin-x64.
+const target = hostReleaseTarget() ?? "darwin-arm64";
+const assets = releaseAssetNames(target);
 
 function sha256(bytes: Uint8Array): string {
   return new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
@@ -58,12 +68,10 @@ async function fixture(
       requests.push(path);
       if (path === `${basePath}/api/v1/cli/releases/latest/VERSION`)
         return new Response(`${latest}\n`);
-      if (path === `${basePath}/api/v1/cli/releases/${version}/checksums.txt`) {
-        return new Response(
-          `${archiveHash}  axon-darwin-arm64.gz\n${sha256(binary)}  axon-darwin-arm64\n`,
-        );
+      if (path === `${basePath}/api/v1/cli/releases/${version}/${assets.checksums}`) {
+        return new Response(formatReleaseChecksums(target, archiveHash, sha256(binary)));
       }
-      if (path === `${basePath}/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`) {
+      if (path === `${basePath}/api/v1/cli/releases/${version}/${assets.archive}`) {
         return Response.redirect(`http://127.0.0.1:${server.port}/archive`, 302);
       }
       if (path === "/archive") return new Response(archive);
@@ -74,7 +82,7 @@ async function fixture(
   const origin = `http://127.0.0.1:${server.port}`;
   return {
     context: {
-      build: { ...BUILD_INFO, kind: "binary", version: "0.1.0", target: "darwin-arm64" },
+      build: { ...BUILD_INFO, kind: "binary", version: "0.1.0", target },
       executable: paths.managedBinary,
       paths,
       client: { baseUrl: `${origin}${basePath}/api/v1/cli/releases` },
@@ -97,6 +105,14 @@ afterEach(async () => {
 });
 
 const interactive = { ci: false, stdinIsTty: true, stdoutIsTty: true };
+const silent: UpdateProgressView = { report: () => {}, done: () => {} };
+
+function recordingProgress(events: string[]): UpdateProgressView {
+  return {
+    report: ({ stage, version }) => events.push(version ? `${stage} ${version}` : stage),
+    done: () => events.push("done"),
+  };
+}
 
 async function startup(
   f: Fixture,
@@ -113,6 +129,7 @@ async function startup(
     restart: async (_context, argumentsVector) => {
       restarts.push(argumentsVector);
     },
+    progress: silent,
   });
   return { warnings, restarts };
 }
@@ -155,6 +172,28 @@ describe("startup updates", () => {
     }
   });
 
+  test("shows check, download, and verify progress, clearing it before the outcome", async () => {
+    for (const [latest, expected] of [
+      [version, ["check", `download ${version}`, `verify ${version}`, "done"]],
+      ["0.1.0", ["check", "done"]],
+      ["invalid", ["check", "done"]],
+    ] as const) {
+      const f = await fixture();
+      f.setVersion(latest);
+      const events: string[] = [];
+      await runStartupUpdate([], {
+        context: f.context,
+        invocation: interactive,
+        environment: {},
+        warn: (message) => events.push(`warn: ${message}`),
+        restart: async () => {},
+        progress: recordingProgress(events),
+      });
+      expect(events.slice(0, expected.length)).toEqual([...expected]);
+      expect(events.length - expected.length).toBe(latest === "0.1.0" ? 0 : 1);
+    }
+  });
+
   test("warns and continues if the updated launcher cannot start", async () => {
     const f = await fixture();
     const warnings: string[] = [];
@@ -166,6 +205,7 @@ describe("startup updates", () => {
         throw new Error("spawn failed");
       },
       warn: (message) => warnings.push(message),
+      progress: silent,
     });
     expect(warnings.at(-1)).toContain("could not start the updated launcher");
   });
@@ -277,12 +317,45 @@ describe("CLI manual and background updates", () => {
     expect(checkForUpdate(f.context)).rejects.toThrow("canonical semantic version");
   });
 
+  test("manual check and install report progress and always clear it", async () => {
+    const f = await fixture();
+    const events: string[] = [];
+    const progress = recordingProgress(events);
+    expect(
+      await withUpdateProgress(
+        (onProgress) => checkForUpdate({ ...f.context, onProgress }),
+        progress,
+      ),
+    ).toBe(version);
+    expect(
+      await withUpdateProgress(
+        (onProgress) => installUpdate({ ...f.context, onProgress }),
+        progress,
+      ),
+    ).toBe(version);
+    f.setHash("0".repeat(64));
+    await expect(
+      withUpdateProgress((onProgress) => installUpdate({ ...f.context, onProgress }), progress),
+    ).rejects.toThrow("could not update axon");
+    expect(events).toEqual([
+      "check",
+      "done",
+      "check",
+      `download ${version}`,
+      `verify ${version}`,
+      "done",
+      "check",
+      `download ${version}`,
+      "done",
+    ]);
+  });
+
   test("downloads, hashes, probes and atomically replaces the managed binary", async () => {
     const f = await fixture();
     expect(await installUpdate(f.context)).toBe(version);
     expect(await Bun.file(f.paths.managedBinary).text()).toContain(version);
     expect(await Bun.file(f.paths.previousBinary).text()).toBe("old binary\n");
-    expect(f.requests).toContain(`/api/v1/cli/releases/${version}/checksums.txt`);
+    expect(f.requests).toContain(`/api/v1/cli/releases/${version}/${assets.checksums}`);
     expect(f.requests).toContain("/archive");
     expect((await readdir(f.paths.bin)).filter((name) => name.startsWith(".axon-update-"))).toEqual(
       [],
@@ -294,8 +367,8 @@ describe("CLI manual and background updates", () => {
     expect(await installUpdate(f.context)).toBe(version);
     expect(f.requests).toEqual([
       "/axon/api/v1/cli/releases/latest/VERSION",
-      `/axon/api/v1/cli/releases/${version}/checksums.txt`,
-      `/axon/api/v1/cli/releases/${version}/axon-darwin-arm64.gz`,
+      `/axon/api/v1/cli/releases/${version}/${assets.checksums}`,
+      `/axon/api/v1/cli/releases/${version}/${assets.archive}`,
       "/archive",
     ]);
   });
@@ -338,6 +411,16 @@ describe("CLI manual and background updates", () => {
     expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
   });
 
+  test("refuses to install a release built for another architecture", async () => {
+    const f = await fixture();
+    const otherTarget = RELEASE_TARGETS.find((candidate) => candidate !== target);
+    await expect(
+      installUpdate({ ...f.context, build: { ...f.context.build, target: String(otherTarget) } }),
+    ).rejects.toMatchObject({ exitStatus: LAUNCHER_EXIT_STATUS.updateFailure });
+    expect(f.requests).toEqual([]);
+    expect(await Bun.file(f.paths.managedBinary).text()).toBe("old binary\n");
+  });
+
   test("background worker verifies once and respects the check interval", async () => {
     const f = await fixture();
     const ciVariable = "CI";
@@ -354,4 +437,33 @@ describe("CLI manual and background updates", () => {
       if (oldCI !== undefined) process.env[ciVariable] = oldCI;
     }
   });
+});
+
+describe("release checksums", () => {
+  test.each([...RELEASE_TARGETS])(
+    "reads only %s hashes from its own checksum file",
+    async (name) => {
+      const names = releaseAssetNames(name);
+      const archive = "a".repeat(64);
+      const binary = "b".repeat(64);
+      const requests: string[] = [];
+      const server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch(request): Response {
+          const path = new URL(request.url).pathname;
+          requests.push(path);
+          if (path === `/${version}/${names.checksums}`)
+            return new Response(formatReleaseChecksums(name, archive, binary));
+          return new Response("not found", { status: 404 });
+        },
+      });
+      servers.push(server);
+      const client = { baseUrl: `http://127.0.0.1:${server.port}` };
+      expect(await releaseHashes(client, version, name)).toEqual({ archive, binary });
+      expect(requests).toEqual([`/${version}/${names.checksums}`]);
+      const otherTarget = RELEASE_TARGETS.find((candidate) => candidate !== name);
+      await expect(releaseHashes(client, version, otherTarget ?? name)).rejects.toThrow();
+    },
+  );
 });

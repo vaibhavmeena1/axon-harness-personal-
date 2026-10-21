@@ -1,9 +1,10 @@
-"""Email is the only native-user lookup identity; Axon membership IDs are references."""
+"""Email resolves native users; verified auth user IDs own attribution and keys."""
 
 import asyncio
 import hashlib
+import hmac
+import json
 from copy import deepcopy
-from dataclasses import replace
 
 import httpx
 import pytest
@@ -16,7 +17,7 @@ from tests.test_litellm_identity import NATIVE_USER_ID, IdentityAPI, provision
 
 pytest_plugins = ["tests.test_litellm_identity"]
 
-MEMBERSHIP = "deputydev-user-team-id"
+AUTH_USER = "axon_user_id"
 
 
 def test_verified_email_reuses_native_uuid_without_changing_user_policy(
@@ -36,24 +37,24 @@ def test_verified_email_reuses_native_uuid_without_changing_user_policy(
     asyncio.run(provision(settings, user.model_copy(update={"user_email": " Dev@Example.com "}), api))
 
     assert not api.posted("/user/new")
-    assert api.posted("/user/update") == [{"user_id": original["user_id"], "metadata": {MEMBERSHIP: ["12"]}}]
+    assert api.posted("/user/update") == [{"user_id": original["user_id"], "metadata": {AUTH_USER: "42"}}]
     assert api.users[original["user_id"]] == {
         **original,
-        "metadata": {"operator": "owned", MEMBERSHIP: ["12"]},
+        "metadata": {"operator": "owned", AUTH_USER: "42"},
     }
     assert api.posted("/key/generate")[0]["user_id"] == original["user_id"]
     assert api.posted("/team/member_add")[0]["member"]["user_id"] == original["user_id"]
     assert all(request.url.path != "/user/info" for request in api.requests)
 
 
-@pytest.mark.parametrize("configured_team", [True, False])
-def test_multiple_memberships_share_one_email_user_but_keep_separate_key_attribution(
-    settings: LiteLLMSettings, user: AuthenticatedUser, configured_team: bool
+def test_auth_membership_fields_do_not_change_user_keys_or_cache(
+    settings: LiteLLMSettings, user: AuthenticatedUser
 ) -> None:
-    if not configured_team:
-        settings = replace(settings, team_id="")
     api = IdentityAPI()
-    other = user.model_copy(update={"user_team_id": 99, "team_id": 8})
+    other = AuthenticatedUser.model_validate(
+        {**user.model_dump(), "user_team_id": 99, "team_id": 8, "organization_name": "Other", "role": "admin"}
+    )
+    assert other == user
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(api)) as client:
@@ -61,20 +62,85 @@ def test_multiple_memberships_share_one_email_user_but_keep_separate_key_attribu
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
             first = await identity.ensure_identity(user)
+            count = len(api.requests)
             second = await identity.ensure_identity(other)
-            assert first != second
+            assert first == second
+            assert len(api.requests) == count
             assert await identity.ensure_identity(user) == first
             assert await identity.ensure_identity(other) == second
 
     asyncio.run(run())
     assert len(api.users) == len(api.posted("/user/new")) == 1
-    assert api.users[NATIVE_USER_ID]["metadata"][MEMBERSHIP] == ["12", "99"]
+    assert api.users[NATIVE_USER_ID]["metadata"][AUTH_USER] == "42"
     keys = api.posted("/key/generate")
-    assert [key["user_id"] for key in keys] == [NATIVE_USER_ID, NATIVE_USER_ID]
-    assert [key["metadata"][MEMBERSHIP] for key in keys] == ["12", "99"]
-    assert [key["metadata"]["axon_team_id"] for key in keys] == ["7", "8"]
-    assert [key["team_id"] for key in keys] == ([settings.team_id, settings.team_id] if configured_team else ["7", "8"])
+    assert len(keys) == 1
+    assert keys[0]["user_id"] == NATIVE_USER_ID
+    assert keys[0]["metadata"] == {"source": "meta-harness", AUTH_USER: "42"}
+    assert keys[0]["team_id"] == settings.team_id
     assert all("user_id" not in creation for creation in api.posted("/user/new"))
+
+
+def test_four_legacy_users_keep_native_ids_policy_and_old_keys(settings: LiteLLMSettings) -> None:
+    api = IdentityAPI()
+    originals = {}
+    legacy_keys = {}
+    for offset in range(4):
+        native_id = str(12 + offset)  # Numeric native IDs are retained, not renamed.
+        auth_id = 12 if offset == 0 else 42 + offset
+        original = {
+            "user_id": native_id,
+            "user_email": f"existing{offset}@example.com",
+            "user_role": "internal_user_viewer",
+            "max_budget": 20,
+            "spend": 5 + offset,
+            "models": ["operator-model"],
+            "metadata": {"deputydev-user-team-id": [native_id], "operator": "owned"},
+        }
+        originals[native_id] = deepcopy(original)
+        api.users[native_id] = deepcopy(original)
+        api.teams[settings.team_id]["members_with_roles"].append({"user_id": native_id, "role": "admin"})
+        old_input = json.dumps(
+            ["meta-harness/litellm-key/v2", native_id, native_id, settings.team_id], separators=(",", ":")
+        )
+        old_key = "sk-" + hmac.new(settings.api_key.encode(), old_input.encode(), hashlib.sha256).hexdigest()
+        key_hash = hashlib.sha256(old_key.encode()).hexdigest()
+        api.keys[key_hash] = {
+            "user_id": native_id,
+            "team_id": settings.team_id,
+            "max_budget": 1,
+            "spend": 0.5,
+            "allowed_routes": ["/v1/chat/completions"],
+            "metadata": {"source": "meta-harness", "deputydev-user-team-id": native_id},
+        }
+        legacy_keys[key_hash] = deepcopy(api.keys[key_hash])
+        verified = AuthenticatedUser(user_id=auth_id, user_email=original["user_email"])
+        new_key = asyncio.run(provision(settings, verified, api))
+        assert new_key != old_key
+        assert api.users[native_id] == {**original, "metadata": {**original["metadata"], AUTH_USER: str(auth_id)}}
+        generated = api.posted("/key/generate")[-1]
+        assert generated["user_id"] == native_id
+        assert generated["metadata"] == {"source": "meta-harness", AUTH_USER: str(auth_id)}
+        assert "max_budget" not in generated and "spend" not in generated
+        # A fresh backend instance reuses the new key instead of creating another.
+        assert asyncio.run(provision(settings, verified, api)) == new_key
+    assert set(api.users) == set(originals)
+    assert all(api.keys[key_hash] == policy for key_hash, policy in legacy_keys.items())
+    assert len(api.posted("/key/generate")) == 4
+    assert not api.posted("/user/new")
+    assert not api.posted("/team/member_add")
+    assert not api.posted("/key/update")
+
+
+def test_different_auth_user_cannot_claim_an_email_already_bound_to_another_user(
+    settings: LiteLLMSettings, user: AuthenticatedUser
+) -> None:
+    api = IdentityAPI()
+    asyncio.run(provision(settings, user, api))
+    original = deepcopy(api.users[NATIVE_USER_ID])
+    with pytest.raises(LiteLLMIdentityError, match="different auth user"):
+        asyncio.run(provision(settings, user.model_copy(update={"user_id": 99}), api))
+    assert api.users[NATIVE_USER_ID] == original
+    assert len(api.posted("/key/generate")) == 1
 
 
 @pytest.mark.parametrize("status", [400, 409, 500])
@@ -196,12 +262,14 @@ def test_metadata_reference_must_persist_before_caching_or_issuing_a_key(
     api = IdentityAPI()
     api.users[NATIVE_USER_ID] = {"user_id": NATIVE_USER_ID, "user_email": user.user_email}
     api.persist_user_update = False
-    with pytest.raises(LiteLLMIdentityError, match="did not persist user membership references"):
+    with pytest.raises(LiteLLMIdentityError, match="did not persist auth user reference"):
         asyncio.run(provision(settings, user, api))
     assert not api.posted("/key/generate")
 
 
-@pytest.mark.parametrize("metadata", [[], "invalid", {MEMBERSHIP: "12"}, {MEMBERSHIP: [{}]}])
+@pytest.mark.parametrize(
+    "metadata", [[], "invalid", *[{AUTH_USER: value} for value in [12, [], {}, "", "0", "042", "x", "٤٢"]]]
+)
 def test_invalid_user_metadata_fails_closed(
     settings: LiteLLMSettings, user: AuthenticatedUser, metadata: object
 ) -> None:
@@ -239,7 +307,7 @@ def test_native_key_owner_must_match_the_email_resolved_user(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = {"user_id": "12", "team_id": settings.team_id}
             with pytest.raises(LiteLLMIdentityError, match="identity does not match"):
                 await identity.ensure_identity(user)
@@ -272,6 +340,6 @@ def test_cache_and_keys_follow_verified_email_changes(
                 keys = api.posted("/key/generate")
                 assert keys[0]["user_id"] != keys[1]["user_id"]
                 assert [api.users[key["user_id"]]["user_email"] for key in keys] == [user.user_email, next_email]
-                assert all(key["metadata"][MEMBERSHIP] == "12" for key in keys)
+                assert all(key["metadata"][AUTH_USER] == "42" for key in keys)
 
     asyncio.run(run())

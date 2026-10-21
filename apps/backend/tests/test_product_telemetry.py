@@ -143,14 +143,15 @@ def test_product_identity_reuses_auth_and_never_attributes_client_supplied_heade
         raise AssertionError("identity lookup must not run")
 
     monkeypatch.setattr("app.clients.auth_service.get_auth_service_client", unexpected_lookup)
-    auth = AuthData(user_team_id=12, user_id=42, user_email=" verified@example.com ")
+    auth = AuthData(user_id=42, user_email=" verified@example.com ")
     assert asyncio.run(verified_telemetry_identity(identity_request(auth))) == {
-        "axon.user_team_id": "12",
+        "axon.user_id": "42",
         "user.id": "42",
         "user.email": "verified@example.com",
     }
-    assert asyncio.run(verified_telemetry_identity(identity_request(AuthData(user_team_id=12), enabled=False))) == {
-        "axon.user_team_id": "12"
+    assert asyncio.run(verified_telemetry_identity(identity_request(AuthData(user_id=12), enabled=False))) == {
+        "axon.user_id": "12",
+        "user.id": "12",
     }
 
 
@@ -164,12 +165,12 @@ def test_product_identity_uses_latest_rotation_and_validates_email(email: str, m
             return {"status": "EXPIRED", "user_email": email, "encrypted_session_data": "newest-rotation"}
 
     monkeypatch.setattr("app.clients.auth_service.get_auth_service_client", lambda request: Client())
-    auth = AuthData(user_team_id=12, session_refresh_token="first-rotation")
+    auth = AuthData(user_id=12, session_refresh_token="first-rotation")
     identity = asyncio.run(verified_telemetry_identity(identity_request(auth)))
     assert seen == ["Bearer first-rotation"]
     assert auth.session_refresh_token == "newest-rotation"
     assert identity.get("user.email") == (email if email == "verified@example.com" else None)
-    assert identity.get("user.id") == (email if email == "verified@example.com" else None)
+    assert identity["user.id"] == "12"
     assert "rotation" not in repr(identity)
 
 
@@ -179,9 +180,9 @@ def test_product_identity_failure_is_best_effort(monkeypatch: pytest.MonkeyPatch
             raise RuntimeError("private auth details")
 
     monkeypatch.setattr("app.clients.auth_service.get_auth_service_client", lambda request: Client())
-    auth = AuthData(user_team_id=12, user_id=42, session_refresh_token="saved")
+    auth = AuthData(user_id=42, session_refresh_token="saved")
     assert asyncio.run(verified_telemetry_identity(identity_request(auth))) == {
-        "axon.user_team_id": "12",
+        "axon.user_id": "42",
         "user.id": "42",
     }
     assert auth.session_refresh_token == "saved"

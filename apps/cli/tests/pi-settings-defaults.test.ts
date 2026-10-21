@@ -30,6 +30,7 @@ describe("managed Pi startup defaults", () => {
     await applyPiDefaults(paths, { codemodeEnabled: true, litellmMcpEnabled: false });
     expect(await Bun.file(settingsPath).json()).toEqual({
       defaultTools: ["+codemode"],
+      showCacheMissNotices: true,
       litellm: { mcp: { enabled: false } },
     });
     expect((await lstat(settingsPath)).mode & 0o777).toBe(0o600);
@@ -47,8 +48,29 @@ describe("managed Pi startup defaults", () => {
     expect(await Bun.file(settingsPath).json()).toEqual({
       ...settings,
       defaultTools: ["read", "grep", "-bash", "+codemode"],
+      showCacheMissNotices: true,
       litellm: { mcp: { enabled: false } },
     });
+  });
+
+  test("cache notices default on, accept managed toggles, and avoid redundant writes", async () => {
+    const defaults = { codemodeEnabled: true, litellmMcpEnabled: false };
+    await writeSettings({ showCacheMissNotices: false, theme: "custom" });
+    await applyPiDefaults(paths, defaults);
+    expect((await Bun.file(settingsPath).json()).showCacheMissNotices).toBe(true);
+
+    for (const showCacheMissNotices of [false, true]) {
+      const managed = { ...defaults, showCacheMissNotices };
+      await applyPiDefaults(paths, managed);
+      const settings = await Bun.file(settingsPath).json();
+      expect(settings.showCacheMissNotices).toBe(showCacheMissNotices);
+      expect(settings.theme).toBe("custom");
+      const content = await Bun.file(settingsPath).text();
+      const status = await lstat(settingsPath);
+      await applyPiDefaults(paths, managed);
+      expect(await Bun.file(settingsPath).text()).toBe(content);
+      expect((await lstat(settingsPath)).ino).toBe(status.ino);
+    }
   });
 
   test("repeated enable and disable are idempotent and retain other selections", async () => {
@@ -104,6 +126,7 @@ describe("managed Pi startup defaults", () => {
         await applyPiDefaults(paths, { codemodeEnabled, litellmMcpEnabled });
         expect(await Bun.file(settingsPath).json()).toEqual({
           defaultTools: ["read", codemodeEnabled ? "+codemode" : "-codemode"],
+          showCacheMissNotices: true,
           litellm: { ...litellm, mcp: { ...litellm.mcp, enabled: litellmMcpEnabled } },
           theme: "custom",
         });
@@ -127,6 +150,7 @@ describe("managed Pi startup defaults", () => {
     expect(await Bun.file(settingsPath).json()).toEqual({
       ...managed,
       theme: "custom",
+      showCacheMissNotices: true,
       defaultTools: ["+codemode"],
       litellm: { mcp: { enabled: false } },
     });
@@ -180,6 +204,7 @@ describe("managed Pi startup defaults", () => {
     await update;
     expect(await Bun.file(settingsPath).json()).toEqual({
       packages: ["concurrent-package-update"],
+      showCacheMissNotices: true,
       defaultTools: ["+codemode"],
       litellm: { mcp: { enabled: false } },
     });

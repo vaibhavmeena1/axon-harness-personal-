@@ -30,6 +30,7 @@ let launchPreferences: Record<string, unknown> = {
 let productBodies: Buffer[] = [];
 let codemodeEnabled: boolean | undefined = true;
 let litellmMcpEnabled = true;
+let showCacheMissNotices: boolean | undefined;
 const projectRoot = resolve(import.meta.dir, "..");
 const terminalPolicy = {
   yoloMode: false,
@@ -74,7 +75,7 @@ beforeAll(async () => {
             schemaVersion: 1,
             ...(codemodeEnabled === undefined
               ? {}
-              : { pi: { codemodeEnabled, litellmMcpEnabled } }),
+              : { pi: { codemodeEnabled, litellmMcpEnabled, showCacheMissNotices } }),
             ...launchPreferences,
             terminalPermissions: terminalPolicy,
             webSearch: {
@@ -250,6 +251,7 @@ describe("real Pi adapter client config integration", () => {
     expect(await loadEncryptedSession(paths)).toBe("rotated-token");
     const settings = await Bun.file(join(paths.pi, "settings.json")).json();
     expect(settings.defaultTools).toEqual(["+codemode"]);
+    expect(settings.showCacheMissNotices).toBe(true);
     expect(settings.litellm.mcp.enabled).toBe(true);
     expect(settings.codemode).toBeUndefined();
     expect(settings.packages).toEqual(
@@ -318,6 +320,20 @@ describe("real Pi adapter client config integration", () => {
     } finally {
       codemodeEnabled = true;
       litellmMcpEnabled = true;
+    }
+  });
+
+  test("backend cache notice changes reach Pi settings on subsequent launches", async () => {
+    const settingsPath = join(root, "pi", "settings.json");
+    try {
+      for (const enabled of [false, true]) {
+        showCacheMissNotices = enabled;
+        await launchSpec();
+        const settings = await Bun.file(settingsPath).json();
+        expect(settings.showCacheMissNotices).toBe(enabled);
+      }
+    } finally {
+      showCacheMissNotices = undefined;
     }
   });
 

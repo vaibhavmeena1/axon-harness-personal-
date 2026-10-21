@@ -4,15 +4,27 @@ import base64
 
 from app.clients.cloudfront import CloudFrontUrlSigner
 from app.clients.s3 import S3Client
-from app.core.config import CliReleaseAsset, CliReleaseSettings
+from app.core.config import DEFAULT_CLI_RELEASE_TARGET, CliReleaseAsset, CliReleaseSettings
 
-ARCHIVE_NAME = "axon-darwin-arm64.gz"
-BINARY_NAME = "axon-darwin-arm64"
 IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 
-def archive_for_version(settings: CliReleaseSettings, version: str) -> CliReleaseAsset | None:
-    return settings.versions.get(version)
+def archive_name(target: str) -> str:
+    return f"axon-{target}.gz"
+
+
+def binary_name(target: str) -> str:
+    return f"axon-{target}"
+
+
+def checksums_text(target: str, asset: CliReleaseAsset) -> str:
+    return f"{asset.archive_sha256}  {archive_name(target)}\n{asset.binary_sha256}  {binary_name(target)}\n"
+
+
+def archive_for_version(
+    settings: CliReleaseSettings, version: str, target: str = DEFAULT_CLI_RELEASE_TARGET
+) -> CliReleaseAsset | None:
+    return settings.versions.get(version, {}).get(target)
 
 
 class CliReleaseService:

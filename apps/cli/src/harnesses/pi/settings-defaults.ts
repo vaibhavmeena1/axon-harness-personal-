@@ -75,6 +75,7 @@ export async function applyPiDefaults(
       const config = {
         ...settings.config,
         defaultTools: tools,
+        showCacheMissNotices: defaults.showCacheMissNotices ?? true,
         litellm: { ...litellm, mcp: { ...mcp, enabled: defaults.litellmMcpEnabled } },
         // Unmanaged defaults keep the user's last /model selection.
         ...(defaults.defaultProvider !== undefined && defaults.defaultModel !== undefined

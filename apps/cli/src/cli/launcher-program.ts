@@ -7,7 +7,8 @@ import { LauncherError } from "../launcher/errors.ts";
 import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { PRODUCT_IDENTITY } from "../product/identity.ts";
 import { resolveAxonPaths } from "../product/paths.ts";
-import { checkForUpdate, installUpdate } from "../updater/update.ts";
+import { withUpdateProgress } from "../updater/progress.ts";
+import { checkForUpdate, installUpdate, updateContext } from "../updater/update.ts";
 import { ensureAxonSession } from "./auth/preflight.ts";
 import { type AuthLoginOptions, runAuthLogin, runAuthStatus } from "./commands/auth.ts";
 import { runDoctor } from "./commands/doctor.ts";
@@ -121,12 +122,14 @@ function createLauncherProgram(): Command {
 
   program
     .command("update")
-    .description("download and install the latest verified macOS arm64 release")
+    .description("download and install the latest verified macOS release")
     .option("--check", "report whether a newer release is available without installing")
     .action(async (options: { check?: boolean }) => {
       if (options.check) {
         try {
-          const available = await checkForUpdate();
+          const available = await withUpdateProgress((onProgress) =>
+            checkForUpdate({ ...updateContext(), onProgress }),
+          );
           console.log(available ? `axon ${available} is available` : "axon is up to date");
         } catch (error) {
           throw new LauncherError(
@@ -139,7 +142,9 @@ function createLauncherProgram(): Command {
           );
         }
       } else {
-        const installed = await installUpdate();
+        const installed = await withUpdateProgress((onProgress) =>
+          installUpdate({ ...updateContext(), onProgress }),
+        );
         console.log(installed ? `Updated axon to ${installed}` : "axon is up to date");
       }
     });

@@ -1,4 +1,4 @@
--- Generated in isolation; requires existing public.user_teams(id BIGINT PRIMARY KEY).
+-- Generated in isolation; no auth-service tables required.
 --
 -- PostgreSQL database dump
 --
@@ -29,7 +29,7 @@ SET default_table_access_method = heap;
 
 CREATE TABLE public."META_HARNESS_sessions" (
     id uuid NOT NULL,
-    owner_user_team_id bigint NOT NULL,
+    owner_user_id bigint NOT NULL,
     client_session_key uuid NOT NULL,
     harness character varying(128) NOT NULL,
     harness_session_id character varying(256),
@@ -77,7 +77,7 @@ ALTER TABLE ONLY public."META_HARNESS_sessions"
 --
 
 ALTER TABLE ONLY public."META_HARNESS_sessions"
-    ADD CONSTRAINT "META_HARNESS_sessions_stream_unique" UNIQUE (owner_user_team_id, client_session_key);
+    ADD CONSTRAINT "META_HARNESS_sessions_stream_unique" UNIQUE (owner_user_id, client_session_key);
 
 
 --
@@ -91,7 +91,7 @@ CREATE INDEX "META_HARNESS_sessions_deleted" ON public."META_HARNESS_sessions" U
 -- Name: META_HARNESS_sessions_owner_updated; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX "META_HARNESS_sessions_owner_updated" ON public."META_HARNESS_sessions" USING btree (owner_user_team_id, updated_at DESC, id DESC) WHERE (deleted_at IS NULL);
+CREATE INDEX "META_HARNESS_sessions_owner_updated" ON public."META_HARNESS_sessions" USING btree (owner_user_id, updated_at DESC, id DESC) WHERE (deleted_at IS NULL);
 
 
 --
@@ -99,14 +99,6 @@ CREATE INDEX "META_HARNESS_sessions_owner_updated" ON public."META_HARNESS_sessi
 --
 
 CREATE INDEX "META_HARNESS_sessions_pending_expiry" ON public."META_HARNESS_sessions" USING btree (pending_expires_at) WHERE (pending_request_id IS NOT NULL);
-
-
---
--- Name: META_HARNESS_sessions META_HARNESS_sessions_owner_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."META_HARNESS_sessions"
-    ADD CONSTRAINT "META_HARNESS_sessions_owner_fk" FOREIGN KEY (owner_user_team_id) REFERENCES public.user_teams(id) ON DELETE RESTRICT;
 
 
 --

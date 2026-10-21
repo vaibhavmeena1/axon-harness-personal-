@@ -1,4 +1,4 @@
-"""Generate only application DDL from a NEW disposable database and FK fixture.
+"""Generate only application DDL from a NEW disposable database.
 
 Never dump the populated shared database. An admin URL is explicitly required;
 its database is used only to CREATE/DROP a uniquely named disposable database.
@@ -6,6 +6,7 @@ its database is used only to CREATE/DROP a uniquely named disposable database.
 
 import argparse
 import asyncio
+import os
 import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -20,13 +21,18 @@ async def generate(admin_url: str) -> str:
     admin = await asyncpg.connect(admin_url)
     try:
         await admin.execute(f'CREATE DATABASE "{name}"')
-        database = await asyncpg.connect(dsn)
-        try:
-            await database.execute("CREATE TABLE public.user_teams(id BIGINT PRIMARY KEY)")
-            migration = Path(__file__).resolve().parents[1] / "db/migrations/20261002140000_create_sessions.sql"
-            await database.execute(migration.read_text().split("-- migrate:down")[0])
-        finally:
-            await database.close()
+        # Apply the same migration chain as deployment, never a hard-coded single file.
+        directory = Path(__file__).resolve().parents[1] / "db/migrations"
+        env = {key: value for key, value in os.environ.items() if not key.startswith("DBMATE_")}
+        env["DATABASE_URL"] = dsn
+        await asyncio.to_thread(
+            subprocess.run,
+            ["dbmate", "--env-file", os.devnull, "--migrations-dir", str(directory), "--no-dump-schema", "migrate"],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         dump = await asyncio.to_thread(
             subprocess.run,
             [
@@ -43,11 +49,7 @@ async def generate(admin_url: str) -> str:
             check=True,
         )
         lines = [line for line in dump.stdout.splitlines() if not line.startswith(("\\restrict", "\\unrestrict"))]
-        return (
-            "-- Generated in isolation; requires existing public.user_teams(id BIGINT PRIMARY KEY).\n"
-            + "\n".join(lines).rstrip()
-            + "\n"
-        )
+        return "-- Generated in isolation; no auth-service tables required.\n" + "\n".join(lines).rstrip() + "\n"
     finally:
         await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
         await admin.close()

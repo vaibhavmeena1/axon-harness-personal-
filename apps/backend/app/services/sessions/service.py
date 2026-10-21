@@ -66,7 +66,7 @@ def committed(row: SessionBackup, status: str = "committed") -> dict:
 async def owned(
     session_id: UUID, owner: int, connection: BaseDBAsyncClient | None = None, lock: bool = False
 ) -> SessionBackup:
-    query = SessionBackup.filter(id=session_id, owner_user_team_id=owner, deleted_at=None)
+    query = SessionBackup.filter(id=session_id, owner_user_id=owner, deleted_at=None)
     if connection is not None:
         query = query.using_db(connection)
     if lock:
@@ -96,10 +96,10 @@ class BackupService:
             raise InvalidSessionError("Unsupported harness or session format")
         identity = declaration.model_dump()
         try:
-            row = await SessionBackup.create(owner_user_team_id=owner, **identity)
+            row = await SessionBackup.create(owner_user_id=owner, **identity)
         except IntegrityError:
             row = await SessionBackup.get_or_none(
-                owner_user_team_id=owner, client_session_key=declaration.client_session_key
+                owner_user_id=owner, client_session_key=declaration.client_session_key
             )
             if row is None:
                 raise HTTPException(403, "Membership unavailable", headers={"Cache-Control": "no-store"}) from None
@@ -212,10 +212,7 @@ class BackupService:
     async def delete(self, session_id: UUID, owner: int) -> None:
         async with in_transaction() as db:
             row = (
-                await SessionBackup.filter(id=session_id, owner_user_team_id=owner)
-                .using_db(db)
-                .select_for_update()
-                .first()
+                await SessionBackup.filter(id=session_id, owner_user_id=owner).using_db(db).select_for_update().first()
             )
             if row is None:
                 raise HTTPException(404, "Session not found", headers={"Cache-Control": "no-store"})

@@ -198,6 +198,21 @@ def test_team_settings_default_when_omitted(configured_settings: tuple[dict[str,
     assert settings.team_role == "user"
 
 
+@pytest.mark.parametrize("team_id", [None, "", "   "])
+def test_identity_sync_requires_an_explicit_litellm_team(
+    configured_settings: tuple[dict[str, Any], Path], team_id: str | None
+) -> None:
+    raw, path = configured_settings
+    raw["LITELLM"]["IDENTITY_SYNC_ENABLED"] = True
+    if team_id is None:
+        raw["LITELLM"].pop("TEAM_ID")
+    else:
+        raw["LITELLM"]["TEAM_ID"] = team_id
+    path.write_text(json.dumps(raw))
+    with pytest.raises(config.ConfigurationError, match="TEAM_ID is required"):
+        config.get_settings()
+
+
 @pytest.mark.parametrize("role", ["user", "admin"])
 def test_configured_team_settings(configured_settings: tuple[dict[str, Any], Path], role: str) -> None:
     raw, path = configured_settings
@@ -233,12 +248,8 @@ def test_proxy_uses_config_not_environment(
 
     async def run() -> None:
         user = AuthenticatedUser(
-            user_team_id=12,
             user_id=42,
-            team_id=7,
             user_email="dev@example.com",
-            organization_name="Dev",
-            role="member",
         )
 
         async def authenticate(request: Request) -> AuthenticatedUser:
@@ -268,7 +279,7 @@ def test_proxy_uses_config_not_environment(
         request = seen[0]
         assert str(request.url) == "http://localhost:4000/v1/models"
         assert request.headers["authorization"] == "Bearer configured-api-key"
-        assert request.headers["x-litellm-end-user-id"] == "12"
+        assert request.headers["x-litellm-end-user-id"] == "42"
         assert "x-auth-context" not in request.headers
 
     asyncio.run(run())

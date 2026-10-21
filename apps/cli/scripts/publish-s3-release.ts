@@ -1,10 +1,20 @@
 import { join } from "node:path";
 
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../src/product/endpoints.ts";
+import {
+  LEGACY_CHECKSUMS_NAME,
+  RELEASE_TARGETS,
+  type ReleaseTarget,
+  releaseAssetNames,
+} from "../src/product/release-targets.ts";
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
 import { assertCanonicalSemVer, requireEnvironmentVariable } from "./release-contract.ts";
 
-const ARCHIVE = "axon-darwin-arm64.gz";
+interface PreparedArchive {
+  readonly target: ReleaseTarget;
+  readonly archive: Bun.BunFile;
+  readonly expected: string;
+}
 
 async function hashStream(response: Response): Promise<string> {
   if (!response.body) throw new Error("release download verification has no body");
@@ -52,47 +62,26 @@ async function verifyCloudFrontArchive(url: string, expected: string): Promise<v
   throw new Error("CloudFront download could not be verified; do not promote latest");
 }
 
-export async function publishS3Release(): Promise<void> {
-  const version = requireEnvironmentVariable("RELEASE_VERSION");
-  const token = requireEnvironmentVariable("CLI_UPLOAD_AUTH_KEY");
-  const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
-    allowLoopbackHttp: false,
-  });
-  assertCanonicalSemVer(version, "release version");
-  const root = resolveServiceUrl(origin, SERVICE_ENDPOINTS.release.base);
-  const archive = Bun.file(join(process.cwd(), "release", ARCHIVE));
-  const configuration: unknown = await Bun.file(
-    join(process.cwd(), "release", "cli-release-config.json"),
-  ).json();
-  if (typeof configuration !== "object" || configuration === null || !(version in configuration)) {
-    throw new Error("release configuration does not contain the requested version");
-  }
-  const entry = configuration[version as keyof typeof configuration] as Record<string, unknown>;
-  const expected = Reflect.get(entry, "archive_sha256");
-  if (
-    typeof expected !== "string" ||
-    !/^[0-9a-f]{64}$/.test(expected) ||
-    !(await archive.exists())
-  ) {
-    throw new Error("release archive or SHA-256 is missing");
-  }
-  const localHash = new Bun.CryptoHasher("sha256")
-    .update(await archive.arrayBuffer())
-    .digest("hex");
-  if (localHash !== expected) throw new Error("local archive does not match the prepared release");
-  const configured = await fetch(`${root}/${encodeURIComponent(version)}/checksums.txt`, {
-    cache: "no-store",
-  });
-  const localChecksums = await Bun.file(join(process.cwd(), "release", "checksums.txt")).text();
+async function assertBackendChecksums(url: string, localPath: string): Promise<void> {
+  const configured = await fetch(url, { cache: "no-store" });
+  const localChecksums = await Bun.file(localPath).text();
   if (!configured.ok || (await configured.text()) !== localChecksums) {
     throw new Error(
-      "configure this version and both matching hashes in backend config.json, then restart it",
+      "configure this version and every target's matching hashes in backend config.json, then restart it",
     );
   }
+}
+
+async function uploadArchive(
+  root: string,
+  token: string,
+  version: string,
+  { target, archive }: PreparedArchive,
+): Promise<void> {
   const signed = await fetch(`${root}/uploads/presign`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ version }),
+    body: JSON.stringify({ version, target }),
     cache: "no-store",
   });
   if (!signed.ok) throw new Error(`could not request an upload URL (HTTP ${signed.status})`);
@@ -119,15 +108,75 @@ export async function publishS3Release(): Promise<void> {
     body: archive,
     redirect: "error",
   });
-  if (!uploaded.ok)
+  // 412 means an earlier run already stored this key. The CloudFront hash check that
+  // follows proves it holds these exact bytes, so a partially published release can resume.
+  if (!uploaded.ok && uploaded.status !== 412)
     throw new Error(
       `S3 upload failed (HTTP ${uploaded.status}); existing release keys must not be overwritten`,
     );
+}
 
-  // Download through the same public CloudFront path as users, not an S3 HEAD/ETag.
-  await verifyCloudFrontArchive(`${root}/${encodeURIComponent(version)}/${ARCHIVE}`, expected);
+export async function publishS3Release(): Promise<void> {
+  const version = requireEnvironmentVariable("RELEASE_VERSION");
+  const token = requireEnvironmentVariable("CLI_UPLOAD_AUTH_KEY");
+  const origin = parseServiceOrigin(requireEnvironmentVariable("AXON_SERVICE_ORIGIN"), {
+    allowLoopbackHttp: false,
+  });
+  assertCanonicalSemVer(version, "release version");
+  const root = resolveServiceUrl(origin, SERVICE_ENDPOINTS.release.base);
+  const releaseDirectory = join(process.cwd(), "release");
+  const versionRoot = `${root}/${encodeURIComponent(version)}`;
+  const configuration: unknown = await Bun.file(
+    join(releaseDirectory, "cli-release-config.json"),
+  ).json();
+  if (typeof configuration !== "object" || configuration === null || !(version in configuration)) {
+    throw new Error("release configuration does not contain the requested version");
+  }
+  const entry = configuration[version as keyof typeof configuration] as Record<string, unknown>;
+
+  // Verify every target locally and against the backend before uploading any of them.
+  const prepared: PreparedArchive[] = [];
+  for (const target of RELEASE_TARGETS) {
+    const names = releaseAssetNames(target);
+    const asset = Reflect.get(entry, target);
+    const expected =
+      typeof asset === "object" && asset !== null
+        ? Reflect.get(asset, "archive_sha256")
+        : undefined;
+    const archive = Bun.file(join(releaseDirectory, names.archive));
+    if (
+      typeof expected !== "string" ||
+      !/^[0-9a-f]{64}$/.test(expected) ||
+      !(await archive.exists())
+    ) {
+      throw new Error(`${target} release archive or SHA-256 is missing`);
+    }
+    const localHash = new Bun.CryptoHasher("sha256")
+      .update(await archive.arrayBuffer())
+      .digest("hex");
+    if (localHash !== expected)
+      throw new Error(`local ${target} archive does not match the prepared release`);
+    await assertBackendChecksums(
+      `${versionRoot}/${names.checksums}`,
+      join(releaseDirectory, names.checksums),
+    );
+    prepared.push({ target, archive, expected });
+  }
+  await assertBackendChecksums(
+    `${versionRoot}/${LEGACY_CHECKSUMS_NAME}`,
+    join(releaseDirectory, LEGACY_CHECKSUMS_NAME),
+  );
+
+  for (const upload of prepared) {
+    await uploadArchive(root, token, version, upload);
+    // Download through the same public CloudFront path as users, not an S3 HEAD/ETag.
+    await verifyCloudFrontArchive(
+      `${versionRoot}/${releaseAssetNames(upload.target).archive}`,
+      upload.expected,
+    );
+  }
   console.log(
-    `Published and verified axon ${version}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
+    `Published and verified axon ${version} for ${RELEASE_TARGETS.join(" and ")}. Now set CLI_RELEASES.LATEST_VERSION in backend config.json and restart it.`,
   );
 }
 

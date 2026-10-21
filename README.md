@@ -2,9 +2,11 @@
 
 Axon is a managed launcher for the Pi coding agent, backed by a centralized API and web console. It handles sign-in, an isolated Pi runtime, organization configuration, and CLI updates so developers can start a session with `axon pi`.
 
-**Current support:** Pi is the only supported harness. Distributed CLI binaries and the installer support Apple Silicon macOS only.
+**Current support:** Pi is the only supported harness. Distributed CLI binaries and the installer support macOS on Apple Silicon (`darwin-arm64`) and Intel (`darwin-x64`).
 
 ## Use the CLI
+
+New to Axon? Start with the [end-user guide](docs/user-guide.md) for installation, login, models and thinking levels, YOLO mode, updates, and session import/restore.
 
 Follow the [CLI installation guide](apps/cli/README.md#installation) for your deployment, then run:
 
@@ -102,12 +104,21 @@ CLI installer integration tests require macOS. For app-specific builds and other
 
 ## CI and releases
 
-[`bitbucket-pipelines.yml`](bitbucket-pipelines.yml) currently runs root Biome checks, CLI checks and unit tests, and installer shell-syntax validation. It does **not** run frontend/backend checks, build native macOS binaries, run macOS installer integration tests, or publish releases.
+[GitHub Actions CI](.github/workflows/ci.yml) runs four independent jobs on pull requests, pushes to `main`, and manual runs:
 
-CLI publishing is manual on Apple Silicon macOS. Artifacts are stored in private S3 and downloaded through backend-issued CloudFront signed URLs, not GitHub Releases. The retained `.github/workflows/` files are not part of this release path.
+| Job | Checks |
+| --- | --- |
+| Workspace | Root Biome formatting and lint (excludes backend/frontend) |
+| CLI | Generated bundle checks, TypeScript checks, tests including installer integration, shell syntax, native development builds and binary smoke tests on Apple Silicon (`macos-26`) and Intel (`macos-26-intel`) runners |
+| Backend | Python 3.12, frozen uv dependencies, Ruff formatting/lint, and existing pytest tests through `make check` |
+| Frontend | Node.js 24, frozen pnpm dependencies, ESLint, Prettier, and TypeScript/Vite production build using `config_template.json` |
+
+Core CI does not provision databases or other services, publish artifacts, or deploy. Existing backend PostgreSQL/migration tests skip when their prerequisites are unavailable; pytest reports those skips. See the [core CI plan](docs/github-actions-core-ci.md) for scope and migration follow-up.
+
+CLI publishing remains manual on Apple Silicon macOS; it cross-compiles the Intel binary and verifies it under Rosetta. Artifacts are stored in private S3 and downloaded through backend-issued CloudFront signed URLs, not GitHub Releases. Core CI does not publish; the retained [GitHub Release workflow](.github/workflows/release.yml) is separate and is not part of this manual S3 release path.
 
 - [CLI release procedure](apps/cli/README.md#releasing)
-- [Backend release configuration](apps/backend/README.md#cli-releases-macos-arm64-only)
+- [Backend release configuration](apps/backend/README.md#cli-releases-macos-arm64-and-x64)
 
 To build the backend image with the frontend included, run `bun run build:backend-image` from the repository root. See the [Docker guide](apps/backend/README.md#docker) for deployment details.
 

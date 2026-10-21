@@ -1,13 +1,13 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 
+import { type ReleaseTarget, releaseAssetNames } from "../product/release-targets.ts";
+
 const VERSION_PATTERN =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAX_BINARY_BYTES = 512 * 1024 * 1024;
-const ARCHIVE = "axon-darwin-arm64.gz";
-const BINARY = "axon-darwin-arm64";
 
 export interface ReleaseClient {
   readonly baseUrl: string;
@@ -112,17 +112,25 @@ export interface ReleaseHashes {
   readonly binary: string;
 }
 
+function checksumFor(line: string | undefined, name: string): string | undefined {
+  const suffix = `  ${name}`;
+  const hash = line?.endsWith(suffix) ? line.slice(0, -suffix.length) : undefined;
+  return hash !== undefined && HASH_PATTERN.test(hash) ? hash : undefined;
+}
+
 export async function releaseHashes(
   client: ReleaseClient,
   version: string,
+  target: ReleaseTarget,
 ): Promise<ReleaseHashes> {
   assertReleaseVersion(version);
-  const data = await smallText(client, `${encodeURIComponent(version)}/checksums.txt`);
+  const names = releaseAssetNames(target);
+  const data = await smallText(client, `${encodeURIComponent(version)}/${names.checksums}`);
   const lines = data.split("\n");
   if (lines.length !== 3 || lines[2] !== "") throw new Error("invalid release checksum file");
-  const archive = lines[0]?.match(/^([0-9a-f]{64}) {2}axon-darwin-arm64\.gz$/)?.[1];
-  const binary = lines[1]?.match(/^([0-9a-f]{64}) {2}axon-darwin-arm64$/)?.[1];
-  if (!archive || !binary || !HASH_PATTERN.test(archive) || !HASH_PATTERN.test(binary)) {
+  const archive = checksumFor(lines[0], names.archive);
+  const binary = checksumFor(lines[1], names.binary);
+  if (!archive || !binary) {
     throw new Error("invalid release checksum file");
   }
   return { archive, binary };
@@ -166,14 +174,16 @@ export async function downloadVerifiedRelease(
   client: ReleaseClient,
   version: string,
   directory: string,
+  target: ReleaseTarget,
 ): Promise<string> {
   assertReleaseVersion(version);
-  const expected = await releaseHashes(client, version);
-  const archivePath = join(directory, ARCHIVE);
-  const binaryPath = join(directory, BINARY);
+  const expected = await releaseHashes(client, version, target);
+  const names = releaseAssetNames(target);
+  const archivePath = join(directory, names.archive);
+  const binaryPath = join(directory, names.binary);
   const response = await request(
     client,
-    `${client.baseUrl}/${encodeURIComponent(version)}/${ARCHIVE}`,
+    `${client.baseUrl}/${encodeURIComponent(version)}/${names.archive}`,
     true,
   );
   if (!response.body) throw new Error("release archive has no body");

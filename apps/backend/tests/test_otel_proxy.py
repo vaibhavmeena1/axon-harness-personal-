@@ -28,7 +28,7 @@ class AuthClient:
     async def get_auth_data(self, authorization: str, grace: dict) -> AuthDataResponse:
         if self.error:
             raise AuthServiceError("never-log-this-credential", self.error)
-        data = {"user_team_id": 12, "session_refresh_token": "rotated-secret"}
+        data = {"user_id": 42, "user_team_id": 12, "session_refresh_token": "rotated-secret"}
         if self.rich:
             data.update(user_id=42, user_email="verified@example.com", user_name="Verified User")
         return AuthDataResponse(auth_data=data, response_headers={"Authorization": "must-not-forward"})
@@ -58,7 +58,15 @@ def payload(signal: str) -> Message:
         record = group.scope_logs.add().log_records.add()
         record.body.string_value = "session.started"
     for attributes in (group.resource.attributes, record.attributes):
-        for key in ("user.id", "user.email", "user.name", "enduser.id", "pi.identity.source", "axon.user_team_id"):
+        for key in (
+            "user.id",
+            "user.email",
+            "user.name",
+            "enduser.id",
+            "pi.identity.source",
+            "axon.user_id",
+            "axon.user_team_id",
+        ):
             attributes.add(key=key).value.string_value = "spoofed"
         attributes.add(key="keep.me").value.string_value = "preserved"
     return result
@@ -139,7 +147,8 @@ def test_auth_identity_replaces_all_client_identity(
             assert group["user.email"] == "verified@example.com"
             assert group["user.name"] == "Verified User"
             assert group["pi.identity.source"] == "axon_auth"
-            assert group["axon.user_team_id"] == "12"
+            assert group["axon.user_id"] == "42"
+            assert "axon.user_team_id" not in group
             assert "enduser.id" not in group
         assert b"spoofed" not in request.content
         assert b"preserved" in request.content

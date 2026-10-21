@@ -19,12 +19,27 @@ import { LAUNCHER_EXIT_STATUS, type LauncherExitStatus } from "../../launcher/ex
 import { compareSemVer } from "../../launcher/version.ts";
 import { PRODUCT_IDENTITY } from "../../product/identity.ts";
 import type { AxonPaths } from "../../product/paths.ts";
+import { hostReleaseTarget, RELEASE_TARGETS } from "../../product/release-targets.ts";
 
 const PATH_ENVIRONMENT_VARIABLE = "PATH";
 
 interface DoctorResult {
   readonly findings: readonly DoctorFinding[];
   readonly exitStatus: 0 | LauncherExitStatus;
+}
+
+/** True when Rosetta is translating this x86_64 process on Apple Silicon. */
+function isRosettaTranslated(): boolean {
+  try {
+    const result = Bun.spawnSync(["sysctl", "-n", "sysctl.proc_translated"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    return result.exitCode === 0 && result.stdout.toString().trim() === "1";
+  } catch {
+    return false;
+  }
 }
 
 function formatMode(mode: number): string {
@@ -329,17 +344,27 @@ export async function runDoctor(
     });
   }
 
-  const platformSupported = process.platform === "darwin" && process.arch === "arm64";
+  const hostTarget = hostReleaseTarget();
+  const platformSupported = hostTarget !== undefined;
   const findings: DoctorFinding[] = [
     {
       level: platformSupported ? "info" : "error",
       message: platformSupported
-        ? `platform: native darwin-arm64 (build target ${BUILD_INFO.target})`
-        : `unsupported platform: ${process.platform}-${process.arch}; the initial release supports native darwin-arm64`,
+        ? `platform: ${hostTarget} (build target ${BUILD_INFO.target})`
+        : `unsupported platform: ${process.platform}-${process.arch}; releases support ${RELEASE_TARGETS.join(" and ")}`,
       ...(platformSupported
         ? {}
-        : { remediation: "Run Axon on an Apple Silicon macOS host, outside a container." }),
+        : { remediation: "Run Axon on a macOS host, outside a container." }),
     },
+    ...(hostTarget === "darwin-x64" && isRosettaTranslated()
+      ? [
+          {
+            level: "warning" as const,
+            message: "the darwin-x64 build is running under Rosetta on Apple Silicon",
+            remediation: "Reinstall Axon from a native terminal to get the darwin-arm64 build.",
+          },
+        ]
+      : []),
     {
       level: "info",
       message: `Axon ${BUILD_INFO.version} (${BUILD_INFO.kind}, commit ${BUILD_INFO.commit})`,

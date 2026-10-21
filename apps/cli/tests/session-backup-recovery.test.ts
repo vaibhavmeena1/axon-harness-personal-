@@ -33,7 +33,7 @@ beforeEach(async () => {
   policyEnabled = true;
   const fetcher = (async (input: string | URL | Request) => {
     calls.push(new URL(String(input)).pathname);
-    return Response.json({ enabled: policyEnabled, owner_user_team_id: "1" });
+    return Response.json({ enabled: policyEnabled, owner_user_id: "1" });
   }) as typeof fetch;
   backups = new SessionBackups(paths, new BackupApi(paths, origin, fetcher), () => {});
   await atomicJson(join(backups.root, "settings.json"), {
@@ -111,6 +111,66 @@ async function expectUntouched(item: Awaited<ReturnType<typeof queue>>, content:
 }
 
 describe("local backup queue recovery", () => {
+  test.each(["1", "999"])(
+    "legacy membership queue %s is never adopted as a user queue",
+    async (legacyOwner) => {
+      const legacyRoot = join(paths.home, "session-backups");
+      const legacySettings = join(legacyRoot, "settings.json");
+      const legacyState = join(
+        legacyRoot,
+        digest(`${origin}\n${legacyOwner}`),
+        "stream",
+        "state.json",
+      );
+      await atomicJson(legacySettings, {
+        owner: legacyOwner,
+        origin,
+        credentialHash: digest("synthetic-token"),
+      });
+      await atomicJson(legacyState, {
+        owner: legacyOwner,
+        remoteId: crypto.randomUUID(),
+        pending: "legacy",
+      });
+      const savedSettings = await readFile(legacySettings, "utf8");
+      const savedState = await readFile(legacyState, "utf8");
+      await rm(backups.root, { recursive: true, force: true });
+
+      const binding = await backups.prepare();
+      expect(backups.root).toBe(join(legacyRoot, "users"));
+      expect(binding?.owner).toBe("1");
+      expect(await readdir(backups.root)).toEqual(["settings.json"]);
+      expect(await readFile(legacySettings, "utf8")).toBe(savedSettings);
+      expect(await readFile(legacyState, "utf8")).toBe(savedState);
+    },
+  );
+
+  test("the new user queue never follows a symlinked legacy backup directory", async () => {
+    const parent = join(paths.home, "session-backups");
+    const outside = join(root, "outside");
+    await mkdir(outside);
+    await rm(parent, { recursive: true, force: true });
+    await symlink(outside, parent);
+    await expect(backups.prepare()).rejects.toThrow("Unsafe backup directory");
+    expect(await readdir(outside)).toEqual([]);
+  });
+
+  test("membership-only policy cannot substitute for a verified user ID", async () => {
+    const api = new BackupApi(paths, origin, (async (_input: string | URL | Request) =>
+      Response.json({ enabled: true, owner_user_team_id: "1" })) as typeof fetch);
+    await expect(api.policy()).rejects.toThrow();
+  });
+
+  test("policy binds the user ID, not a conflicting legacy membership ID", async () => {
+    const api = new BackupApi(paths, origin, (async (_input: string | URL | Request) =>
+      Response.json({
+        enabled: true,
+        owner_user_id: "42",
+        owner_user_team_id: "12",
+      })) as typeof fetch);
+    expect(await api.owner()).toBe("42");
+  });
+
   test.each([
     { names: ["Old", "  Last\nname  "], expected: "Last name" },
     { names: [], expected: "synthetic" },
@@ -307,7 +367,7 @@ describe("backup diagnostics", () => {
     process.env["PI_AXON_BACKUP_HOME"] = root;
     const fetcher = spyOn(globalThis, "fetch").mockImplementation((async (
       _input: string | URL | Request,
-    ) => Response.json({ enabled: true, owner_user_team_id: "1" })) as typeof fetch);
+    ) => Response.json({ enabled: true, owner_user_id: "1" })) as typeof fetch);
     const notices: { message: string; level: string }[] = [];
     let handler: ((args: string, ctx: ExtensionCommandContext) => Promise<void>) | undefined;
     try {
@@ -349,7 +409,7 @@ describe("backup diagnostics", () => {
       "../src/harnesses/pi/resources/extensions/session-backup.mjs",
     );
     const script = `
-      globalThis.fetch = async () => Response.json({ enabled: true, owner_user_team_id: "1" });
+      globalThis.fetch = async () => Response.json({ enabled: true, owner_user_id: "1" });
       const { default: factory } = await import(${JSON.stringify(bundle)});
       const commands = new Map(); const notices = [];
       factory({ on() {}, events: { emit() {} }, registerCommand(name, command) { commands.set(name, command); } });

@@ -62,14 +62,16 @@ async function createFixture(options: FixtureOptions = {}): Promise<InstallerFix
   const archiveBytes = options.archiveIsCorrupt
     ? new TextEncoder().encode("this is not gzip data")
     : Bun.gzipSync(binaryBytes);
-  const checksums =
+  const checksumsFor = (target: string): string =>
     options.checksums ??
-    `${sha256(archiveBytes)}  axon-darwin-arm64.gz\n${sha256(binaryBytes)}  axon-darwin-arm64\n`;
+    `${sha256(archiveBytes)}  axon-${target}.gz\n${sha256(binaryBytes)}  axon-${target}\n`;
 
   await Promise.all([
     Bun.write(join(releaseDirectory, "VERSION"), `${releaseVersion}\n`),
-    Bun.write(join(exactReleaseDirectory, "axon-darwin-arm64.gz"), archiveBytes),
-    Bun.write(join(exactReleaseDirectory, "checksums.txt"), checksums),
+    ...["darwin-arm64", "darwin-x64"].flatMap((target) => [
+      Bun.write(join(exactReleaseDirectory, `axon-${target}.gz`), archiveBytes),
+      Bun.write(join(exactReleaseDirectory, `checksums-${target}.txt`), checksumsFor(target)),
+    ]),
     Bun.write(requestLog, ""),
   ]);
 
@@ -79,6 +81,10 @@ async function createFixture(options: FixtureOptions = {}): Promise<InstallerFix
       `#!/bin/sh\ncase "\${1:-}" in\n  -s) printf '%s\\n' "\${MOCK_UNAME_S:-Darwin}" ;;\n  -m) printf '%s\\n' "\${MOCK_UNAME_M:-arm64}" ;;\n  *) exit 2 ;;\nesac\n`,
     ),
     writeExecutable(join(mockBin, "codesign"), "#!/bin/sh\nexit 0\n"),
+    writeExecutable(
+      join(mockBin, "sysctl"),
+      `#!/bin/sh\n[ "$*" = "-n sysctl.proc_translated" ] || exit 1\nprintf '%s\\n' "\${MOCK_PROC_TRANSLATED:-0}"\n`,
+    ),
     writeExecutable(
       join(mockBin, "node"),
       `#!/bin/sh\n[ "\${MOCK_NODE_OLD:-0}" != 1 ] || exit 1\nexit 0\n`,
@@ -183,10 +189,31 @@ describe("install.sh platform and prerequisites", () => {
 
   test("rejects unsupported macOS architectures", async () => {
     const fixture = await createFixture();
-    const result = await runInstaller(fixture, { MOCK_UNAME_M: "x86_64" });
+    const result = await runInstaller(fixture, { MOCK_UNAME_M: "ppc" });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Apple Silicon arm64 is required");
+    expect(result.stderr).toContain("arm64 or x86_64 is required");
+  });
+
+  test.each([
+    ["arm64", "0", "darwin-arm64"],
+    ["x86_64", "0", "darwin-x64"],
+    // A Rosetta-translated shell on Apple Silicon still gets the native build.
+    ["x86_64", "1", "darwin-arm64"],
+  ])("installs the %s (translated=%s) host's %s build", async (arch, translated, target) => {
+    const fixture = await createFixture();
+    const result = await runInstaller(fixture, {
+      MOCK_UNAME_M: arch,
+      MOCK_PROC_TRANSLATED: translated,
+    });
+    const requests = (await Bun.file(fixture.requestLog).text()).trim().split("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(`for ${target}`);
+    expect(requests.slice(1).map((url) => url.split("/").pop())).toEqual([
+      `checksums-${target}.txt`,
+      `axon-${target}.gz`,
+    ]);
   });
 
   test("accepts Node.js and npm before downloading", async () => {
@@ -367,7 +394,7 @@ describe("install.sh verified installation", () => {
       expect(await Bun.file(installedPath).text()).toContain("0.1.0");
       expect(requests.trim().split("\n")).toEqual([
         `${releasesUrl}/latest/VERSION`,
-        `${releasesUrl}/0.1.0/checksums.txt`,
+        `${releasesUrl}/0.1.0/checksums-darwin-arm64.txt`,
         `${releasesUrl}/0.1.0/axon-darwin-arm64.gz`,
       ]);
       expect(requests).not.toContain("/latest/checksums.txt");
@@ -376,10 +403,12 @@ describe("install.sh verified installation", () => {
 
   test("fails when an exact-release download fails", async () => {
     const fixture = await createFixture();
-    const result = await runInstaller(fixture, { MOCK_CURL_FAIL_ASSET: "checksums.txt" });
+    const result = await runInstaller(fixture, {
+      MOCK_CURL_FAIL_ASSET: "checksums-darwin-arm64.txt",
+    });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("could not download checksums.txt");
+    expect(result.stderr).toContain("could not download checksums-darwin-arm64.txt");
   });
 
   test("rejects a compressed hash mismatch", async () => {

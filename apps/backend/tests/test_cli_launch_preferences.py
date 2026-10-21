@@ -72,7 +72,11 @@ def test_template_is_noop_and_partial_overrides_project_without_defaults(
         public = asyncio.run(client_config(get_settings())).model_dump(by_alias=True, exclude_none=True)
         for name, fixture in FIXTURES.items():
             assert public[fixture["wireName"]] == fixture["valid"][3]["output"]
-        assert public["pi"] == {"codemodeEnabled": True, "litellmMcpEnabled": True}
+        assert public["pi"] == {
+            "codemodeEnabled": True,
+            "litellmMcpEnabled": True,
+            "showCacheMissNotices": True,
+        }
         assert len(json.dumps(public).encode()) < 16 * 1024
     finally:
         get_settings.cache_clear()

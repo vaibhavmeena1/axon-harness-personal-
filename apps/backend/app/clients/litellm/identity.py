@@ -24,7 +24,7 @@ _PREVIOUS_MANAGED_KEY_ROUTES = (
     ("llm_api_routes", "/key/info", "/v2/user/info", "/team/*"),
 )
 logger = logging.getLogger(__name__)
-_MEMBERSHIP_METADATA_KEY = "deputydev-user-team-id"
+_USER_METADATA_KEY = "axon_user_id"
 _USER_LOOKUP_PAGE_SIZE = 100
 _MAX_USER_LOOKUP_PAGES = 10
 
@@ -39,7 +39,7 @@ class LiteLLMIdentityError(Exception):
 
 
 class LiteLLMIdentityClient:
-    """Resolve email-owned native users and backend-only keys per verified membership/team."""
+    """Resolve email-owned native users and keys per verified user/configured LiteLLM team."""
 
     def __init__(self, settings: LiteLLMSettings, transport: LiteLLMTransport) -> None:
         self.settings = settings
@@ -181,10 +181,9 @@ class LiteLLMIdentityClient:
                 "user_role": "internal_user",
                 "auto_create_key": False,
                 "send_invite_email": False,
-                "metadata": {"source": "meta-harness", _MEMBERSHIP_METADATA_KEY: [str(user.user_team_id)]},
+                "metadata": {"source": "meta-harness", _USER_METADATA_KEY: str(user.user_id)},
+                "teams": [{"team_id": team_id, "user_role": self.settings.team_role}],
             }
-            if self.settings.team_id:
-                payload["teams"] = [{"team_id": team_id, "user_role": self.settings.team_role}]
             try:
                 # Do not supply user_id, including on a create retry.
                 await self._request("POST", "/user/new", payload=payload)
@@ -201,25 +200,32 @@ class LiteLLMIdentityClient:
                     raise LiteLLMIdentityError("LiteLLM did not persist the user email")
         if record.get("blocked") is True:
             raise LiteLLMIdentityError("LiteLLM user is disabled", status_code=403)
-        return await self._ensure_user_metadata(record, email, str(user.user_team_id))
+        return await self._ensure_user_metadata(record, email, str(user.user_id))
 
     @staticmethod
-    def _user_memberships(record: dict[str, Any]) -> list[str]:
+    def _auth_user_reference(record: dict[str, Any]) -> str | None:
         metadata = record.get("metadata")
         if metadata is None:
-            return []
+            return None
         if not isinstance(metadata, dict):
             raise LiteLLMIdentityError("Invalid LiteLLM user metadata")
-        memberships = metadata.get(_MEMBERSHIP_METADATA_KEY, [])
-        if not isinstance(memberships, list) or any(not isinstance(value, str) or not value for value in memberships):
-            raise LiteLLMIdentityError("Invalid LiteLLM user membership references")
-        return memberships
+        reference = metadata.get(_USER_METADATA_KEY)
+        if reference is not None and (
+            not isinstance(reference, str)
+            or not reference.isascii()
+            or not reference.isdecimal()
+            or reference.startswith("0")
+        ):
+            raise LiteLLMIdentityError("Invalid LiteLLM auth user reference")
+        return reference
 
-    async def _ensure_user_metadata(self, record: dict[str, Any], email: str, user_team_id: str) -> dict[str, Any]:
-        """User references are a collection; each membership-scoped key has one ID."""
-        memberships = self._user_memberships(record)
-        if user_team_id in memberships:
+    async def _ensure_user_metadata(self, record: dict[str, Any], email: str, auth_user_id: str) -> dict[str, Any]:
+        """Bind an email-resolved native user to one verified auth user, preserving legacy metadata."""
+        reference = self._auth_user_reference(record)
+        if reference == auth_user_id:
             return record
+        if reference is not None:
+            raise LiteLLMIdentityError("LiteLLM email user belongs to a different auth user")
         # /user/update merges metadata. Never send roles, budgets, or a complete
         # metadata snapshot that could overwrite unrelated operator fields.
         await self._request(
@@ -227,16 +233,16 @@ class LiteLLMIdentityClient:
             "/user/update",
             payload={
                 "user_id": record["user_id"],
-                "metadata": {_MEMBERSHIP_METADATA_KEY: [*memberships, user_team_id]},
+                "metadata": {_USER_METADATA_KEY: auth_user_id},
             },
         )
         updated = await self._user_by_email(email)
         if (
             updated is None
             or updated["user_id"] != record["user_id"]
-            or not {*memberships, user_team_id}.issubset(self._user_memberships(updated))
+            or self._auth_user_reference(updated) != auth_user_id
         ):
-            raise LiteLLMIdentityError("LiteLLM did not persist user membership references")
+            raise LiteLLMIdentityError("LiteLLM did not persist auth user reference")
         if updated.get("blocked") is True:
             raise LiteLLMIdentityError("LiteLLM user is disabled", status_code=403)
         return updated
@@ -277,13 +283,14 @@ class LiteLLMIdentityClient:
         if current_team is None or not self._has_member(current_team, user_id):
             raise LiteLLMIdentityError("LiteLLM did not persist team membership")
 
-    def _virtual_key(self, user_team_id: str, team_id: str, user_id: str) -> str:
-        # Domain-separated HMAC makes the key reusable across backend restarts
-        # without storing plaintext credentials in another database or file.
-        # Bind the native user too: a changed email/user must not inherit another
-        # native account's credential, even if its Axon membership ID is reused.
-        # Changing the configured admin key creates a new derived virtual key.
-        identity = json.dumps(["meta-harness/litellm-key/v2", user_id, user_team_id, team_id], separators=(",", ":"))
+    def _virtual_key(self, auth_user_id: str, team_id: str, native_user_id: str) -> str:
+        # Domain separation prevents reuse of an old membership-scoped key, even
+        # when auth user_id and the former membership ID are numerically equal.
+        # Native identity and configured LiteLLM team are bound too. Changing the
+        # admin key creates a new derived key; no plaintext credential is stored.
+        identity = json.dumps(
+            ["meta-harness/litellm-key/v3/user-id", native_user_id, auth_user_id, team_id], separators=(",", ":")
+        )
         signature = hmac.new(self.settings.api_key.encode("ascii"), identity.encode("ascii"), hashlib.sha256)
         return "sk-" + signature.hexdigest()
 
@@ -309,7 +316,7 @@ class LiteLLMIdentityClient:
                 raise LiteLLMIdentityError("LiteLLM user/team key is expired", status_code=403)
 
     async def _ensure_metadata_routes(
-        self, record: dict[str, Any], key_hash: str, user_id: str, team_id: str, user_team_id: str
+        self, record: dict[str, Any], key_hash: str, user_id: str, team_id: str, auth_user_id: str
     ) -> dict[str, Any]:
         """Upgrade only previous harness defaults; preserve custom policies."""
         metadata = record.get("metadata")
@@ -317,10 +324,7 @@ class LiteLLMIdentityClient:
         if (
             not isinstance(metadata, dict)
             or metadata.get("source") != "meta-harness"
-            or metadata.get(
-                _MEMBERSHIP_METADATA_KEY, metadata.get("axon_user_team_id", metadata.get("deputydev_user_team_id"))
-            )
-            != user_team_id
+            or metadata.get(_USER_METADATA_KEY) != auth_user_id
             or not isinstance(routes, list)
             or tuple(routes) not in _PREVIOUS_MANAGED_KEY_ROUTES
         ):
@@ -331,41 +335,26 @@ class LiteLLMIdentityClient:
         updated = await self._lookup("/key/info", {"key": key_hash}, "info", {"user_id": user_id, "team_id": team_id})
         if updated is None or updated.get("allowed_routes") != list(_MANAGED_KEY_ROUTES):
             raise LiteLLMIdentityError("LiteLLM did not persist managed key metadata routes")
-        logger.info("LiteLLM managed key metadata routes upgraded user_team_id=%s", user_team_id)
+        logger.info("LiteLLM managed key metadata routes upgraded user_id=%s", auth_user_id)
         return updated
 
     async def _provision(self, user: AuthenticatedUser, email: str) -> str:
-        user_team_id = str(user.user_team_id)
-        team_id = self.settings.team_id or str(user.team_id)
-        if self.settings.team_id:
-            # Validate the configured team before creating a user or granting membership.
-            await self._existing_team(team_id)
+        auth_user_id = str(user.user_id)
+        team_id = self.settings.team_id
+        if not team_id:
+            raise LiteLLMIdentityError("LITELLM.TEAM_ID must select an existing LiteLLM team")
+        # Validate the operator-selected team before any user/key writes. Auth
+        # service membership, team, organization and role never select policies.
+        await self._existing_team(team_id)
         user_record = await self._ensure_user(user, email, team_id)
         user_id = user_record["user_id"]
-        if self.settings.team_id:
-            # /user/new can attach membership, so read it back before adding an existing user.
-            team_record = await self._existing_team(team_id)
-        else:
-            team_record = await self._ensure_record(
-                "/team/info",
-                "/team/new",
-                {"team_id": team_id},
-                "team_info",
-                {"team_id": team_id},
-                {
-                    "team_id": team_id,
-                    "team_alias": user.organization_name or f"Axon team {team_id}",
-                    "members_with_roles": [{"user_id": user_id, "role": self.settings.team_role}],
-                    "metadata": {"source": "meta-harness", "axon_team_id": str(user.team_id)},
-                },
-            )
+        # /user/new can attach membership; read it back before adding an existing user.
+        team_record = await self._existing_team(team_id)
         if user_record.get("blocked") is True or team_record.get("blocked") is True:
             raise LiteLLMIdentityError("LiteLLM user or team is disabled", status_code=403)
         await self._ensure_membership(team_record, user_id, team_id)
 
-        # Keys remain membership-scoped for attribution even when several Axon
-        # memberships resolve to one email/native user and one configured team.
-        virtual_key = self._virtual_key(user_team_id, team_id, user_id)
+        virtual_key = self._virtual_key(auth_user_id, team_id, user_id)
         key_hash = hashlib.sha256(virtual_key.encode("ascii")).hexdigest()
         key_record = await self._ensure_record(
             "/key/info",
@@ -383,15 +372,14 @@ class LiteLLMIdentityClient:
                 "team_id": team_id,
                 "metadata": {
                     "source": "meta-harness",
-                    _MEMBERSHIP_METADATA_KEY: user_team_id,
-                    "axon_team_id": str(user.team_id),
+                    _USER_METADATA_KEY: auth_user_id,
                 },
             },
         )
         # Never unblock keys, reset spend/budgets, change custom routes, or fall
         # back to an admin key. Only previous harness route defaults are upgraded.
         self._require_active_key(key_record)
-        key_record = await self._ensure_metadata_routes(key_record, key_hash, user_id, team_id, user_team_id)
+        key_record = await self._ensure_metadata_routes(key_record, key_hash, user_id, team_id, auth_user_id)
         self._require_active_key(key_record)
         return virtual_key
 
@@ -419,7 +407,7 @@ class LiteLLMIdentityClient:
         email = user.user_email.strip().casefold()
         if not email:
             raise LiteLLMIdentityError("Verified user email is unavailable")
-        identity = (email, user.user_team_id, self.settings.team_id or str(user.team_id))
+        identity = (email, user.user_id, self.settings.team_id)
         cached_key = self._cached_key(identity)
         if cached_key is not None:
             return cached_key

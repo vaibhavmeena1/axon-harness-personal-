@@ -369,8 +369,7 @@ test.each([false, true])(
         expect(request.headers.get("authorization")).toBe("Bearer synthetic-token");
         const path = new URL(request.url).pathname;
         requests.push(`${request.method} ${path}`);
-        if (path.endsWith("/status"))
-          return Response.json({ enabled: true, owner_user_team_id: "1" });
+        if (path.endsWith("/status")) return Response.json({ enabled: true, owner_user_id: "1" });
         if (path === "/api/v1/sessions") return Response.json({ sessions: [remote()], next: null });
         if (request.method === "DELETE" && path === `/api/v1/sessions/${sessionId}`)
           return new Response(null, { status: 204 });

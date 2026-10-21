@@ -37,11 +37,8 @@ class UpstreamStream(httpx.AsyncByteStream):
 
 def verified_scope(app: FastAPI) -> Scope:
     user = AuthenticatedUser(
-        user_team_id=12,
-        team_id=34,
+        user_id=12,
         user_email="dev@example.test",
-        organization_name="test",
-        role="member",
         session_refresh_token="trusted-refresh",
     )
     return {

@@ -1,8 +1,7 @@
 """One harness-neutral latest pointer and pending slot.
 
-The legacy membership is mapped as a scalar BIGINT, with its physical FK owned
-by the SQL migrations. Registering a Tortoise legacy membership model would accidentally
-make schema generation own/create an unrelated table.
+Ownership is the verified auth-service user_id, stored as a scalar BIGINT.
+No local user/membership table or cross-service foreign key is required.
 """
 
 from uuid import uuid4
@@ -14,7 +13,7 @@ from app.models.base import BaseModel
 
 class SessionBackup(BaseModel):
     id = fields.UUIDField(primary_key=True, default=uuid4)
-    owner_user_team_id = fields.BigIntField()
+    owner_user_id = fields.BigIntField()
     client_session_key = fields.UUIDField()
     harness = fields.CharField(max_length=128)
     harness_session_id = fields.CharField(max_length=256, null=True)
@@ -43,4 +42,4 @@ class SessionBackup(BaseModel):
 
     class Meta:
         table = "sessions"
-        unique_together = (("owner_user_team_id", "client_session_key"),)
+        unique_together = (("owner_user_id", "client_session_key"),)

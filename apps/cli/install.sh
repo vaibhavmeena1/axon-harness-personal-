@@ -4,9 +4,6 @@ set -eu
 set -f
 
 PROGRAM=axon
-TARGET=darwin-arm64
-ARCHIVE_NAME=axon-darwin-arm64.gz
-BINARY_ASSET_NAME=axon-darwin-arm64
 # The backend substitutes this default when serving /install.sh.
 # When running this source file directly, set _AXON_RELEASES_URL to your backend's HTTPS release endpoint.
 DEFAULT_RELEASES_URL='https://YOUR_ORIGIN/api/v1/cli/releases'
@@ -114,7 +111,7 @@ get_expected_hash() {
   asset_name=$1
   checksum_file=$2
   hash=$(awk -v name="$asset_name" '$2 == name && NF == 2 { print $1 }' "$checksum_file")
-  validate_sha256 "$hash" || die "checksums.txt has no unique valid SHA-256 for $asset_name"
+  validate_sha256 "$hash" || die "$CHECKSUMS_NAME has no unique valid SHA-256 for $asset_name"
   printf '%s\n' "$hash"
 }
 
@@ -200,7 +197,21 @@ configure_shell_path() {
 OS_NAME=$(uname -s)
 ARCH_NAME=$(uname -m)
 [ "$OS_NAME" = "Darwin" ] || die "unsupported operating system: $OS_NAME (macOS is required)"
-[ "$ARCH_NAME" = "arm64" ] || die "unsupported architecture: $ARCH_NAME (Apple Silicon arm64 is required)"
+case "$ARCH_NAME" in
+  arm64) TARGET=darwin-arm64 ;;
+  x86_64)
+    # A shell running under Rosetta reports x86_64 on Apple Silicon; install the native build.
+    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then
+      TARGET=darwin-arm64
+    else
+      TARGET=darwin-x64
+    fi
+    ;;
+  *) die "unsupported architecture: $ARCH_NAME (arm64 or x86_64 is required)" ;;
+esac
+ARCHIVE_NAME=axon-$TARGET.gz
+BINARY_ASSET_NAME=axon-$TARGET
+CHECKSUMS_NAME=checksums-$TARGET.txt
 
 if [ -f /.dockerenv ] || [ -f /run/.containerenv ] || [ -n "${container:-}" ]; then
   die "container execution is not supported"
@@ -258,7 +269,7 @@ printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_PATTERN" || die "VERSION is not can
 # Pin all remaining requests to the version resolved above, never to mutable latest.
 EXACT_RELEASE_URL=$RELEASES_URL/$VERSION
 say "Downloading axon $VERSION for $TARGET..."
-download "$EXACT_RELEASE_URL/checksums.txt" "$CHECKSUMS_FILE" || die "could not download checksums.txt for $VERSION"
+download "$EXACT_RELEASE_URL/$CHECKSUMS_NAME" "$CHECKSUMS_FILE" || die "could not download $CHECKSUMS_NAME for $VERSION"
 download "$EXACT_RELEASE_URL/$ARCHIVE_NAME" "$ARCHIVE_FILE" || die "could not download $ARCHIVE_NAME for $VERSION"
 
 EXPECTED_ARCHIVE_HASH=$(get_expected_hash "$ARCHIVE_NAME" "$CHECKSUMS_FILE")

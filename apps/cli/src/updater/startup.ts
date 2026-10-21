@@ -6,6 +6,8 @@ import {
   type PiInvocationEnvironment,
 } from "../harnesses/pi/setup/packages/invocation.ts";
 import { spawnHarness } from "../launcher/spawn-harness.ts";
+import { isReleaseTarget } from "../product/release-targets.ts";
+import { type UpdateProgressView, updateProgressView, withUpdateProgress } from "./progress.ts";
 import { installUpdate, type UpdateContext, updateContext } from "./update.ts";
 
 interface StartupUpdateOptions {
@@ -14,6 +16,7 @@ interface StartupUpdateOptions {
   readonly invocation?: PiInvocationEnvironment;
   readonly restart?: (context: UpdateContext, argumentsVector: readonly string[]) => Promise<void>;
   readonly warn?: (message: string) => void;
+  readonly progress?: UpdateProgressView;
 }
 
 /** Check every eligible launch, independently of the old background-check throttle. */
@@ -26,7 +29,7 @@ export async function runStartupUpdate(
   const build = options.context?.build ?? BUILD_INFO;
   if (
     build.kind !== "binary" ||
-    build.target !== "darwin-arm64" ||
+    !isReleaseTarget(build.target) ||
     environment["AXON_NO_UPDATE"] === "1" ||
     classifyPiInvocation(argumentsVector, invocation) !== "interactive" ||
     isPiOffline(environment, argumentsVector)
@@ -39,10 +42,15 @@ export async function runStartupUpdate(
   try {
     // Metadata must fail quickly on an unavailable service. Downloads retain their
     // longer timeout and all existing checksum/signature/managed-path checks.
-    const installed = await installUpdate({
-      ...context,
-      client: { ...context.client, metadataTimeoutMs: 3_000 },
-    });
+    const installed = await withUpdateProgress(
+      (onProgress) =>
+        installUpdate({
+          ...context,
+          client: { ...context.client, metadataTimeoutMs: 3_000 },
+          onProgress,
+        }),
+      options.progress ?? updateProgressView(),
+    );
     if (!installed) return;
     warn(`axon: updated to ${installed}; continuing with the new version.`);
   } catch {

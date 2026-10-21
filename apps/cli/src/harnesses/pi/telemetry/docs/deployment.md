@@ -92,7 +92,7 @@ fail closed rather than silently changing transport.
 The collector should:
 
 - accept OTLP traces, metrics, and logs;
-- retain `user.id`, `user.email`, optional `user.name`, `axon.user_team_id`, `pi.identity.source`, and `pi.version` resource attributes;
+- retain `user.id`, `user.email`, optional `user.name`, `axon.user_id`, `pi.identity.source`, and `pi.version` resource attributes;
 - retain `pi.repo.slug` where per-repository dashboards are wanted;
 - apply access controls appropriate for raw employee email and private repository names;
 - transform resource attributes into metric labels only if the metrics backend requires it;

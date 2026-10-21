@@ -1,2 +1,6 @@
 packages:
-  - '.'
+  - "."
+
+overrides:
+  # CVE-2026-93749: keep all transitive consumers on a patched release.
+  "source-map-js@<1.2.2": "^1.2.2"

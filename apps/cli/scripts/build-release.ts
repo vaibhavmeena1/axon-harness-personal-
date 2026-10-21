@@ -1,6 +1,13 @@
 import { mkdir, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
+import {
+  hostReleaseTarget,
+  isReleaseTarget,
+  RELEASE_TARGETS,
+  type ReleaseTarget,
+  releaseAssetNames,
+} from "../src/product/release-targets.ts";
 import { parseServiceOrigin } from "../src/product/service-origin.ts";
 import { checkPiVersion } from "./check-pi-version.ts";
 import {
@@ -11,12 +18,26 @@ import {
   requireEnvironmentVariable,
 } from "./release-contract.ts";
 
-const RELEASE_TARGET = "darwin-arm64";
-const RELEASE_ASSET_BASENAME = "axon-darwin-arm64";
+export interface BuildReleaseOptions {
+  /** Defaults to BUILD_TARGET, then to the host target. */
+  readonly target?: ReleaseTarget;
+  /** Defaults to RELEASE_BINARY_PATH, then to dist/axon-<target>. */
+  readonly outputPath?: string;
+}
 
-function resolveOutputPath(repositoryRoot: string): string {
+function resolveTarget(): ReleaseTarget {
+  const target = optionalEnvironmentVariable("BUILD_TARGET") ?? hostReleaseTarget();
+  if (target === undefined || !isReleaseTarget(target)) {
+    throw new Error(
+      `release builds support ${RELEASE_TARGETS.join(", ")}, received ${target ?? `${process.platform}-${process.arch}`}`,
+    );
+  }
+  return target;
+}
+
+function resolveOutputPath(repositoryRoot: string, target: ReleaseTarget): string {
   const configuredPath = optionalEnvironmentVariable("RELEASE_BINARY_PATH");
-  return resolve(repositoryRoot, configuredPath || join("dist", RELEASE_ASSET_BASENAME));
+  return resolve(repositoryRoot, configuredPath || join("dist", releaseAssetNames(target).binary));
 }
 
 async function assertFileExists(path: string): Promise<void> {
@@ -26,12 +47,13 @@ async function assertFileExists(path: string): Promise<void> {
   }
 }
 
-export async function buildRelease(): Promise<void> {
+/** Compiles one release target and returns the executable path. */
+export async function buildRelease(options: BuildReleaseOptions = {}): Promise<string> {
   const repositoryRoot = process.cwd();
   const version = requireEnvironmentVariable("RELEASE_VERSION");
   const commit = requireEnvironmentVariable("BUILD_COMMIT");
   const serviceOrigin = requireEnvironmentVariable("AXON_SERVICE_ORIGIN");
-  const target = optionalEnvironmentVariable("BUILD_TARGET") || RELEASE_TARGET;
+  const target = options.target ?? resolveTarget();
   const packageVersion = await readPackageVersion(join(repositoryRoot, "package.json"));
   await checkPiVersion(repositoryRoot);
 
@@ -42,17 +64,13 @@ export async function buildRelease(): Promise<void> {
       `release version ${version} does not equal package.json version ${packageVersion}`,
     );
   }
-  if (target !== RELEASE_TARGET) {
-    throw new Error(`only ${RELEASE_TARGET} release builds are supported, received ${target}`);
-  }
-  if (process.platform !== "darwin" || process.arch !== "arm64") {
-    throw new Error(
-      `release compilation requires a native Darwin arm64 host, received ${process.platform}-${process.arch}`,
-    );
+  // Bun cross-compiles between macOS architectures; signing still needs a macOS host.
+  if (process.platform !== "darwin") {
+    throw new Error(`release compilation requires a macOS host, received ${process.platform}`);
   }
 
   const validatedServiceOrigin = parseServiceOrigin(serviceOrigin, { allowLoopbackHttp: false });
-  const outputPath = resolveOutputPath(repositoryRoot);
+  const outputPath = options.outputPath ?? resolveOutputPath(repositoryRoot, target);
   const sourceMapPath = `${outputPath}.map`;
   await mkdir(dirname(outputPath), { recursive: true });
   await Promise.all([rm(outputPath, { force: true }), rm(sourceMapPath, { force: true })]);
@@ -67,7 +85,7 @@ export async function buildRelease(): Promise<void> {
     "--sourcemap=external",
     "--no-compile-autoload-dotenv",
     "--no-compile-autoload-bunfig",
-    "--target=bun-darwin-arm64",
+    `--target=bun-${target}`,
     "--define",
     `BUILD_VERSION=${JSON.stringify(version)}`,
     "--define",
@@ -95,7 +113,8 @@ export async function buildRelease(): Promise<void> {
   }
 
   await Promise.all([assertFileExists(outputPath), assertFileExists(sourceMapPath)]);
-  console.log(`Built ${RELEASE_ASSET_BASENAME} for release ${version}.`);
+  console.log(`Built ${releaseAssetNames(target).binary} for release ${version}.`);
+  return outputPath;
 }
 
 if (import.meta.main) {

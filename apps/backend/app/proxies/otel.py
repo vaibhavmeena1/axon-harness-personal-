@@ -66,14 +66,11 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
         raise AuthServiceError("Auth service returned incomplete telemetry identity")
     if auth_data.session_refresh_token and "x-session-refresh-token" not in request.state.auth_response_headers:
         request.state.auth_response_headers["x-session-refresh-token"] = auth_data.session_refresh_token
-    user_id = data.get("user_id")
     attributes = {
-        "user.id": str(user_id)
-        if isinstance(user_id, int) and not isinstance(user_id, bool) and user_id > 0
-        else email,
+        "user.id": str(auth_data.user_id),
         "user.email": email,
         "pi.identity.source": "axon_auth",
-        "axon.user_team_id": str(auth_data.user_team_id),
+        "axon.user_id": str(auth_data.user_id),
     }
     if name:
         attributes["user.name"] = name
@@ -82,7 +79,7 @@ async def authenticated_attributes(request: Request) -> dict[str, str]:
 
 def _is_identity(key: str) -> bool:
     key = key.lower()
-    return key.startswith(("user.", "enduser.")) or key in {"pi.identity.source", "axon.user_team_id"}
+    return key.startswith(("user.", "enduser.")) or key in {"pi.identity.source", "axon.user_id", "axon.user_team_id"}
 
 
 def rewrite_identity(message: Message, identity: dict[str, str]) -> None:
@@ -280,7 +277,7 @@ async def ingest(request: Request, signal: str) -> Response:
         refresh = request.state.auth_response_headers.get("x-session-refresh-token")
         if _identity_text(refresh, 16384) and str(refresh).isascii():
             headers["x-session-refresh-token"] = refresh
-        if not runtime.admit(identity["axon.user_team_id"]):
+        if not runtime.admit(identity["axon.user_id"]):
             raise _error(429, "Telemetry rate limit exceeded", headers={"Retry-After": "60"})
         body = await _attributed_payload(request, runtime.settings, signal, identity)
         return await _forward(runtime, signal, body, headers)

@@ -288,13 +288,10 @@ def test_decision_dependency_returns_only_app_owned_client(settings: LiteLLMSett
     asyncio.run(run())
 
 
-def verified_user(user_team_id: int = 12) -> AuthenticatedUser:
+def verified_user(user_id: int = 12) -> AuthenticatedUser:
     return AuthenticatedUser(
-        user_team_id=user_team_id,
-        team_id=7,
-        user_email=f"dev{user_team_id}@example.com",
-        organization_name="Dev",
-        role="member",
+        user_id=user_id,
+        user_email=f"dev{user_id}@example.com",
         session_refresh_token="trusted-refresh",
     )
 
@@ -416,8 +413,8 @@ def test_recommender_failures_are_sanitized_502_and_preserve_session_rotation(
     assert response.headers["cache-control"] == "no-store"
 
 
-@pytest.mark.parametrize("user_team_id", [12, 99])
-def test_recommendations_use_only_verified_caller_identity(settings: LiteLLMSettings, user_team_id: int) -> None:
+@pytest.mark.parametrize("user_id", [12, 99])
+def test_recommendations_use_only_verified_caller_identity(settings: LiteLLMSettings, user_id: int) -> None:
     seen: list[httpx.Request] = []
 
     def upstream(request: httpx.Request) -> httpx.Response:
@@ -425,16 +422,16 @@ def test_recommendations_use_only_verified_caller_identity(settings: LiteLLMSett
         return httpx.Response(200, json=assessment_response())
 
     payload = recommendation_request().model_dump(mode="json", by_alias=True)
-    payload.update(user_team_id=999, team_id=999, user_email="attacker@example.com", api_key="attacker-key")
+    payload.update(user_id=999, team_id=999, user_email="attacker@example.com", api_key="attacker-key")
     api = IdentityAPI()
     response = asyncio.run(
-        call_recommender(settings, upstream, payload, auth_data=verified_user(user_team_id), management=api)
+        call_recommender(settings, upstream, payload, auth_data=verified_user(user_id), management=api)
     )
     assert response.status_code == 200
     generated = api.posted("/key/generate")[0]
-    assert generated["user_id"] != str(user_team_id)
-    assert generated["metadata"]["deputydev-user-team-id"] == str(user_team_id)
-    assert api.users[generated["user_id"]]["user_email"] == f"dev{user_team_id}@example.com"
+    assert generated["user_id"] != str(user_id)
+    assert generated["metadata"]["axon_user_id"] == str(user_id)
+    assert api.users[generated["user_id"]]["user_email"] == f"dev{user_id}@example.com"
     assert seen[0].headers["authorization"] == f"Bearer {generated['key']}"
     assert generated["key"] != settings.api_key
     assert "999" not in api.users
@@ -448,7 +445,7 @@ def test_recommendations_reject_missing_verified_identity_without_io(
         pytest.fail("Incomplete verified identity must not make any LiteLLM request")
 
     auth = (
-        AuthData(user_team_id=12, session_refresh_token="trusted-refresh")
+        AuthData(user_id=12, session_refresh_token="trusted-refresh")
         if incomplete
         else verified_user().model_copy(update={"user_email": " "})
     )

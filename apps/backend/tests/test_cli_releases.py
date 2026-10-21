@@ -29,6 +29,13 @@ VERSION = "0.2.0"
 ARCHIVE_HASH = "a" * 64
 BINARY_HASH = "b" * 64
 KEY = f"cli/releases/{VERSION}/axon-darwin-arm64.gz"
+X64_ARCHIVE_HASH = "c" * 64
+X64_BINARY_HASH = "d" * 64
+X64_KEY = f"cli/releases/{VERSION}/axon-darwin-x64.gz"
+VERSION_CONFIG = {
+    "darwin-arm64": {"s3_key": KEY, "archive_sha256": ARCHIVE_HASH, "binary_sha256": BINARY_HASH},
+    "darwin-x64": {"s3_key": X64_KEY, "archive_sha256": X64_ARCHIVE_HASH, "binary_sha256": X64_BINARY_HASH},
+}
 
 
 def release_settings() -> CliReleaseSettings:
@@ -48,7 +55,12 @@ def release_settings() -> CliReleaseSettings:
         key_pair_id="TEST_KEY",
         private_key=pem,
         latest_version=VERSION,
-        versions={VERSION: CliReleaseAsset(KEY, ARCHIVE_HASH, BINARY_HASH)},
+        versions={
+            VERSION: {
+                "darwin-arm64": CliReleaseAsset(KEY, ARCHIVE_HASH, BINARY_HASH),
+                "darwin-x64": CliReleaseAsset(X64_KEY, X64_ARCHIVE_HASH, X64_BINARY_HASH),
+            }
+        },
     )
 
 
@@ -79,16 +91,37 @@ def test_public_exact_version_download_and_checksums() -> None:
     assert latest.json() == {"version": VERSION}
     assert latest.headers["cache-control"] == "no-store"
     assert client.get(f"{root}/latest/VERSION").text == f"{VERSION}\n"
+    arm64_checksums = f"{ARCHIVE_HASH}  axon-darwin-arm64.gz\n{BINARY_HASH}  axon-darwin-arm64\n"
+    assert client.get(f"{root}/{VERSION}/checksums-darwin-arm64.txt").text == arm64_checksums
+    # Installed pre-x64 launchers parse exactly these two arm64 lines from checksums.txt.
     checksums = client.get(f"{root}/{VERSION}/checksums.txt")
-    assert checksums.text == (f"{ARCHIVE_HASH}  axon-darwin-arm64.gz\n{BINARY_HASH}  axon-darwin-arm64\n")
-    redirect = client.get(f"{root}/{VERSION}/axon-darwin-arm64.gz")
-    assert redirect.status_code == 302
-    assert redirect.headers["cache-control"] == "no-store"
-    assert redirect.headers["location"].startswith(f"https://cdn.example.test/{KEY}?")
-    assert "Signature=" in redirect.headers["location"]
-    assert "Key-Pair-Id=TEST_KEY" in redirect.headers["location"]
+    assert checksums.text == arm64_checksums
+    assert checksums.headers["cache-control"] == "no-store"
+    x64_checksums = client.get(f"{root}/{VERSION}/checksums-darwin-x64.txt")
+    assert x64_checksums.text == f"{X64_ARCHIVE_HASH}  axon-darwin-x64.gz\n{X64_BINARY_HASH}  axon-darwin-x64\n"
+    assert x64_checksums.headers["cache-control"] == "no-store"
+    for target, key in [("darwin-arm64", KEY), ("darwin-x64", X64_KEY)]:
+        redirect = client.get(f"{root}/{VERSION}/axon-{target}.gz")
+        assert redirect.status_code == 302
+        assert redirect.headers["cache-control"] == "no-store"
+        assert redirect.headers["location"].startswith(f"https://cdn.example.test/{key}?")
+        assert "Signature=" in redirect.headers["location"]
+        assert "Key-Pair-Id=TEST_KEY" in redirect.headers["location"]
     assert client.get(f"{root}/0.1.0/axon-darwin-arm64.gz").status_code == 404
     assert client.get(f"{root}/0.1.0/checksums.txt").status_code == 404
+    assert client.get(f"{root}/{VERSION}/axon-linux-x64.gz").status_code == 404
+    assert client.get(f"{root}/{VERSION}/checksums-linux-x64.txt").status_code == 404
+
+
+def test_version_without_x64_serves_only_arm64() -> None:
+    settings = release_settings()
+    arm64_only = replace(settings, versions={VERSION: {"darwin-arm64": settings.versions[VERSION]["darwin-arm64"]}})
+    client = client_for(arm64_only)
+    root = f"/api/v1/cli/releases/{VERSION}"
+    assert client.get(f"{root}/checksums.txt").status_code == 200
+    assert client.get(f"{root}/axon-darwin-arm64.gz").status_code == 302
+    assert client.get(f"{root}/checksums-darwin-x64.txt").status_code == 404
+    assert client.get(f"{root}/axon-darwin-x64.gz").status_code == 404
 
 
 def test_first_release_can_be_staged_without_publishing_latest() -> None:
@@ -133,8 +166,24 @@ def test_upload_requires_secret_and_only_configured_version() -> None:
     assert seen[0][1]["Key"] == KEY
     assert seen[0][1]["ChecksumSHA256"] == body["headers"]["x-amz-checksum-sha256"]
     assert seen[0][2:] == (900, "PUT")
+    x64 = client.post(
+        root,
+        headers={"Authorization": "Bearer test-secret-not-public-very-long-key"},
+        json={"version": VERSION, "target": "darwin-x64"},
+    )
+    assert x64.status_code == 200
+    assert seen[-1][1]["Key"] == X64_KEY
+    assert (
+        client.post(
+            root,
+            headers={"Authorization": "Bearer test-secret-not-public-very-long-key"},
+            json={"version": VERSION, "target": "linux-x64"},
+        ).status_code
+        == 404
+    )
     service = getattr(client.app.state, CLI_RELEASE_SERVICE_STATE_KEY)
-    assert service.presign_s3_get(settings.versions[VERSION]) == "https://s3.example.test/signed-upload"
+    asset = settings.versions[VERSION]["darwin-arm64"]
+    assert service.presign_s3_get(asset) == "https://s3.example.test/signed-upload"
     assert seen[-1][0] == "get_object"
 
 
@@ -147,7 +196,7 @@ def test_real_s3_put_signing_includes_immutability_and_checksum(monkeypatch: pyt
         service = CliReleaseService(
             release, s3, CloudFrontUrlSigner(release.distribution_url, release.key_pair_id, release.private_key)
         )
-        url, headers = service.presign_s3_put(release.versions[VERSION])
+        url, headers = service.presign_s3_put(release.versions[VERSION]["darwin-arm64"])
     signed = parse_qs(urlsplit(url).query)["X-Amz-SignedHeaders"][0].split(";")
     assert "cache-control" in signed
     assert "content-type" in signed
@@ -171,11 +220,13 @@ def test_enabled_release_settings_load_from_config(tmp_path: Path, monkeypatch: 
                 "PRIVATE_KEY": release.private_key,
             },
             "VERSIONS": {
-                VERSION: {
-                    "s3_key": KEY,
+                VERSION: VERSION_CONFIG,
+                # A flat entry predates x64 support and still loads as darwin-arm64.
+                "0.1.0": {
+                    "s3_key": "cli/releases/0.1.0/axon-darwin-arm64.gz",
                     "archive_sha256": ARCHIVE_HASH,
                     "binary_sha256": BINARY_HASH,
-                }
+                },
             },
         }
     )
@@ -186,7 +237,12 @@ def test_enabled_release_settings_load_from_config(tmp_path: Path, monkeypatch: 
         loaded = get_settings().cli_releases
         assert loaded is not None
         assert loaded.latest_version == release.latest_version
-        assert loaded.versions == release.versions
+        assert loaded.versions == {
+            **release.versions,
+            "0.1.0": {
+                "darwin-arm64": CliReleaseAsset("cli/releases/0.1.0/axon-darwin-arm64.gz", ARCHIVE_HASH, BINARY_HASH)
+            },
+        }
         assert loaded.private_key == release.private_key.strip()
     finally:
         get_settings.cache_clear()
@@ -206,6 +262,10 @@ def test_enabled_release_settings_load_from_config(tmp_path: Path, monkeypatch: 
             }
         },
         {"VERSIONS": {VERSION: {"s3_key": KEY, "archive_sha256": "not-a-hash", "binary_sha256": BINARY_HASH}}},
+        {"VERSIONS": {VERSION: {**VERSION_CONFIG, "linux-x64": VERSION_CONFIG["darwin-x64"]}}},
+        {"VERSIONS": {VERSION: {"darwin-x64": VERSION_CONFIG["darwin-x64"]}}},
+        {"VERSIONS": {VERSION: {**VERSION_CONFIG, "darwin-x64": VERSION_CONFIG["darwin-arm64"]}}},
+        {"VERSIONS": {VERSION: {**VERSION_CONFIG, "darwin-x64": "not-an-object"}}},
     ],
 )
 def test_rejects_unsafe_release_config(change: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -221,7 +281,7 @@ def test_rejects_unsafe_release_config(change: dict, tmp_path: Path, monkeypatch
                 "KEY_PAIR_ID": "KEY",
                 "PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----",
             },
-            "VERSIONS": {VERSION: {"s3_key": KEY, "archive_sha256": ARCHIVE_HASH, "binary_sha256": BINARY_HASH}},
+            "VERSIONS": {VERSION: VERSION_CONFIG},
         }
     )
     config["CLI_RELEASES"].update(change)

@@ -42,7 +42,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
             return AuthDataResponse.model_validate(
                 {
                     "auth_data": {
-                        "user_team_id": 12,
+                        "user_id": 12,
                         "session_refresh_token": "rotated-secret",
                         "private": "not-public",
                     },
@@ -87,6 +87,7 @@ def test_config_uses_session_guard_and_only_allowlisted_fields(monkeypatch: pyte
         "pi": {
             "codemodeEnabled": True,
             "litellmMcpEnabled": True,
+            "showCacheMissNotices": True,
             "defaultProvider": "litellm",
             "defaultModel": "openai/gpt-6.1-sol",
         },
@@ -215,6 +216,7 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
     assert raw["CLI_CLIENT_CONFIG"]["PI"] == {
         "CODEMODE_ENABLED": True,
         "LITELLM_MCP_ENABLED": True,
+        "SHOW_CACHE_MISS_NOTICES": True,
         "DEFAULT_PROVIDER": "",
         "DEFAULT_MODEL": "",
     }
@@ -228,6 +230,7 @@ def test_settings_loader_and_template_are_synchronized(tmp_path: Path, monkeypat
         assert get_settings().cli_pi.model_dump(by_alias=True, exclude_none=True) == {
             "codemodeEnabled": True,
             "litellmMcpEnabled": True,
+            "showCacheMissNotices": True,
         }
         raw["CLI_CLIENT_CONFIG"]["TELEMETRY"]["ENDPOINT"] = "https://collector.example.test?token=private"
         (tmp_path / "config.json").write_text(json.dumps(raw))
@@ -258,7 +261,45 @@ def test_pi_defaults_are_explicit_and_optional() -> None:
             assert defaults.model_dump(by_alias=True, exclude_none=True) == {
                 "codemodeEnabled": codemode_enabled,
                 "litellmMcpEnabled": litellm_mcp_enabled,
+                "showCacheMissNotices": True,
             }
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_pi_cache_notice_defaults_project_explicit_booleans(enabled: bool) -> None:
+    defaults = parse_cli_pi(
+        {
+            "CLI_CLIENT_CONFIG": {
+                "PI": {
+                    "CODEMODE_ENABLED": True,
+                    "LITELLM_MCP_ENABLED": False,
+                    "SHOW_CACHE_MISS_NOTICES": enabled,
+                }
+            }
+        }
+    )
+    assert defaults is not None
+    assert defaults.model_dump(by_alias=True, exclude_none=True) == {
+        "codemodeEnabled": True,
+        "litellmMcpEnabled": False,
+        "showCacheMissNotices": enabled,
+    }
+
+
+@pytest.mark.parametrize("value", [None, "true", 0, 1, [], {}])
+def test_pi_cache_notice_defaults_reject_non_booleans(value: object) -> None:
+    with pytest.raises(ValueError):
+        parse_cli_pi(
+            {
+                "CLI_CLIENT_CONFIG": {
+                    "PI": {
+                        "CODEMODE_ENABLED": True,
+                        "LITELLM_MCP_ENABLED": False,
+                        "SHOW_CACHE_MISS_NOTICES": value,
+                    }
+                }
+            }
+        )
 
 
 def test_pi_default_model_is_managed_only_when_set() -> None:
@@ -271,6 +312,7 @@ def test_pi_default_model_is_managed_only_when_set() -> None:
         assert defaults.model_dump(by_alias=True, exclude_none=True) == {
             "codemodeEnabled": True,
             "litellmMcpEnabled": False,
+            "showCacheMissNotices": True,
         }
     defaults = parse_cli_pi(
         {"CLI_CLIENT_CONFIG": {"PI": {**base, "DEFAULT_PROVIDER": "litellm", "DEFAULT_MODEL": "openai/gpt-6.1-sol"}}}
@@ -279,6 +321,7 @@ def test_pi_default_model_is_managed_only_when_set() -> None:
     assert defaults.model_dump(by_alias=True, exclude_none=True) == {
         "codemodeEnabled": True,
         "litellmMcpEnabled": False,
+        "showCacheMissNotices": True,
         "defaultProvider": "litellm",
         "defaultModel": "openai/gpt-6.1-sol",
     }

@@ -3,6 +3,10 @@ name: Release CLI
 # GitHub Releases are repository-wide. Every component in this monorepo
 # namespaces its tags; this workflow only handles `cli-<version>` tags and
 # exits early for anything else.
+#
+# Each macOS target is compiled and smoke-tested on its own native runner. The
+# publish job uploads nothing until every target has built, so a release never
+# carries a partial set of binaries.
 
 on:
   release:
@@ -30,20 +34,29 @@ concurrency:
 
 env:
   BUN_VERSION: 1.4.1
-  BUILD_TARGET: darwin-arm64
   CLI_DIR: apps/cli
   RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
-  RELEASE_BINARY_PATH: dist/axon-darwin-arm64
-  RELEASE_ARCHIVE_PATH: release/axon-darwin-arm64.gz
   RELEASE_OUTPUT_DIR: release
   RELEASE_SERVICE_ENVIRONMENT: production
   REPLACE_ASSETS: ${{ github.event_name == 'workflow_dispatch' && inputs.replace_assets && 'true' || 'false' }}
 
 jobs:
-  release-darwin-arm64:
-    name: Build and publish darwin-arm64
+  build:
+    name: Build ${{ matrix.target }}
     if: startsWith(github.event.release.tag_name || inputs.release_tag, 'cli-')
-    runs-on: macos-26
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-26
+            host: Darwin-arm64
+            lipo_arch: arm64
+          - target: darwin-x64
+            runner: macos-26-intel
+            host: Darwin-x86_64
+            lipo_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     environment: production
     defaults:
@@ -51,6 +64,9 @@ jobs:
         working-directory: apps/cli
     env:
       AXON_SERVICE_ORIGIN: ${{ vars.AXON_SERVICE_ORIGIN }}
+      BUILD_TARGET: ${{ matrix.target }}
+      RELEASE_BINARY_PATH: dist/axon-${{ matrix.target }}
+      RELEASE_ARCHIVE_PATH: release/axon-${{ matrix.target }}.gz
 
     steps:
       - name: Check out exact release tag
@@ -64,8 +80,8 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Verify native Apple Silicon runner
-        run: test "$(uname -s)-$(uname -m)" = "Darwin-arm64"
+      - name: Verify native ${{ matrix.target }} runner
+        run: test "$(uname -s)-$(uname -m)" = "${{ matrix.host }}"
 
       - name: Derive CLI version from namespaced tag
         run: |
@@ -108,26 +124,6 @@ jobs:
             parseServiceOrigin(value, { allowLoopbackHttp: false });
           '
 
-      - name: Refuse existing assets unless recovery replacement is explicit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          existing=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
-          for asset in \
-            axon-darwin-arm64.gz \
-            axon-darwin-arm64.map \
-            checksums.txt \
-            release-metadata.json \
-            VERSION \
-            install.sh
-          do
-            if printf '%s\n' "$existing" | grep -Fqx "$asset" && [ "$REPLACE_ASSETS" != "true" ]; then
-              echo "release asset already exists: $asset" >&2
-              echo "Use a workflow_dispatch recovery run with replace_assets enabled only after reviewing the failed release." >&2
-              exit 1
-            fi
-          done
-
       - name: Check formatting and lint across the workspace
         working-directory: .
         run: bunx biome ci .
@@ -146,7 +142,7 @@ jobs:
 
       - name: Verify architecture
         run: |
-          test "$(lipo -archs "$RELEASE_BINARY_PATH")" = "arm64"
+          test "$(lipo -archs "$RELEASE_BINARY_PATH")" = "${{ matrix.lipo_arch }}"
           file "$RELEASE_BINARY_PATH"
 
       - name: Ad-hoc sign and verify executable
@@ -159,52 +155,131 @@ jobs:
           test "$("$RELEASE_BINARY_PATH" --version)" = "$RELEASE_VERSION"
           "$RELEASE_BINARY_PATH" harnesses
 
-      - name: Package reproducible release assets
+      - name: Package reproducible archive
         run: |
           rm -rf "$RELEASE_OUTPUT_DIR"
           mkdir -p "$RELEASE_OUTPUT_DIR"
           COPYFILE_DISABLE=1 gzip -9 -n -c "$RELEASE_BINARY_PATH" > "$RELEASE_ARCHIVE_PATH"
           gzip -t "$RELEASE_ARCHIVE_PATH"
-          cp "${RELEASE_BINARY_PATH}.map" "$RELEASE_OUTPUT_DIR/axon-darwin-arm64.map"
+          cp "${RELEASE_BINARY_PATH}.map" "$RELEASE_OUTPUT_DIR/axon-${BUILD_TARGET}.map"
+
+      # The signed binary travels with its archive so the publish job hashes both.
+      - name: Hand off ${{ matrix.target }} build
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            apps/cli/dist/axon-${{ matrix.target }}
+            apps/cli/release/axon-${{ matrix.target }}.gz
+            apps/cli/release/axon-${{ matrix.target }}.map
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release assets
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 15
+    environment: production
+    defaults:
+      run:
+        working-directory: apps/cli
+
+    steps:
+      - name: Check out exact release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Derive CLI version and commit from namespaced tag
+        run: |
+          printf 'RELEASE_VERSION=%s\n' "${RELEASE_TAG#cli-}" >> "$GITHUB_ENV"
+          printf 'BUILD_COMMIT=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Collect every target's build
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          merge-multiple: true
+          # `uses:` steps ignore the job's working-directory default.
+          path: apps/cli
+
+      - name: Refuse existing assets unless recovery replacement is explicit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+          for asset in \
+            axon-darwin-arm64.gz \
+            axon-darwin-arm64.map \
+            checksums-darwin-arm64.txt \
+            axon-darwin-x64.gz \
+            axon-darwin-x64.map \
+            checksums-darwin-x64.txt \
+            checksums.txt \
+            release-metadata.json \
+            VERSION \
+            install.sh
+          do
+            if printf '%s\n' "$existing" | grep -Fqx "$asset" && [ "$REPLACE_ASSETS" != "true" ]; then
+              echo "release asset already exists: $asset" >&2
+              echo "Use a workflow_dispatch recovery run with replace_assets enabled only after reviewing the failed release." >&2
+              exit 1
+            fi
+          done
+
+      - name: Generate release metadata and checksums
+        run: |
           cp install.sh "$RELEASE_OUTPUT_DIR/install.sh"
           cmp install.sh "$RELEASE_OUTPUT_DIR/install.sh"
           bun run release:metadata
 
       - name: Verify packaged hashes
         run: |
-          expected_archive=$(awk '$2 == "axon-darwin-arm64.gz" { print $1 }' release/checksums.txt)
-          expected_binary=$(awk '$2 == "axon-darwin-arm64" { print $1 }' release/checksums.txt)
-          test "$(shasum -a 256 release/axon-darwin-arm64.gz | awk '{ print $1 }')" = "$expected_archive"
-          test "$(gzip -dc release/axon-darwin-arm64.gz | shasum -a 256 | awk '{ print $1 }')" = "$expected_binary"
+          for target in darwin-arm64 darwin-x64; do
+            checksums="release/checksums-$target.txt"
+            expected_archive=$(awk -v name="axon-$target.gz" '$2 == name { print $1 }' "$checksums")
+            expected_binary=$(awk -v name="axon-$target" '$2 == name { print $1 }' "$checksums")
+            test "$(shasum -a 256 "release/axon-$target.gz" | awk '{ print $1 }')" = "$expected_archive"
+            test "$(gzip -dc "release/axon-$target.gz" | shasum -a 256 | awk '{ print $1 }')" = "$expected_binary"
+          done
+          # Launchers released before x64 support read only arm64 hashes from checksums.txt.
+          cmp release/checksums.txt release/checksums-darwin-arm64.txt
           test "$(cat release/VERSION)" = "$RELEASE_VERSION"
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -- \
+            release/axon-darwin-arm64.gz \
+            release/axon-darwin-arm64.map \
+            release/checksums-darwin-arm64.txt \
+            release/axon-darwin-x64.gz \
+            release/axon-darwin-x64.map \
+            release/checksums-darwin-x64.txt \
+            release/checksums.txt \
+            release/release-metadata.json \
+            release/VERSION \
+            release/install.sh
           if [ "$REPLACE_ASSETS" = "true" ]; then
-            gh release upload "$RELEASE_TAG" --clobber \
-              release/axon-darwin-arm64.gz \
-              release/axon-darwin-arm64.map \
-              release/checksums.txt \
-              release/release-metadata.json \
-              release/VERSION \
-              release/install.sh
+            gh release upload "$RELEASE_TAG" --clobber "$@"
           else
-            gh release upload "$RELEASE_TAG" \
-              release/axon-darwin-arm64.gz \
-              release/axon-darwin-arm64.map \
-              release/checksums.txt \
-              release/release-metadata.json \
-              release/VERSION \
-              release/install.sh
+            gh release upload "$RELEASE_TAG" "$@"
           fi
 
-      - name: Attest release executable archive
+      - name: Attest release executable archives
         uses: actions/attest-build-provenance@v3
         with:
           # `uses:` steps ignore the job's working-directory default.
-          subject-path: apps/cli/release/axon-darwin-arm64.gz
+          subject-path: |
+            apps/cli/release/axon-darwin-arm64.gz
+            apps/cli/release/axon-darwin-x64.gz
 
       - name: Promote stable semantic versions
         env:

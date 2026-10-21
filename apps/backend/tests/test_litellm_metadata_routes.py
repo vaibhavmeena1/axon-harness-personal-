@@ -36,11 +36,10 @@ def stored_policy(settings: LiteLLMSettings) -> dict:
         "rpm_limit": 10,
         "permissions": {"custom": True},
         "object_permission": {"mcp_servers": ["operator-owned-server"]},
-        "metadata": {"source": "meta-harness", "axon_user_team_id": "12", "operator": "owned"},
+        "metadata": {"source": "meta-harness", "axon_user_id": "42", "operator": "owned"},
     }
 
 
-@pytest.mark.parametrize("owner_field", ["deputydev-user-team-id", "axon_user_team_id", "deputydev_user_team_id"])
 @pytest.mark.parametrize(
     "old_routes",
     [
@@ -50,7 +49,7 @@ def stored_policy(settings: LiteLLMSettings) -> dict:
     ],
 )
 def test_migrate_original_managed_key_preserves_other_policies(
-    settings: LiteLLMSettings, user: AuthenticatedUser, owner_field: str, old_routes: list[str]
+    settings: LiteLLMSettings, user: AuthenticatedUser, old_routes: list[str]
 ) -> None:
     api = IdentityAPI()
 
@@ -59,10 +58,9 @@ def test_migrate_original_managed_key_preserves_other_policies(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
-            original["metadata"][owner_field] = original["metadata"].pop("axon_user_team_id")
             original["allowed_routes"] = old_routes
             api.keys[key_hash] = deepcopy(original)
             assert await identity.ensure_identity(user) == key
@@ -84,7 +82,7 @@ def test_migrate_original_managed_key_preserves_other_policies(
 
 @pytest.mark.parametrize(
     "policy",
-    ["custom-routes", "already-upgraded", "unmanaged", "wrong-owner", "legacy-wrong-owner", "blocked", "expired"],
+    ["custom-routes", "already-upgraded", "unmanaged", "wrong-owner", "legacy-owner", "blocked", "expired"],
 )
 def test_do_not_override_custom_unmanaged_or_inactive_keys(
     settings: LiteLLMSettings, user: AuthenticatedUser, policy: str
@@ -96,7 +94,7 @@ def test_do_not_override_custom_unmanaged_or_inactive_keys(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             original = stored_policy(settings)
             if policy == "custom-routes":
@@ -106,12 +104,12 @@ def test_do_not_override_custom_unmanaged_or_inactive_keys(
             elif policy == "unmanaged":
                 original["metadata"]["source"] = "operator"
             elif policy == "wrong-owner":
-                original["metadata"]["axon_user_team_id"] = "99"
-                # A conflicting legacy marker must not override the canonical owner.
-                original["metadata"]["deputydev_user_team_id"] = "12"
-            elif policy == "legacy-wrong-owner":
-                original["metadata"].pop("axon_user_team_id")
-                original["metadata"]["deputydev_user_team_id"] = "99"
+                original["metadata"]["axon_user_id"] = "99"
+                # A legacy membership marker is never an auth user identity.
+                original["metadata"]["deputydev_user_team_id"] = "42"
+            elif policy == "legacy-owner":
+                original["metadata"].pop("axon_user_id")
+                original["metadata"]["deputydev_user_team_id"] = "42"
             elif policy == "blocked":
                 original["blocked"] = True
             else:
@@ -142,7 +140,7 @@ def test_failed_migration_fails_closed_without_caching(
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = stored_policy(settings)
             with pytest.raises(LiteLLMIdentityError):
                 await identity.ensure_identity(user)

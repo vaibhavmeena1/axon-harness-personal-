@@ -11,6 +11,8 @@ import { createSessionRecovery, type SessionRecovery } from "./session-recovery.
 import { type SessionVerificationStatus, verifyEncryptedSession } from "./verification.ts";
 import { waitForAuthWork } from "./wait-for-auth.ts";
 
+const MAX_RELAY_REQUEST_BODY_BYTES = 50 * 1024 * 1024;
+
 const REMOVED_REQUEST_HEADERS = [
   "authorization",
   "api-key",
@@ -186,7 +188,7 @@ async function forwardManagedRequest(
   // Only the bounded request body is replayable. Successful response/SSE bodies stay streaming.
   const body =
     request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
-  if (body !== undefined && body.byteLength > 10 * 1024 * 1024) {
+  if (body !== undefined && body.byteLength > MAX_RELAY_REQUEST_BODY_BYTES) {
     return relayError(413, "Axon request is too large.");
   }
   // Recommendations have their own short-lived picker. Recover on the ensuing model
@@ -360,7 +362,7 @@ export function startAuthenticatedRequestRelay(
     port: 0,
     development: false,
     idleTimeout: 0,
-    maxRequestBodySize: 10 * 1024 * 1024,
+    maxRequestBodySize: MAX_RELAY_REQUEST_BODY_BYTES,
     error() {
       return relayError(503, "Axon could not process this request safely");
     },

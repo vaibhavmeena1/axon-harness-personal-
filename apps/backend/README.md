@@ -55,7 +55,7 @@ To use LiteLLM running on the host at port 4000, set these fields in the ignored
 
 For a backend running inside Docker on macOS, use `http://host.docker.internal:4000` instead. `API_KEY` is read only from JSON, never environment variables. Restart the backend after changing settings. Keep real credentials out of `config_template.json` and restrict access to your local `config.json`.
 
-Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, teams, memberships, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through Axon's backend using a saved Axon session, not the LiteLLM master key.
+Use stock LiteLLM with a PostgreSQL database and set `API_KEY` to its master key for native user/team synchronization. With `IDENTITY_SYNC_ENABLED: true`, the backend provisions verified users, memberships in the configured LiteLLM team, and backend-only virtual keys through LiteLLM's management APIs. No custom authentication hook or shared identity-signing secret is needed. With synchronization disabled, the proxy uses `API_KEY` directly; it may be empty for a private deployment without upstream key authentication. The CLI continues to authenticate through Axon's backend using a saved Axon session, not the LiteLLM master key.
 
 ### LiteLLM browser dashboard (optional)
 
@@ -168,11 +168,13 @@ With `IDENTITY_SYNC_ENABLED: true`, set `LITELLM.TEAM_ID` to an **existing LiteL
 "TEAM_ROLE": "user"
 ```
 
-New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. An empty `TEAM_ID` retains the verified Axon team ID and creates that native team if needed.
+New users are created with a `teams` entry and `auto_create_key: false`; existing users missing membership are added through `/team/member_add`. The configured team must already exist and be active: provisioning fails rather than creating a replacement or falling back to another team. `TEAM_ID` must be nonempty when identity synchronization is enabled; missing/empty values fail startup. Axon never provisions teams from auth-service identity fields.
 
 Native users are resolved **only by the verified auth-service email**, normalized by trimming whitespace and case-folding. The backend searches `/user/list?user_email=...`, verifies an exact email match locally (LiteLLM's filter is a substring search), and follows pagination. Ambiguous, malformed, unavailable, or excessive lookup results fail closed. A missing email is created through `/user/new` **without `user_id`**, letting LiteLLM generate its native ID; a competing create is accepted only after an exact-email read-back. There is no lookup fallback to an Axon account or membership ID.
 
-All team memberships and virtual-key ownership checks use that resolved native ID. Multiple verified Axon memberships with the same email reuse one LiteLLM user. User metadata stores their membership references as a list under `deputydev-user-team-id`; each membership-scoped key stores its individual ID under the same field and retains `axon_team_id` for the original Axon team. These references are not native user IDs or authorization inputs. Missing references are merged through a metadata-only `/user/update` and read back before issuing/caching a key. The cache includes verified email as well as membership and native team, so a changed email cannot reuse a cached identity unchecked.
+All LiteLLM team memberships and native virtual-key ownership checks use that email-resolved native ID. Axon requires a positive integer `user_id` from auth-service `GET /v2/get-auth-data` and ignores auth `user_team_id`, `team_id`, organization, and role fields. User and key metadata store the auth ID as a scalar string under `axon_user_id`; a missing user reference is merged through a metadata-only `/user/update` and read back before issuing/caching a key. An existing conflicting auth user reference fails closed. Native IDs, unrelated metadata (including historical membership references), and policies are preserved. The cache includes verified email, auth user ID, and configured LiteLLM team.
+
+Virtual keys are deterministic HMACs over a user-ID-specific namespace, native LiteLLM user ID, verified auth user ID, and configured LiteLLM team ID, signed with the backend master key. This intentionally generates new keys instead of reusing membership-scoped keys, even if the old membership ID equals the user ID. Existing users are reused by email; old keys and historical spend/usage remain untouched. Old key-specific budgets, restrictions, and spend counters are **not copied** to new keys; user/team policies still apply. Review key policy and explicitly retire old keys if appropriate. No manual native user-ID edits or auth-service changes are needed. See the [user-ID cutover checklist](../../docs/user-id-cutover.md).
 
 No maximum budget is sent. Set budgets, model access, MCP permissions, and other policy in the LiteLLM UI. User roles, budgets, model/MCP permissions, unrelated metadata, and existing membership roles are preserved; changing `TEAM_ROLE` affects newly granted memberships, not existing ones.
 
@@ -191,8 +193,8 @@ After a backend restart, identity provisioning lazily upgrades active keys with 
 harness default (`["llm_api_routes"]`, `["llm_api_routes", "/key/info", "/v2/user/info"]`,
 or `["llm_api_routes", "/key/info", "/v2/user/info", "/team/*"]`)
 only when their metadata identifies them as this harness's key for
-the same verified membership (`source=meta-harness`, matching `deputydev-user-team-id`,
-`axon_user_team_id`, or the older `deputydev_user_team_id` ownership marker). Native key
+the same verified user (`source=meta-harness` and matching `axon_user_id`). Legacy membership
+markers never authorize an upgrade. Native key
 ownership is separately checked against the email-resolved LiteLLM user and selected team. The upgrade changes
 only `allowed_routes` and is read back before caching the key. Custom route lists, unmanaged keys,
 blocked/expired keys, budgets, spend, and MCP grants are not changed. No key recreation or login
@@ -261,7 +263,7 @@ Routing, in match order:
 
 The mount is registered in `app/main.py` *after* the API routers, including `/install.sh`. Starlette matches routes in registration order, so the catch-all at `/` can only be reached once every registered route has been tried.
 
-`/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, then fetches `/<version>/checksums.txt` and `/<version>/axon-darwin-arm64.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
+`/install.sh` serves the repository's `apps/cli/install.sh` with only its default release base URL substituted from `CLI_INSTALL.RELEASES_URL` in `config.json`. The Docker image copies that same script alongside the backend. Set `RELEASES_URL` to `https://YOUR_ORIGIN/api/v1/cli/releases` (no trailing slash); it is public and must contain no credentials. The script resolves `/latest/VERSION` once, picks `darwin-arm64` or `darwin-x64` from the CPU (a Rosetta-translated shell on Apple Silicon still gets `darwin-arm64`), then fetches `/<version>/checksums-<target>.txt` and `/<version>/axon-<target>.gz`. Downloads redirect to short-lived **signed CloudFront** URLs; S3 presigned GET is available internally but bypasses the cache. Installer, release pointer, checksums, and redirect responses are not cached. Users can install with `curl -fsSL https://YOUR_ORIGIN/install.sh | sh` or download the script for inspection first.
 
 ### Deployment under a path prefix
 
@@ -360,7 +362,7 @@ the incomplete batch is not forwarded, concurrency capacity is released, and an 
 `reason=client_disconnected` without a traceback or payload. The handler uses the conventional
 499 cancellation status; the disconnected client may not receive a response.
 
-The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is the auth user ID when available, otherwise verified email. `user.email`, optional `user.name`, `pi.identity.source=axon_auth`, and `axon.user_team_id` are server-authoritative. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
+The proxy accepts only POSTs to `/api/v1/otel/v1/traces`, `/v1/metrics`, and `/v1/logs` (all under the same prefix). It validates the shared session/subscription guard before reading protobuf, obtains verified email/name via auth data or the auth service’s existing POST `/verify-auth-token`, and rewrites identity in resources, scopes, records, events, links, datapoints, and exemplars. Client `user.*`/`enduser.*` fields are removed; `user.id` is always the required verified auth user ID. `user.email`, optional `user.name`, `pi.identity.source=axon_auth`, and `axon.user_id` are server-authoritative; legacy client `axon.user_team_id` attributes are removed. Missing verified identity fails closed. No Git email is read by the extension in managed mode.
 
 `PROXY.UPSTREAM_URL` is a private collector base (optional path prefix), not a signal-specific URL. Its origin must be explicitly approved in `ALLOWED_TELEMETRY_ORIGINS`. HTTP is allowed for trusted private-network collectors; public CLI-to-backend traffic requires HTTPS except local development. `PROXY.HEADERS` stays server-side. Caller authorization/cookies/query parameters are never forwarded. Redirects are refused; OTLP response bodies/statuses/Retry-After are preserved. Gzip uploads are decoded with a bounded expansion limit; collector requests are sent as uncompressed protobuf. Wire/decoded payload, response, record-count, timeout, and concurrent-request limits are enforced. The per-user-team rate limit and concurrency limit are **per backend worker**; add ingress/global controls for multiple workers and unauthenticated abuse.
 
@@ -368,13 +370,14 @@ Environment fallback retains standard HTTP/protobuf or gRPC exporters and enviro
 
 #### Pi startup defaults
 
-The template enables codemode and the LiteLLM MCP bridge independently for managed Pi launches:
+The template enables codemode, the LiteLLM MCP bridge, and cache notices independently for managed Pi launches:
 
 ```json
 "CLI_CLIENT_CONFIG": {
   "PI": {
     "CODEMODE_ENABLED": true,
     "LITELLM_MCP_ENABLED": true,
+    "SHOW_CACHE_MISS_NOTICES": true,
     "DEFAULT_PROVIDER": "",
     "DEFAULT_MODEL": ""
   }
@@ -382,7 +385,7 @@ The template enables codemode and the LiteLLM MCP bridge independently for manag
 ```
 
 When `PI` is configured, both toggles must be JSON booleans. The config API projects them as
-`"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true }`. Before launching Pi,
+`"pi": { "codemodeEnabled": true, "litellmMcpEnabled": true, "showCacheMissNotices": true }`. Before launching Pi,
 `axon` merges `"+codemode"` and `"litellm": { "mcp": { "enabled": true } }` into
 `$AXON_HOME/pi/settings.json` (normally `~/.axon/pi/settings.json`), preserving other tool choices,
 packages, LiteLLM MCP exposure/tool preferences, and unrelated settings. Enabling the bridge lets
@@ -392,7 +395,7 @@ Standalone `~/.pi/agent/settings.json` is never modified.
 
 These are defaults, not enforced policy: Pi CLI flags and trusted project settings can override them.
 On `/reload`, a managed online session fetches fresh backend Pi defaults through the launcher
-relay before Pi reloads settings and provider extensions. This reapplies both Pi fields, including
+relay before Pi reloads settings and provider extensions. This reapplies managed Pi defaults, including
 restoring the backend MCP value after a local edit. It does not refresh telemetry/search or launch-only compaction/recommender/provider preferences
 or poll in the background. Fetch/auth/schema failures preserve the current settings and warn safely.
 Pi preserves already-active tools on reload: changing `CODEMODE_ENABLED` updates its tool-selection
@@ -400,6 +403,11 @@ default but does not forcibly deactivate an active codemode tool. The MCP bridge
 the freshly applied value.
 `CODEMODE_ENABLED: false` sets a disabled codemode startup default; `LITELLM_MCP_ENABLED: false`
 disables the LiteLLM MCP bridge without changing codemode or separately configured MCP servers.
+`SHOW_CACHE_MISS_NOTICES` projects as `pi.showCacheMissNotices` and writes Pi's `showCacheMissNotices`
+setting. It defaults to `true` when omitted from a configured `PI` section; set it to `false` to hide
+cache-miss, cache-warming, compaction-usage, and provider-recovery notices. Explicit values must be JSON
+booleans (not null, strings, or numbers). Managed launch and `/reload` reapply this value over local
+agent-directory edits; trusted project settings can still override it.
 `DEFAULT_PROVIDER` and `DEFAULT_MODEL` (for example `"litellm"` and `"openai/gpt-6.1-sol"`) set Pi's
 `defaultProvider`/`defaultModel` and project as `pi.defaultProvider`/`pi.defaultModel`. Pi only uses a
 saved default when both are present, so set both or neither; values must be trimmed text without control
@@ -575,13 +583,13 @@ the ignored `config.json`, not the template, and restart after changes.
 See [session storage and reconciliation](../../docs/session-backup-and-restore.md#6-private-object-storage-configuration)
 for private/create-only bucket requirements and operator tools.
 
-### CLI releases (macOS arm64 only)
+### CLI releases (macOS arm64 and x64)
 
-Copy the `CLI_RELEASES` section from `config_template.json` into the ignored `config.json`. The checked-in example is **disabled**, with placeholder bucket, signing credentials, and hashes. Set a private `S3.BUCKET`, `S3.REGION`, an immutable `KEY_PREFIX`, a random `UPLOAD_AUTH_KEY` of at least 32 characters, CloudFront `DISTRIBUTION_URL`, trusted `KEY_PAIR_ID` and RSA `PRIVATE_KEY` (PEM with newlines represented as JSON `\\n`). Supply each version's `s3_key`, compressed `archive_sha256`, and decompressed `binary_sha256` under `VERSIONS`, with `LATEST_VERSION` referencing an already published version (leave it empty while staging the very first release; public `latest` returns 503 until promotion). Set `ENABLED` to `true` only after real values are provided. The server validates enabled settings at startup. Settings are cached: **restart the backend** after staging a version or promoting `LATEST_VERSION`.
+Copy the `CLI_RELEASES` section from `config_template.json` into the ignored `config.json`. The checked-in example is **disabled**, with placeholder bucket, signing credentials, and hashes. Set a private `S3.BUCKET`, `S3.REGION`, an immutable `KEY_PREFIX`, a random `UPLOAD_AUTH_KEY` of at least 32 characters, CloudFront `DISTRIBUTION_URL`, trusted `KEY_PAIR_ID` and RSA `PRIVATE_KEY` (PEM with newlines represented as JSON `\\n`). Under `VERSIONS`, key each version by release target (`darwin-arm64`, `darwin-x64`), each with its `s3_key` (ending in `/axon-<target>.gz`), compressed `archive_sha256`, and decompressed `binary_sha256`; paste the entry `release:prepare-s3` generates. `darwin-arm64` is required for every version. A flat entry with `s3_key` and hashes directly under the version is still accepted as the `darwin-arm64` asset of a release from before x64 support, and serves no x64 binary. Configure `LATEST_VERSION` to reference an already published version (leave it empty while staging the very first release; public `latest` returns 503 until promotion). Set `ENABLED` to `true` only after real values are provided. The server validates enabled settings at startup. Settings are cached: **restart the backend** after staging a version or promoting `LATEST_VERSION`.
 
 The private bucket should permit origin reads only through CloudFront Origin Access Control, and allow backend role `s3:PutObject` for the dedicated `cli/releases/` prefix (plus `s3:GetObject` only if internal direct GET signing is required). Enable bucket versioning / protect published keys against deletion. Allow the CloudFront trusted key group to verify signed URLs. Use short-lived AWS role credentials (default AWS credential chain); do **not** put AWS access keys, the upload secret, or the CloudFront private key into `install.sh`, checked-in config, frontend assets, or CLI builds. Anyone who can reach the public endpoint can obtain a short-lived download URL; the upload signer is secret-protected.
 
-`POST /api/v1/cli/releases/uploads/presign` requires `Authorization: Bearer <UPLOAD_AUTH_KEY>` and JSON `{ "version": "0.2.0" }`. It signs **only** the preconfigured version's S3 key, returning `url`, `headers`, and `expires_in`. Send every returned header on PUT; the signed SHA-256 checksum makes S3 validate the bytes and `If-None-Match: *` refuses overwrites. Never log or share the URL. `GET /api/v1/cli/releases/latest/VERSION` and `GET /api/v1/cli/releases/<version>/checksums.txt` are public; the exact-version archive endpoint returns an uncached 302 to CloudFront. Upload and verify the new release **before** moving `LATEST_VERSION`. See [the manual publishing procedure](../cli/README.md#releasing).
+`POST /api/v1/cli/releases/uploads/presign` requires `Authorization: Bearer <UPLOAD_AUTH_KEY>` and JSON `{ "version": "0.2.0", "target": "darwin-x64" }` (`target` defaults to `darwin-arm64`). It signs **only** that preconfigured version and target's S3 key, returning `url`, `headers`, and `expires_in`. Send every returned header on PUT; the signed SHA-256 checksum makes S3 validate the bytes and `If-None-Match: *` refuses overwrites. Never log or share the URL. `GET /api/v1/cli/releases/latest/VERSION` and `GET /api/v1/cli/releases/<version>/checksums-<target>.txt` are public, and `/<version>/axon-<target>.gz` returns an uncached 302 to CloudFront; a target missing from that version returns 404. `GET /<version>/checksums.txt` keeps serving exactly the `darwin-arm64` hashes, because launchers released before x64 support read only that file. Upload and verify the new release **before** moving `LATEST_VERSION`. See [the manual publishing procedure](../cli/README.md#releasing).
 
 Checksums obtained from the same backend detect corruption and mismatch, not compromise of that backend. Stronger independent artifact authentication would require a separately signed update manifest.
 
@@ -603,10 +611,10 @@ cp -R ../frontend/dist ./static
 The image builds the frontend and embeds it, so **the build context is the repository root**, not this directory:
 
 ```bash
-docker build --build-arg SERVICE_NAME=axon-backend -t axon-backend .
+docker build -t axon-backend .
 ```
 
-Both Python stages default to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
+The shared Python base stage defaults to the private base `831059512818.dkr.ecr.ap-south-1.amazonaws.com/python:wolfi-3.12.14-r8`. Internal builds do not need to pass `PYTHON_BASE_IMAGE`, but the build runner must have ECR pull permissions and log in before building:
 
 ```bash
 aws ecr get-login-password --region ap-south-1 | \
@@ -622,15 +630,14 @@ Use the public Wolfi base explicitly; no AWS credentials are required:
 ```bash
 docker build \
   --build-arg PYTHON_BASE_IMAGE=cgr.dev/chainguard/wolfi-base:latest \
-  --build-arg SERVICE_NAME=axon-backend \
   -t axon-backend .
 ```
 
-Both Python stages use the selected image. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. The frontend stage remains `node:24-alpine`.
+The builder and runtime inherit the selected image and shared Python setup. The private base already supplies Python 3.12.14; the public base installs Wolfi's `python-3.12` package. The frontend stage remains `node:24-alpine`.
 
 ### Optional private-first fallback wrapper
 
-`sh scripts/build-backend-image.sh --build-arg SERVICE_NAME=axon-backend -t axon-backend` (or `bun run build:backend-image`) attempts to pull the private base first and selects the public base if that pull fails. Run it after ECR login to enable private access. Pass Docker build flags without a build-context argument; the script supplies the repository root. A later build failure is not retried with another base.
+`sh scripts/build-backend-image.sh -t axon-backend` (or `bun run build:backend-image`) attempts to pull the private base first and selects the public base if that pull fails. Run it after ECR login to enable private access. Pass Docker build flags without a build-context argument; the script supplies the repository root. A later build failure is not retried with another base.
 
 The Python dependencies resolve from PyPI; no Bitbucket SSH forwarding is required.
 
@@ -638,20 +645,32 @@ The build assumes it can reach npm, PyPI, and GitHub over untampered TLS. On a d
 
 ### Stage layout
 
+The image has a frontend stage, a shared Python base, a dependency builder, and a runtime stage. Wolfi uses glibc, allowing native Python dependencies such as asyncpg, cryptography, uvloop, and httptools to use prebuilt manylinux wheels instead of requiring Alpine/musl source builds. The builder copies `uv` from its version-pinned container image and installs locked dependencies without adding a compiler toolchain; neither `uv` nor the Node toolchain is copied into runtime.
+
 The frontend stage runs on `$BUILDPLATFORM` (natively), because its output is architecture-independent; pinning it to `linux/amd64` would run the whole Node toolchain under QEMU on an Apple Silicon machine. The Python stages stay on `linux/amd64` to match the deployment target, so they *are* emulated locally and are correspondingly slower. Node exists only in the frontend stage; the runtime image gets the built bundle and no JavaScript toolchain.
+
+The service directory is fixed at `/home/ubuntu/1mg/axon-backend`, and the runtime user is `app-user:app-group` (UID/GID 1001). Application files are copied with that ownership, and the logs directory is created writable without recursively changing ownership. The default command is `./deployment/run_service.sh`, which loads process settings from `config.json` and execs Uvicorn. Deployment commands can override this `CMD`.
 
 ### Database migrations inside a pod
 
-The image does **not** include dbmate. An administrator can run the reviewed SQL migrations with the image's Python and existing asyncpg dependency, using the pod's mounted `config.json`:
+Deployment must provide the **real dbmate binary** on the migration container's `PATH`; the application Dockerfile does not install it. Inject `DATABASE_URL` securely from the same database credentials used by `config.json` (URL-encode credentials and include the required PostgreSQL TLS options). dbmate does not read `config.json`.
+
+Run migrations once per deployment, before starting application workers:
 
 ```sh
-# In the backend working directory inside the pod, once per deployment:
-python -m deployment.run_migrations
+# In the backend working directory; DATABASE_URL must already be exported:
+./deployment/run_migrations.sh
+# Inspect applied/pending versions:
+./deployment/run_migrations.sh status
 # Roll back only the latest migration, after reviewing its cleanup requirements:
-python -m deployment.run_migrations down
+./deployment/run_migrations.sh down
 ```
 
-`deployment/run_migrations.sh` wraps the same command. The runner serializes concurrent runs with a PostgreSQL advisory lock and commits each migration with its entry in `META_HARNESS_schema_migrations`. Re-running it skips applied versions; it never dumps shared database schemas. It requires the existing `public.user_teams(id BIGINT PRIMARY KEY)` prerequisite for session backups. See [migration safety](../../docs/session-backup-and-restore.md#5-database-and-migration-safety).
+The wrapper invokes `dbmate --migrations-dir <backend>/db/migrations --no-dump-schema migrate` by default. The database must already exist; pass `up` instead if dbmate should create a fresh database and the database role has permission. The migration directory is resolved relative to the script, so callers need not rely on the current working directory. Schema dumping is disabled, so deployment neither needs `pg_dump` nor rewrites `db/schema.sql`.
+
+Use dbmate's default **`schema_migrations`** ledger; do not override `DBMATE_MIGRATIONS_TABLE`. `META_HARNESS_` prefixes apply to application tables, indexes, and constraints, not migration tracking. Re-running migrations skips recorded versions. Each migration and its ledger update are transactional. Use a single deployment migration job; do not run separate migration mechanisms against the same tables.
+
+The former no-op `dbmate.py` and custom Python migration runner have been removed. Replace any old `python3 dbmate.py ...` init command with `./deployment/run_migrations.sh` (or an equivalent real dbmate invocation); deployment manifests are managed outside this repository. Session ownership stores the verified auth-service `user_id` as `owner_user_id`, a scalar `BIGINT`; no local auth-service tables or foreign keys are required. See [migration safety](../../docs/session-backup-and-restore.md#5-database-and-migration-safety).
 
 ## Commands
 

@@ -103,7 +103,9 @@ export class SessionBackups {
     readonly api: BackupApi,
     private readonly observer: ProductEventObserver = emitProductEvent,
   ) {
-    this.root = join(paths.home, "session-backups");
+    // Separate ID domains: never interpret an old membership queue as a user queue,
+    // even when the numeric IDs happen to be identical. Old files remain untouched.
+    this.root = join(paths.home, "session-backups", "users");
   }
 
   private observed(event: Omit<ProductEvent, "category">): void {
@@ -112,6 +114,7 @@ export class SessionBackups {
 
   async initialize(): Promise<void> {
     await privateDirectory(this.paths.home);
+    await privateDirectory(join(this.paths.home, "session-backups"));
     await privateDirectory(this.root);
   }
 
@@ -180,12 +183,11 @@ export class SessionBackups {
       if (existing) {
         if (existing.origin !== this.api.origin)
           throw new BackupPolicyError("backend origin changed");
-        if (existing.owner !== policy.owner_user_team_id)
-          throw new BackupPolicyError("account changed");
+        if (existing.owner !== policy.owner_user_id) throw new BackupPolicyError("account changed");
         return existing; // Never move a queue to another account/origin.
       }
       const binding = {
-        owner: policy.owner_user_team_id,
+        owner: policy.owner_user_id,
         origin: this.api.origin,
         credentialHash: this.api.credentialFingerprint(),
       };

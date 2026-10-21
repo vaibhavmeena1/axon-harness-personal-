@@ -39,13 +39,9 @@ def settings() -> LiteLLMSettings:
 @pytest.fixture
 def user() -> AuthenticatedUser:
     return AuthenticatedUser(
-        user_team_id=12,
         user_id=42,
-        team_id=7,
         user_email="dev@example.com",
         user_name="Developer",
-        organization_name="Dev",
-        role="member",
     )
 
 
@@ -179,7 +175,7 @@ def test_new_user_joins_configured_team_without_budgets(
     assert creation["teams"] == [{"team_id": settings.team_id, "user_role": role}]
     assert "user_id" not in creation
     assert creation["user_email"] == user.user_email
-    assert creation["metadata"]["deputydev-user-team-id"] == ["12"]
+    assert creation["metadata"]["axon_user_id"] == "42"
     assert creation["user_role"] == "internal_user"
     assert creation["auto_create_key"] is False
     assert creation["send_invite_email"] is False
@@ -190,12 +186,12 @@ def test_new_user_joins_configured_team_without_budgets(
     generated = api.posted("/key/generate")[0]
     assert generated["key"] == key
     assert generated["user_id"] == NATIVE_USER_ID
-    assert generated["metadata"]["deputydev-user-team-id"] == "12"
+    assert generated["metadata"]["axon_user_id"] == "42"
     assert generated["team_id"] == settings.team_id
     assert generated["key_type"] == "default"
     assert generated["allowed_routes"] == ["llm_api_routes", "/key/info", "/v2/user/info", "/team/*", "/v1/systemone"]
     assert not api.posted("/key/update")
-    assert generated["metadata"]["axon_team_id"] == "7"
+    assert "axon_team_id" not in generated["metadata"]
     assert "max_budget" not in generated
     original_team["members_with_roles"] = [{"user_id": NATIVE_USER_ID, "role": role}]
     assert api.teams[settings.team_id] == original_team
@@ -214,7 +210,7 @@ def test_existing_user_is_added_without_updating_user_policy(
         "user_email": user.user_email,
         "max_budget": 20,
         "models": ["custom"],
-        "metadata": {"deputydev-user-team-id": ["12"], "operator": "owned"},
+        "metadata": {"axon_user_id": "42", "operator": "owned"},
     }
     api.users[NATIVE_USER_ID] = deepcopy(existing_user)
     asyncio.run(provision(replace(settings, team_role=role), user, api))
@@ -239,7 +235,7 @@ def test_existing_membership_and_key_policy_are_preserved(settings: LiteLLMSetti
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             key_hash = hashlib.sha256(key.encode()).hexdigest()
             stored_key = {"user_id": NATIVE_USER_ID, "team_id": settings.team_id, "max_budget": 5, "models": ["custom"]}
             api.keys[key_hash] = deepcopy(stored_key)
@@ -268,15 +264,11 @@ def test_invalid_configured_team_fails_before_creating_user_or_key(
     assert all(request.method == "GET" for request in api.requests)
 
 
-def test_blank_team_id_retains_axon_team_provisioning(settings: LiteLLMSettings, user: AuthenticatedUser) -> None:
+def test_blank_team_id_never_falls_back_to_auth_team(settings: LiteLLMSettings, user: AuthenticatedUser) -> None:
     api = IdentityAPI()
-    asyncio.run(provision(replace(settings, team_id="", team_role="admin"), user, api))
-    assert "teams" not in api.posted("/user/new")[0]
-    created_team = api.posted("/team/new")[0]
-    assert created_team["team_id"] == "7"
-    assert created_team["members_with_roles"] == [{"user_id": NATIVE_USER_ID, "role": "admin"}]
-    assert "max_budget" not in created_team
-    assert api.posted("/key/generate")[0]["team_id"] == "7"
+    with pytest.raises(LiteLLMIdentityError, match="TEAM_ID"):
+        asyncio.run(provision(replace(settings, team_id="", team_role="admin"), user, api))
+    assert not api.requests
 
 
 def test_new_user_membership_is_verified_even_if_teams_field_is_ignored(
@@ -299,14 +291,12 @@ def test_unpersisted_membership_does_not_issue_key(settings: LiteLLMSettings, us
     assert not api.posted("/key/generate")
 
 
-def test_membership_id_is_never_used_as_a_native_user_lookup(
-    settings: LiteLLMSettings, user: AuthenticatedUser
-) -> None:
+def test_auth_user_id_is_never_used_as_a_native_user_lookup(settings: LiteLLMSettings, user: AuthenticatedUser) -> None:
     api = IdentityAPI()
-    unrelated = {"user_id": "12", "user_email": "different@example.com"}
-    api.users["12"] = deepcopy(unrelated)
+    unrelated = {"user_id": "42", "user_email": "different@example.com"}
+    api.users["42"] = deepcopy(unrelated)
     asyncio.run(provision(settings, user, api))
-    assert api.users["12"] == unrelated
+    assert api.users["42"] == unrelated
     assert api.posted("/key/generate")[0]["user_id"] == NATIVE_USER_ID
     assert all(request.url.path != "/user/info" for request in api.requests)
 
@@ -319,7 +309,7 @@ def test_disabled_existing_key_is_not_replaced(settings: LiteLLMSettings, user: 
             identity = LiteLLMIdentityClient(
                 settings, LiteLLMTransport(settings, client=client, management_client=client)
             )
-            key = identity._virtual_key("12", settings.team_id, NATIVE_USER_ID)
+            key = identity._virtual_key("42", settings.team_id, NATIVE_USER_ID)
             api.keys[hashlib.sha256(key.encode()).hexdigest()] = {
                 "user_id": NATIVE_USER_ID,
                 "team_id": settings.team_id,

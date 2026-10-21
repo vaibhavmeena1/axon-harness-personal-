@@ -99,7 +99,7 @@ test("deployment base paths reach auth, config, backups and upstream relay reque
       if (url.pathname === "/axon/api/v1/cli/config")
         return Response.json({ schemaVersion: 1 });
       if (url.pathname === "/axon/api/v1/sessions/status")
-        return Response.json({ enabled: true, owner_user_team_id: "1" });
+        return Response.json({ enabled: true, owner_user_id: "1" });
       return Response.json({ path: url.pathname + url.search });
     };
     const { BUILD_INFO } = await import("./src/build-info.ts");
@@ -204,6 +204,38 @@ test("pinned LiteLLM image discovery and generation use the authenticated relay 
     false,
     "/axon",
   );
+});
+
+test("relay forwards request bodies up to 50 MiB and rejects larger bodies before upstream", async () => {
+  await runRelayScript(`
+    const limit = 50 * 1024 * 1024;
+    // A valid JSON object padded with whitespace to exercise the exact byte boundary.
+    const payload = new Uint8Array(limit + 1).fill(32);
+    payload[0] = 123;
+    payload[1] = 125;
+    let calls = 0;
+    upstream = async (request) => {
+      calls += 1;
+      assert.equal(new URL(request.url).pathname, "/litellm/v1/chat/completions");
+      assert.equal(request.headers.get("authorization"), "Bearer initial-session");
+      const body = new Uint8Array(await request.arrayBuffer());
+      assert.equal(body.byteLength, limit);
+      assert.deepEqual(body, payload.subarray(0, limit));
+      return Response.json({ forwarded: true });
+    };
+    const sendPayload = (body) => actualFetch(relay.origin + "/litellm/v1/chat/completions", {
+      method: "POST",
+      headers: { authorization: "Bearer " + relay.capability, "content-type": "application/json" },
+      body,
+    });
+    const accepted = await sendPayload(payload.subarray(0, limit));
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(await accepted.json(), { forwarded: true });
+    const rejected = await sendPayload(payload);
+    assert.equal(rejected.status, 413);
+    await rejected.arrayBuffer();
+    assert.equal(calls, 1);
+  `);
 });
 
 test("browser login starts and polls under the deployment base path", async () => {
@@ -565,7 +597,7 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(request.headers.get("authorization"), calls++ === 0
         ? "Bearer initial-session" : "Bearer rotated-session");
       return Response.json({ schemaVersion: 1, pi: {
-        codemodeEnabled: !enabled, litellmMcpEnabled: enabled
+        codemodeEnabled: !enabled, litellmMcpEnabled: enabled, showCacheMissNotices: enabled
       } }, { headers: { "x-session-refresh-token": "rotated-session" } });
     };
     for (enabled of [true, false]) {
@@ -575,6 +607,7 @@ test("refreshes Pi defaults through the pinned config API and safely rotates the
       assert.equal(response.headers.get("x-session-refresh-token"), null);
       const settings = await Bun.file(settingsPath).json();
       assert.deepEqual(settings.defaultTools, ["read", enabled ? "-codemode" : "+codemode"]);
+      assert.equal(settings.showCacheMissNotices, enabled);
       assert.deepEqual(settings.litellm, {
         ...initial.litellm, mcp: { ...initial.litellm.mcp, enabled }
       });

@@ -1,18 +1,8 @@
 -- migrate:up
-DO $$
-BEGIN
-    IF to_regclass('public.user_teams') IS NULL OR NOT EXISTS (
-        SELECT 1 FROM pg_attribute a
-        JOIN pg_constraint c ON c.conrelid = a.attrelid AND c.contype = 'p' AND c.conkey = ARRAY[a.attnum]
-        WHERE a.attrelid = to_regclass('public.user_teams') AND a.attname = 'id' AND a.atttypid = 'bigint'::regtype
-    ) THEN
-        RAISE EXCEPTION 'Session backups require existing public.user_teams(id BIGINT PRIMARY KEY)';
-    END IF;
-END $$;
-
 CREATE TABLE "META_HARNESS_sessions" (
     id UUID CONSTRAINT "META_HARNESS_sessions_pkey" PRIMARY KEY,
-    owner_user_team_id BIGINT NOT NULL,
+    -- Verified auth-service user ID; no cross-service foreign key.
+    owner_user_id BIGINT NOT NULL,
     client_session_key UUID NOT NULL,
     harness VARCHAR(128) NOT NULL,
     harness_session_id VARCHAR(256),
@@ -38,9 +28,7 @@ CREATE TABLE "META_HARNESS_sessions" (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
-    CONSTRAINT "META_HARNESS_sessions_owner_fk" FOREIGN KEY (owner_user_team_id)
-        REFERENCES public.user_teams(id) ON DELETE RESTRICT,
-    CONSTRAINT "META_HARNESS_sessions_stream_unique" UNIQUE (owner_user_team_id, client_session_key),
+    CONSTRAINT "META_HARNESS_sessions_stream_unique" UNIQUE (owner_user_id, client_session_key),
     CONSTRAINT "META_HARNESS_sessions_identity" CHECK (
         length(harness) > 0 AND length(session_format) > 0 AND
         (harness_session_id IS NULL OR length(harness_session_id) > 0)
@@ -95,7 +83,7 @@ CREATE TABLE "META_HARNESS_sessions" (
         ))
     ))
 );
-CREATE INDEX "META_HARNESS_sessions_owner_updated" ON "META_HARNESS_sessions" (owner_user_team_id, updated_at DESC, id DESC) WHERE deleted_at IS NULL;
+CREATE INDEX "META_HARNESS_sessions_owner_updated" ON "META_HARNESS_sessions" (owner_user_id, updated_at DESC, id DESC) WHERE deleted_at IS NULL;
 CREATE INDEX "META_HARNESS_sessions_pending_expiry" ON "META_HARNESS_sessions" (pending_expires_at) WHERE pending_request_id IS NOT NULL;
 CREATE INDEX "META_HARNESS_sessions_deleted" ON "META_HARNESS_sessions" (deleted_at) WHERE deleted_at IS NOT NULL;
 

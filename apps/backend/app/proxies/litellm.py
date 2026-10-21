@@ -75,7 +75,7 @@ async def _api_request(
     ]
     headers.extend(
         [
-            (b"x-litellm-end-user-id", str(user.user_team_id).encode("ascii")),
+            (b"x-litellm-end-user-id", str(user.user_id).encode("ascii")),
             (b"x-request-id", request_id.encode("ascii")),
         ]
     )

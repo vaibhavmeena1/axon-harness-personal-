@@ -18,6 +18,11 @@ import { LAUNCHER_EXIT_STATUS } from "../launcher/exit-status.ts";
 import { withFileLock } from "../launcher/file-lock.ts";
 import { resolveServiceUrl, SERVICE_ENDPOINTS } from "../product/endpoints.ts";
 import { type AxonPaths, resolveAxonPaths } from "../product/paths.ts";
+import {
+  hostReleaseTarget,
+  isReleaseTarget,
+  type ReleaseTarget,
+} from "../product/release-targets.ts";
 import { emitProductEvent, productFailureReason } from "../telemetry/product-events.ts";
 import {
   assertReleaseVersion,
@@ -31,12 +36,18 @@ const FAILED_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const NO_UPDATE_ENV = "AXON_NO_UPDATE";
 const CI_ENV = "CI";
 
+export interface UpdateProgress {
+  readonly stage: "check" | "download" | "verify";
+  readonly version?: string;
+}
+
 export interface UpdateContext {
   readonly build: BuildInfo;
   readonly paths: AxonPaths;
   readonly executable: string;
   readonly client: ReleaseClient;
   readonly verifySignature?: (path: string) => Promise<void>;
+  readonly onProgress?: ((progress: UpdateProgress) => void) | undefined;
 }
 
 export function updateContext(): UpdateContext {
@@ -50,16 +61,14 @@ export function updateContext(): UpdateContext {
   };
 }
 
-function assertSupported(context: UpdateContext): void {
-  if (
-    context.build.kind !== "binary" ||
-    context.build.target !== "darwin-arm64" ||
-    process.platform !== "darwin" ||
-    process.arch !== "arm64"
-  ) {
-    throw new Error("updates require a managed macOS arm64 release binary");
+/** Returns the release target to update to: always the one this binary was built for. */
+function supportedTarget(context: UpdateContext): ReleaseTarget {
+  const { kind, target, version } = context.build;
+  if (kind !== "binary" || !isReleaseTarget(target) || target !== hostReleaseTarget()) {
+    throw new Error("updates require a managed macOS release binary built for this host");
   }
-  assertReleaseVersion(context.build.version);
+  assertReleaseVersion(version);
+  return target;
 }
 
 async function assertManagedInstallation(context: UpdateContext): Promise<void> {
@@ -122,7 +131,7 @@ async function verifyStagedBinary(
 }
 
 async function latest(context: UpdateContext): Promise<string> {
-  assertSupported(context);
+  supportedTarget(context);
   return latestReleaseVersion(context.client);
 }
 
@@ -130,6 +139,7 @@ export async function checkForUpdate(
   context: UpdateContext = updateContext(),
 ): Promise<string | undefined> {
   const startedAt = Date.now();
+  context.onProgress?.({ stage: "check" });
   try {
     const version = await latest(context);
     const available = Bun.semver.order(version, context.build.version) > 0;
@@ -156,14 +166,17 @@ export async function checkForUpdate(
 }
 
 async function performUpdate(context: UpdateContext): Promise<string | undefined> {
+  const target = supportedTarget(context);
   await assertManagedInstallation(context);
   const version = await checkForUpdate(context);
   if (!version) return undefined;
+  context.onProgress?.({ stage: "download", version });
 
   // The staging directory lives on the same filesystem as the installed binary.
   const staging = await mkdtemp(join(context.paths.bin, ".axon-update-"));
   try {
-    const binary = await downloadVerifiedRelease(context.client, version, staging);
+    const binary = await downloadVerifiedRelease(context.client, version, staging, target);
+    context.onProgress?.({ stage: "verify", version });
     await verifyStagedBinary(context, binary, version);
     // Recheck the inode immediately before activation: a different updater or user may
     // have replaced the executable while we were downloading.
@@ -190,7 +203,7 @@ export async function installUpdate(
 ): Promise<string | undefined> {
   const startedAt = Date.now();
   try {
-    assertSupported(context);
+    supportedTarget(context);
     await assertManagedInstallation(context);
     const installed = await withFileLock(join(context.paths.locks, "update.lock"), () =>
       performUpdate(context),

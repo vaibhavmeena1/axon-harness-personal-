@@ -14,7 +14,7 @@ This is the current implementation and operations reference for Axon session bac
 | Remote retention | One latest committed checkpoint per stream, not revision history |
 | Size limits | Raw: **100 MiB / 104,857,600 bytes**; stored: **101 MiB / 105,906,176 bytes** |
 | Encoding | API accepts `identity` or `gzip`; the Pi capture implementation stages gzip |
-| Ownership | Verified auth-service `user_team_id`, never a client-supplied user, device, path, or email |
+| Ownership | Verified auth-service `user_id`, never a client-supplied user, device, path, or email |
 | Capture scope | Regular files inside `${AXON_HOME:-~/.axon}/pi/sessions`; no symlink following or global-Pi import |
 | Restore | Explicit download and new local fork into an existing user-selected checkout; never overwrite an active session or pull automatically |
 
@@ -50,7 +50,7 @@ Managed Pi exposes:
 ```
 
 - Backups include source code, pasted secrets, terminal output, prompts, tool arguments/results, thinking, and embedded images. There is **no transcript redaction or client-side encryption layer** in this implementation. Session names are also private metadata.
-- The first enabled policy check automatically binds the local queue to the verified membership and compiled backend origin. A different account/origin does not inherit the old account’s queue. Local settings do not contain an enable/disable policy.
+- The first enabled policy check automatically binds the local queue to the verified user and compiled backend origin. A different account/origin does not inherit the old account’s queue. Local settings do not contain an enable/disable policy.
 - Only the administrator can stop backups, by setting `SESSION_BACKUPS.ENABLED=false` in backend config and restarting. Existing local snapshots are retained; previously issued signed URLs cannot be instantly revoked. Missing/unavailable policy fails closed: no new capture or upload is attempted until the backend is reachable.
 - `retry` clears queue error flags for compatible streams of the original verified account. Unrecoverable or busy streams remain untouched/paused and are reported rather than preventing healthy streams from retrying. It does **not** immediately upload: work resumes at a later lifecycle/manual boundary. A changed remote stream still requires a local fork.
 - The Axon header shows a compact live `Backup:` indicator (checking, syncing, saved, pending, paused, off, or on). It updates as lifecycle/manual work finishes; “saved” means an acknowledged checkpoint, not continuous per-message backup. Backup hints and detailed queue status are not pinned in the footer.
@@ -79,15 +79,18 @@ Local state is separate from live Pi sessions:
 
 ```text
 ${AXON_HOME:-~/.axon}/session-backups/
-├─ settings.json                      # account binding: origin, owner, credential fingerprint
-├─ device.json                        # random installation-scoped UUID
-├─ <hash(origin + owner)>/
-│  └─ <hash(source path + native ID)>/
-│     ├─ state.json                   # local/remote identity, token, pending/next, status
-│     ├─ selected-leaf.json           # tree-selection sidecar
-│     └─ <request-file>.jsonl.gz       # immutable pending checkpoint bytes
+├─ users/                             # user-ID ownership namespace
+│  ├─ settings.json                   # account binding: origin, user ID, credential fingerprint
+│  ├─ device.json                     # random installation-scoped UUID
+│  └─ <hash(origin + owner)>/
+│     └─ <hash(source path + native ID)>/
+│        ├─ state.json                # local/remote identity, token, pending/next, status
+│        ├─ selected-leaf.json        # tree-selection sidecar
+│        └─ <request-file>.jsonl.gz    # immutable pending checkpoint bytes
 └─ archives/restore-*/                # verified restore payload, original JSONL, provenance
 ```
+
+Old membership-bound settings/queues directly under `session-backups/` are not imported, rebound, or deleted. The separate `users/` namespace prevents confusing the two ID domains even when their numeric IDs match. Live Pi sessions are unaffected.
 
 Locks and temporary staging files also live here. Directories are `0700`, files `0600`. JSON queue pointers/account bindings are written with atomic rename and file/directory fsync. Source path hashes are local queue locators, not remote ownership.
 
@@ -107,7 +110,7 @@ An older **unsubmitted `next`** snapshot missing only `display_name` is repaired
 
 Network/storage failures retain pending state. Invalid/oversized/unsafe capture and API access, validation, or stale-token failures can pause the stream for explicit review. Lost commit responses are reconciled against remote state; an uncertain old checkpoint is not blindly submitted under a new UUID. A stale remote token does not silently replace another client's newer checkpoint.
 
-The client uses the shared encrypted Axon credential store and compare-and-swap refresh handling. It verifies membership before sync, checks credentials before chaining API calls and before object PUT, and rechecks administrator policy and ownership immediately before object transfer. Tokens are not placed in queue jobs or transcripts and are never sent to S3. Managed launches supply trusted `PI_AXON_BACKUP_SERVICE_ORIGIN` and `PI_AXON_BACKUP_HOME` markers through the final environment filter; the extension does not rely on ambient `AXON_HOME` reaching Pi.
+The client uses the shared encrypted Axon credential store and compare-and-swap refresh handling. It verifies the user before sync, checks credentials before chaining API calls and before object PUT, and rechecks administrator policy and ownership immediately before object transfer. Tokens are not placed in queue jobs or transcripts and are never sent to S3. Managed launches supply trusted `PI_AXON_BACKUP_SERVICE_ORIGIN` and `PI_AXON_BACKUP_HOME` markers through the final environment filter; the extension does not rely on ambient `AXON_HOME` reaching Pi.
 
 ### Session names
 
@@ -119,7 +122,7 @@ The display copy replaces control characters, unpaired surrogates, and Unicode l
 
 ## 4. Backend API and commit protocol
 
-The router is registered under `/api/v1/sessions`. All operations use the shared authenticated-user guard and verified membership ownership, with `Cache-Control: no-store`. Disabled/unavailable private storage returns `503`. POST metadata bodies are capped at **16 KiB**; validation errors are sanitized rather than reflecting submitted content.
+The router is registered under `/api/v1/sessions`. All operations use the shared authenticated-user guard and verified user ownership, with `Cache-Control: no-store`. Disabled/unavailable private storage returns `503`. POST metadata bodies are capped at **16 KiB**; validation errors are sanitized rather than reflecting submitted content.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -161,7 +164,9 @@ The service permits two simultaneous validations per process. Registration/reser
 
 ## 5. Database and migration safety
 
-[`20261002140000_create_sessions.sql`](../apps/backend/db/migrations/20261002140000_create_sessions.sql) creates one quoted table, **`"META_HARNESS_sessions"`**, with a physical FK to existing **`public.user_teams(id BIGINT PRIMARY KEY)`**, using `ON DELETE RESTRICT`. The migration fails if that prerequisite is absent/incompatible. It does not create a second membership table or migrate legacy chat data.
+[`20261002140000_create_sessions.sql`](../apps/backend/db/migrations/20261002140000_create_sessions.sql) creates one quoted table, **`"META_HARNESS_sessions"`**, independently of the auth-service database. `owner_user_id` is a required scalar `BIGINT` containing the verified auth-service user ID, not a foreign key. No local `users`, `teams`, or `user_teams` tables are required or created, and no legacy chat data is migrated.
+
+Every session operation gets the required positive integer `user_id` from the auth service through the shared authenticated-user guard (`GET /v2/get-auth-data`), never from client-supplied ownership fields. Auth membership/team IDs are ignored. Missing/invalid user IDs fail closed with no fallback to a membership ID or email. Auth-service account deletion does not cascade to backups; retention and cleanup are managed separately.
 
 The row holds:
 
@@ -171,26 +176,29 @@ The row holds:
 - One grouped pending reservation: request/key/expected token/expiry plus snapshot JSON.
 - Creation/update timestamps and deletion tombstone.
 
-Constraints enforce unique `(owner_user_team_id, client_session_key)`, all-or-none current/pending groups, byte/hash/encoding limits, and bounded JSON. Owner/pagination, pending-expiry, and deletion indexes are prefixed. Pi leaf/version semantics belong in the adapter, not Pi-specific SQL columns. The Tortoise model maps membership as a scalar BIGINT; the SQL migrations own the physical legacy FK.
+Constraints enforce unique `(owner_user_id, client_session_key)`, all-or-none current/pending groups, byte/hash/encoding limits, and bounded JSON. Owner/pagination, pending-expiry, and deletion indexes are prefixed. Pi leaf/version semantics belong in the adapter, not Pi-specific SQL columns. The Tortoise model also stores ownership as a scalar BIGINT, with no local membership model or relation.
 
-Apply reviewed migrations through the deployment runner, only against the intended configured database:
+Apply reviewed migrations with the real dbmate binary, supplied by deployment. Securely inject `DATABASE_URL` for the intended database; it must match the application's `config.json`, which dbmate does not read.
 
 ```sh
 cd apps/backend
-uv run --frozen python -m deployment.run_migrations
+# DATABASE_URL must already be exported; the database must already exist.
+./deployment/run_migrations.sh
 ```
 
-The Python runner uses the existing asyncpg dependency, a separate `META_HARNESS_schema_migrations` ledger, and a PostgreSQL advisory lock to serialize concurrent runners. Each migration and its ledger update commit atomically. It never dumps schemas or requires dbmate. To roll back the latest migration, run `python -m deployment.run_migrations down`. Migration `down` refuses while object/pending pointers remain: finish object/tombstone cleanup first.
+The wrapper runs `dbmate --migrations-dir <backend>/db/migrations --no-dump-schema migrate`. Pass `up` instead to allow creation of a fresh database. dbmate uses its default **`schema_migrations`** tracking table, without an application prefix or custom `DBMATE_MIGRATIONS_TABLE` override. Each migration and its ledger update commit atomically; recorded versions are skipped on subsequent runs. Run a single migration job before application workers start. Production migration commands do not dump schemas or require `pg_dump`. To roll back the latest migration, run `./deployment/run_migrations.sh down`. Migration `down` refuses while object/pending pointers remain: finish object/tombstone cleanup first.
+
+For this **fresh-database deployment**, the creation migration directly creates `owner_user_id`; no reset, column rename, data backfill, or manual ledger manipulation is needed. There is **no membership-to-user session data migration**. An existing database with membership-owned sessions needs a separately reviewed upgrade/reset plan; never relabel old membership IDs as user IDs. See the [user-ID cutover checklist](user-id-cutover.md).
 
 To regenerate application-only DDL without inspecting a populated application database:
 
 ```sh
 cd apps/backend
 uv run --frozen python -m deployment.generate_session_schema \
-  --admin-url postgresql://localhost/postgres
+  --admin-url 'postgresql://localhost/postgres?sslmode=disable'
 ```
 
-This creates/drops a uniquely named disposable database with a minimal membership fixture and prints schema SQL. Review before replacing `db/schema.sql`; the dump does not own the legacy membership table.
+This requires dbmate and `pg_dump` locally, applies the migration chain in a uniquely named disposable database, dumps only the application session table, and drops the disposable database. No auth-service membership fixture is needed. Review before replacing `db/schema.sql`; it is an application-only DDL snapshot, not a deployment command. Do not load the snapshot and then replay the creation migration against the same database.
 
 ## 6. Private object storage configuration
 
@@ -343,7 +351,7 @@ During this refresh, `check:cli` passed, the CLI session suite passed **27 tests
 Before enabling an administrator-managed pilot:
 
 - Provision the private unversioned namespace and pass the strict live S3 smoke test.
-- Verify the legacy membership prerequisite and apply the reviewed migration through the deployment runner.
+- Apply the reviewed migration through the deployment runner; no auth-service database tables are required.
 - Install and monitor the operator reconciliation schedule and multi-worker edge rate limiter.
 - Test real managed Pi quit/reload/session switch under slow/offline networks, interrupted transfer, and large sessions; evaluate shutdown delay and memory/disk limits.
 - Exercise restore on pilot machines/checkouts and check privacy-sensitive logging/access/retention policies.

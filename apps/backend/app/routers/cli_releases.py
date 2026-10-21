@@ -7,13 +7,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from app.core.config import CliReleaseSettings, Settings, get_settings
-from app.services.cli_releases import (
-    ARCHIVE_NAME,
-    BINARY_NAME,
-    CliReleaseService,
-    archive_for_version,
-)
+from app.core.config import DEFAULT_CLI_RELEASE_TARGET, CliReleaseSettings, Settings, get_settings
+from app.services.cli_releases import CliReleaseService, archive_for_version, checksums_text
 from app.services.storage_dependencies import get_cli_release_service
 
 router = APIRouter(prefix="/api/v1/cli/releases", tags=["cli-releases"])
@@ -28,6 +23,8 @@ def enabled(settings: Settings) -> CliReleaseSettings:
 
 class PresignUploadRequest(BaseModel):
     version: str
+    # Publishers from before x64 support send no target and upload darwin-arm64.
+    target: str = DEFAULT_CLI_RELEASE_TARGET
 
 
 class PresignUploadResponse(BaseModel):
@@ -47,7 +44,7 @@ def presign_upload(
     releases = enabled(settings)
     if not authorization or not compare_digest(authorization, f"Bearer {releases.upload_auth_key}"):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid upload credentials")
-    asset = archive_for_version(releases, request.version)
+    asset = archive_for_version(releases, request.version, request.target)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Release not found")
     url, headers = release_service.presign_s3_put(asset)
@@ -71,27 +68,34 @@ def latest_version(settings: Annotated[Settings, Depends(get_settings)]) -> Resp
     return Response(content=f"{releases.latest_version}\n", media_type="text/plain", headers=NO_STORE)
 
 
-@router.get("/{version}/checksums.txt")
-def checksums(version: str, settings: Annotated[Settings, Depends(get_settings)]) -> Response:
+def checksums_response(settings: Settings, version: str, target: str) -> Response:
     releases = enabled(settings)
-    asset = archive_for_version(releases, version)
+    asset = archive_for_version(releases, version, target)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Release not found")
-    return Response(
-        content=f"{asset.archive_sha256}  {ARCHIVE_NAME}\n{asset.binary_sha256}  {BINARY_NAME}\n",
-        media_type="text/plain",
-        headers=NO_STORE,
-    )
+    return Response(content=checksums_text(target, asset), media_type="text/plain", headers=NO_STORE)
 
 
-@router.get(f"/{{version}}/{ARCHIVE_NAME}")
+@router.get("/{version}/checksums.txt")
+def legacy_checksums(version: str, settings: Annotated[Settings, Depends(get_settings)]) -> Response:
+    """Launchers released before x64 support read only darwin-arm64 hashes, from this name."""
+    return checksums_response(settings, version, DEFAULT_CLI_RELEASE_TARGET)
+
+
+@router.get("/{version}/checksums-{target}.txt")
+def checksums(version: str, target: str, settings: Annotated[Settings, Depends(get_settings)]) -> Response:
+    return checksums_response(settings, version, target)
+
+
+@router.get("/{version}/axon-{target}.gz")
 def download(
     version: str,
+    target: str,
     settings: Annotated[Settings, Depends(get_settings)],
     release_service: Annotated[CliReleaseService, Depends(get_cli_release_service)],
 ) -> RedirectResponse:
     releases = enabled(settings)
-    asset = archive_for_version(releases, version)
+    asset = archive_for_version(releases, version, target)
     if asset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Release not found")
     return RedirectResponse(release_service.signed_cloudfront_get(asset), status_code=302, headers=NO_STORE)

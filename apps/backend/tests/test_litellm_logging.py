@@ -44,11 +44,8 @@ def app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
 
     async def authenticate(request: Request) -> AuthenticatedUser:
         user = AuthenticatedUser(
-            user_team_id=12,
-            team_id=34,
+            user_id=12,
             user_email="secret-email@example.test",
-            organization_name="test",
-            role="member",
         )
         request.state.authenticated_user = user
         return user
@@ -239,11 +236,8 @@ def test_stream_failures_preserve_status_and_cleanup(
             "headers": [(b"x-request-id", b"test-request-id")],
             "state": {
                 "authenticated_user": AuthenticatedUser(
-                    user_team_id=12,
-                    team_id=34,
+                    user_id=12,
                     user_email="secret@example.test",
-                    organization_name="test",
-                    role="member",
                 ),
                 "encrypted_session_data": "secret-session",
             },
